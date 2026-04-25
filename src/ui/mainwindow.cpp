@@ -431,7 +431,10 @@ void MainWindow::onStreamChunkReceived(const QString &chunk)
 
     // Append chunk text (raw, will be re-rendered on completion)
     cursor.insertText(chunk);
-    m_chatDisplay->ensureCursorVisible();
+
+    // Force scroll to bottom (ensureCursorVisible may not work reliably with insertHtml)
+    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
 }
 
 void MainWindow::onStreamFinished(const QString &fullContent)
@@ -515,6 +518,8 @@ void MainWindow::onThemeChanged(int theme)
 {
     Q_UNUSED(theme);
     this->setStyleSheet(StyleSheetManager::instance()->currentStyleSheet());
+    // Re-render chat content with new theme colors
+    renderCurrentSession();
 }
 
 void MainWindow::onLanguageChanged()
