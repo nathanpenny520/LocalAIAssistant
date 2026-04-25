@@ -44,6 +44,9 @@ private:
     static QString processTable(const QStringList &tableLines, const MarkdownColors &colors);
     static bool isTableLine(const QString &line);
     static bool isTableSeparatorLine(const QString &line);
+    static QStringList parseTableRow(const QString &line);
+    static QStringList parseAlignmentFromSeparator(const QString &line);
+    static QString getAlignment(const QStringList &rules, int index);
 };
 
 #endif // MARKDOWNRENDERER_H
