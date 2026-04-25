@@ -52,7 +52,15 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     QString aiLabel = (locale == "en") ? "AI" : QStringLiteral("AI");
 
     // Get current theme for color-aware rendering
-    bool isDarkTheme = StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme;
+    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+    // Also check if SystemTheme actually uses dark colors
+    if (theme == StyleSheetManager::SystemTheme) {
+        QPalette palette = QApplication::palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+        isDarkTheme = (brightness < 128);
+    }
     MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
 
     if (role == "user") {
@@ -267,8 +275,15 @@ void MainWindow::appendChatMessage(const QString &sender, const QString &message
 
     if (bodyStart != -1 && bodyEnd != -1) {
         QString bodyContent = currentHtml.mid(bodyStart + 6, bodyEnd - bodyStart - 6);
-        // Dynamic separator color based on theme
-        bool isDarkTheme = StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme;
+        // Dynamic separator color based on actual theme (including SystemTheme)
+        StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+        bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+        if (theme == StyleSheetManager::SystemTheme) {
+            QPalette palette = QApplication::palette();
+            QColor windowColor = palette.color(QPalette::Window);
+            int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+            isDarkTheme = (brightness < 128);
+        }
         MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
         QString separator = QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>").arg(colors.tableBorder);
         QString newHtml = currentHtml.left(bodyStart + 6) + bodyContent + separator + formatted + currentHtml.mid(bodyEnd);
@@ -303,8 +318,15 @@ void MainWindow::renderCurrentSession()
         fullHtml += rendered;
 
         if (i < session.messages.size() - 1) {
-            // Dynamic separator color based on theme
-            bool isDarkTheme = StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme;
+            // Dynamic separator color based on actual theme (including SystemTheme)
+            StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+            bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+            if (theme == StyleSheetManager::SystemTheme) {
+                QPalette palette = QApplication::palette();
+                QColor windowColor = palette.color(QPalette::Window);
+                int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+                isDarkTheme = (brightness < 128);
+            }
             MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
             QString separator = QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>").arg(colors.tableBorder);
             fullHtml += separator;
