@@ -51,6 +51,10 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     QString userLabel = (locale == "en") ? "You" : QStringLiteral("用户");
     QString aiLabel = (locale == "en") ? "AI" : QStringLiteral("AI");
 
+    // Get current theme for color-aware rendering
+    bool isDarkTheme = StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme;
+    MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
+
     if (role == "user") {
         // User messages are simple text, no need for full markdown rendering
         // Just escape HTML special characters
@@ -58,8 +62,8 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedContent.replace("&", "&amp;");
         escapedContent.replace("<", "&lt;");
         escapedContent.replace(">", "&gt;");
-        return QString("<div style='margin: 12px 0;'><b style='color: #007aff;'>%1:</b> %2</div>")
-               .arg(userLabel, escapedContent);
+        return QString("<div style='margin: 12px 0; color: %1;'><b style='color: #007aff;'>%2:</b> %3</div>")
+               .arg(colors.text, userLabel, escapedContent);
     }
 
     // Parse thinking content for AI messages
@@ -79,21 +83,22 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedThinking.replace("\n", "<br>");
 
         html += QString(
-            "<blockquote style='background-color: #f8f8f8; border-left: 4px solid #888; "
-            "padding: 10px 14px; margin: 12px 0; color: #666; font-size: 13px;'>"
-            "<b>%1</b><br><br>%2</blockquote>"
-        ).arg(thinkingLabel, escapedThinking);
+            "<blockquote style='background-color: %1; border-left: 4px solid %2; "
+            "padding: 10px 14px; margin: 12px 0; color: %3; font-size: 13px;'>"
+            "<b>%4</b><br><br>%5</blockquote>"
+        ).arg(colors.quoteBg, colors.quoteBorder, colors.quoteText, thinkingLabel, escapedThinking);
     }
 
     // Add the AI label
-    html += QString("<div style='margin: 12px 0;'><b style='color: #007aff;'>%1:</b></div>").arg(aiLabel);
+    html += QString("<div style='margin: 12px 0; color: %1;'><b style='color: #007aff;'>%2:</b></div>")
+            .arg(colors.text, aiLabel);
 
     // Add the actual response with full markdown rendering
     if (!response.isEmpty()) {
-        html += MarkdownRenderer::toHtml(response);
+        html += MarkdownRenderer::toHtml(response, isDarkTheme);
     } else if (thinking.isEmpty()) {
         // No thinking content found, show original content
-        html += MarkdownRenderer::toHtml(content);
+        html += MarkdownRenderer::toHtml(content, isDarkTheme);
     }
 
     return html;
@@ -262,7 +267,10 @@ void MainWindow::appendChatMessage(const QString &sender, const QString &message
 
     if (bodyStart != -1 && bodyEnd != -1) {
         QString bodyContent = currentHtml.mid(bodyStart + 6, bodyEnd - bodyStart - 6);
-        QString separator = "<hr style='border: none; border-top: 1px solid #e0e0e0; margin: 16px 0;'>";
+        // Dynamic separator color based on theme
+        bool isDarkTheme = StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme;
+        MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
+        QString separator = QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>").arg(colors.tableBorder);
         QString newHtml = currentHtml.left(bodyStart + 6) + bodyContent + separator + formatted + currentHtml.mid(bodyEnd);
         m_chatDisplay->setHtml(newHtml);
     } else {
@@ -295,7 +303,11 @@ void MainWindow::renderCurrentSession()
         fullHtml += rendered;
 
         if (i < session.messages.size() - 1) {
-            fullHtml += "<hr style='border: none; border-top: 1px solid #e0e0e0; margin: 16px 0;'>";
+            // Dynamic separator color based on theme
+            bool isDarkTheme = StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme;
+            MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
+            QString separator = QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>").arg(colors.tableBorder);
+            fullHtml += separator;
         }
     }
 
