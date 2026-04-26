@@ -12,9 +12,11 @@
 #include <QMenu>
 #include <QTextDocument>
 #include <QMap>
+#include <QHBoxLayout>
 #include "networkmanager.h"
 #include "settingsdialog.h"
 #include "sessionmanager.h"
+#include "filemanager.h"  // 新增
 
 class MainWindow : public QMainWindow
 {
@@ -42,6 +44,10 @@ private slots:
     void onThemeChanged(int theme);
     void onLanguageChanged();
 
+    // 文件相关
+    void onFileButtonClicked();           // 新增
+    void onRemoveFileClicked();           // 新增
+
 private:
     void setupUI();
     void setupMenuBar();
@@ -68,6 +74,14 @@ private:
     bool m_isStreaming;
     QString m_streamingContent;
     bool m_isRendering = false;
+
+    // 文件相关成员
+    FileManager *m_fileManager;           // 新增
+    QPushButton *m_fileButton;            // 新增
+    QWidget *m_fileListArea;              // 新增
+    QHBoxLayout *m_fileListLayout;        // 新增
+    void updateFileListDisplay();         // 新增
+    void clearFileListDisplay();         // 新增
 };
 
 #endif
