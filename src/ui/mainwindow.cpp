@@ -698,13 +698,15 @@ void MainWindow::updateFileListDisplay()
         ).arg(textColor, borderColor, bgColor));
         tagLayout->addWidget(nameLabel);
 
-        // 删除按钮
-        QPushButton *removeBtn = new QPushButton("×", fileTag);
-        removeBtn->setFixedSize(20, 20);
+        // 删除按钮 - 使用 Qt 标准图标
+        QPushButton *removeBtn = new QPushButton(fileTag);
+        QIcon closeIcon = QApplication::style()->standardIcon(QStyle::SP_DialogCloseButton);
+        removeBtn->setIcon(closeIcon);
+        removeBtn->setIconSize(QSize(16, 16));
+        removeBtn->setFixedSize(24, 24);
         removeBtn->setStyleSheet(
-            "QPushButton { color: #ff3b30; font-size: 14px; font-weight: bold; "
-            "border: none; background: transparent; }"
-            "QPushButton:hover { background: #ffebeb; border-radius: 10px; }"
+            "QPushButton { border: none; background: transparent; }"
+            "QPushButton:hover { background: #ffebeb; border-radius: 12px; }"
         );
         removeBtn->setProperty("filePath", file.path);  // 存储文件路径用于删除
         connect(removeBtn, &QPushButton::clicked, this, &MainWindow::onRemoveFileClicked);

@@ -28,7 +28,8 @@ private:
     ~TranslationManager() = default;
 
     static TranslationManager *m_instance;
-    QTranslator *m_translator = nullptr;
+    QTranslator *m_translator = nullptr;      // 应用翻译器
+    QTranslator *m_qtTranslator = nullptr;     // Qt 内置翻译器
     QString m_currentLocale;
     bool m_wasEnabled = false;
 
