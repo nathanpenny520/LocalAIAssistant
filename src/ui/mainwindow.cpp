@@ -125,11 +125,16 @@ MainWindow::MainWindow(QWidget *parent)
     , m_networkManager(new NetworkManager(this))
     , m_markdownDoc(new QTextDocument(this))
     , m_isStreaming(false)
+    , m_fileManager(new FileManager(this))
+    , m_fileButton(new QPushButton(tr("📁"), this))
+    , m_fileListArea(nullptr)
+    , m_fileListLayout(nullptr)
 {
     setupUI();
     setupMenuBar();
 
     connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::onSendClicked);
+    connect(m_fileButton, &QPushButton::clicked, this, &MainWindow::onFileButtonClicked);
     connect(m_inputLine, &QLineEdit::returnPressed, this, &MainWindow::onSendClicked);
     connect(m_settingsAction, &QAction::triggered, this, &MainWindow::onSettingsClicked);
     connect(m_newChatButton, &QPushButton::clicked, this, &MainWindow::onNewChatClicked);
@@ -144,6 +149,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(SessionManager::instance(), &SessionManager::sessionChanged, this, &MainWindow::renderCurrentSession);
     connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this, &MainWindow::onThemeChanged);
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this, &MainWindow::onLanguageChanged);
+
+    // Load saved sessions from disk
+    SessionManager::instance()->loadSessionsFromFile();
+    updateSessionList();
+    renderCurrentSession();
 
     StyleSheetManager::instance()->applyTheme(this);
 }
@@ -187,10 +197,24 @@ void MainWindow::setupUI()
     rightLayout->setContentsMargins(5, 5, 5, 5);
     rightLayout->addWidget(m_chatDisplay, 1);
 
+    // 文件列表区域（输入框上方）
+    m_fileListArea = new QWidget(rightPanel);
+    m_fileListLayout = new QHBoxLayout(m_fileListArea);
+    m_fileListLayout->setContentsMargins(0, 0, 0, 5);
+    m_fileListLayout->addStretch();  // 左侧留空，文件标签靠左排列
+    m_fileListArea->setVisible(false);  // 默认隐藏，有文件时显示
+    rightLayout->addWidget(m_fileListArea);
+
+    // 输入区域（输入框 + 文件按钮 + 发送按钮）
     QHBoxLayout *inputLayout = new QHBoxLayout();
-    inputLayout->addWidget(m_inputLine);
+    inputLayout->addWidget(m_inputLine, 1);  // 输入框占主要空间
+    inputLayout->addWidget(m_fileButton);    // 新增：文件按钮
     inputLayout->addWidget(m_sendButton);
     rightLayout->addLayout(inputLayout);
+
+    // 设置文件按钮样式
+    m_fileButton->setFixedSize(40, 30);
+    m_fileButton->setToolTip(tr("添加文件"));
 
     splitter->setSizes({180, 600});
 
