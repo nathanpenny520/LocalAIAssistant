@@ -312,6 +312,7 @@ void CLIApplication::handleCommand(const QString &command)
         return;
     } else if (cmd == "/listfiles") {
         listFiles();
+        return;  // Fix: prevent double readInput scheduling
     } else if (cmd == "/clearfiles") {
         m_fileManager->clearPendingFiles();
         std::cout << "已清空待发送文件列表" << std::endl;
