@@ -408,17 +408,45 @@ void MainWindow::setInputEnabled(bool enabled)
 void MainWindow::onSendClicked()
 {
     QString userInput = m_inputLine->text().trimmed();
-    if (userInput.isEmpty()) {
-        return;
+    if (userInput.isEmpty() && m_fileManager->pendingFileCount() == 0) {
+        return;  // 无输入且无文件时不发送
+    }
+
+    // 如果有文件，显示提示
+    if (m_fileManager->pendingFileCount() > 0) {
+        QString locale = TranslationManager::instance()->currentLocale();
+        QString tip = (locale == "en")
+            ? QString("Sending with %1 file(s)").arg(m_fileManager->pendingFileCount())
+            : QString(QStringLiteral("发送消息时携带 %1 个文件")).arg(m_fileManager->pendingFileCount());
+        qDebug() << tip;
+    }
+
+    // 创建消息并添加附件
+    ChatMessage userMsg("user", userInput);
+    if (m_fileManager->pendingFileCount() > 0) {
+        userMsg.attachments = m_fileManager->pendingFiles();
     }
 
     SessionManager::instance()->addMessageToCurrentSession("user", userInput);
     m_inputLine->clear();
 
+    // 构建带附件的消息列表发送
+    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    if (!userMsg.attachments.isEmpty()) {
+        // 修改最后一条消息添加附件
+        if (!messages.isEmpty()) {
+            messages.last().attachments = userMsg.attachments;
+        }
+        // 发送后清空待发送文件列表
+        m_fileManager->clearPendingFiles();
+        clearFileListDisplay();
+        m_fileButton->setToolTip(tr("添加文件"));
+    }
+
     m_isStreaming = true;
     m_streamingContent.clear();
     setInputEnabled(false);
-    m_networkManager->sendChatRequestWithContext(SessionManager::instance()->currentSession().messages);
+    m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void MainWindow::onNetworkFinished(const QString &response)
