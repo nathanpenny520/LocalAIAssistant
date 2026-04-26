@@ -1,4 +1,5 @@
 #include "networkmanager.h"
+#include "datamodels.h"
 #include <QDebug>
 #include <QBuffer>
 
@@ -25,10 +26,7 @@ NetworkManager::NetworkManager(QObject *parent)
     m_apiKey = "";
     m_modelName = "local-model";
 
-    m_systemPrompt = "你是一个集成在电脑桌面端的专业 AI 助手。"
-                     "1. 遇到技术问题，请先进行逻辑拆解（Thought），再给出结论。"
-                     "2. 如果是代码建议，请确保符合现代代码规范。"
-                     "3. 保持回答简洁有力，避免过度废话。";
+    m_systemPrompt = loadSystemPrompt();
 
     loadSettings();
 }
@@ -50,9 +48,9 @@ void NetworkManager::loadSettings()
     QSettings settings("LocalAIAssistant", "Settings");
 
     m_isLocalMode = settings.value("localMode", true).toBool();
-    m_apiBaseUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString();
-    m_apiKey = settings.value("apiKey", "").toString();
-    m_modelName = settings.value("modelName", "local-model").toString();
+    m_apiBaseUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString().trimmed();
+    m_apiKey = settings.value("apiKey", "").toString().trimmed();
+    m_modelName = settings.value("modelName", "local-model").toString().trimmed();
 
     m_temperature = settings.value("temperature", 0.4).toDouble();
     m_maxContext = settings.value("maxContext", 10).toInt();
@@ -70,6 +68,41 @@ void NetworkManager::loadSettings()
     }
 
     m_streamingEnabled = settings.value("streamingEnabled", true).toBool();
+}
+
+QString NetworkManager::loadSystemPrompt()
+{
+    // 尝试多个可能的路径
+    QStringList possiblePaths;
+
+    // 1. 应用程序目录下的 core/soul.md
+    QString appDir = QCoreApplication::applicationDirPath();
+    possiblePaths << appDir + "/core/soul.md";
+
+    // 2. macOS app bundle 结构
+    possiblePaths << appDir + "/../Resources/core/soul.md";
+
+    // 3. 开发时相对路径
+    possiblePaths << "sourcecode-ai-assistant/src/core/soul.md";
+    possiblePaths << "src/core/soul.md";
+
+    for (const QString &path : possiblePaths) {
+        QFile file(path);
+        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString content = QString::fromUtf8(file.readAll());
+            file.close();
+            return content.trimmed();
+        }
+    }
+
+    // 降级：内置默认 prompt
+    return "You are a helpful AI assistant integrated into a desktop application.\n\n"
+           "## Language\n\n"
+           "Adapt to user's language. Reply in the same language the user uses.\n\n"
+           "## Guidelines\n\n"
+           "1. For technical problems, break down the logic before giving conclusions.\n"
+           "2. For code suggestions, follow modern coding standards.\n"
+           "3. Keep answers concise and avoid unnecessary verbosity.";
 }
 
 void NetworkManager::saveSettings()
@@ -95,9 +128,9 @@ void NetworkManager::saveSettings()
 void NetworkManager::updateSettings(const QString &apiBaseUrl, const QString &apiKey,
                                     const QString &modelName, bool isLocalMode)
 {
-    m_apiBaseUrl = apiBaseUrl;
-    m_apiKey = apiKey;
-    m_modelName = modelName;
+    m_apiBaseUrl = apiBaseUrl.trimmed();
+    m_apiKey = apiKey.trimmed();
+    m_modelName = modelName.trimmed();
     m_isLocalMode = isLocalMode;
 
     saveSettings();
@@ -118,14 +151,17 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
         m_currentReply = nullptr;
     }
 
-    QString fullUrl = m_apiBaseUrl;
-    
+    // 去除 URL 两端的空白字符
+    QString fullUrl = m_apiBaseUrl.trimmed();
+
     if (fullUrl.isEmpty()) {
         emit errorOccurred("API URL is empty");
         return;
     }
-    
-    if (!fullUrl.startsWith("http://") && !fullUrl.startsWith("https://")) {
+
+    // 检查是否已有协议前缀，如果没有则添加 https://
+    if (!fullUrl.startsWith("http://", Qt::CaseInsensitive) &&
+        !fullUrl.startsWith("https://", Qt::CaseInsensitive)) {
         fullUrl = "https://" + fullUrl;
     }
     
@@ -194,6 +230,7 @@ QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messag
 {
     QJsonArray jsonMessages;
 
+    // System message
     QJsonObject systemObj;
     systemObj["role"] = "system";
     systemObj["content"] = m_systemPrompt;
@@ -203,9 +240,35 @@ QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messag
     int startIndex = qMax(0, totalCount - maxMessages);
 
     for (int i = startIndex; i < totalCount; ++i) {
+        const ChatMessage &msg = messages[i];
         QJsonObject msgObj;
-        msgObj["role"] = messages[i].role;
-        msgObj["content"] = messages[i].content;
+        msgObj["role"] = msg.role;
+
+        // Check for attachments
+        if (msg.attachments.isEmpty()) {
+            // No attachments, use simple string format
+            msgObj["content"] = msg.content;
+        } else {
+            // Has attachments, use multimodal array format
+            QJsonArray contentArray;
+
+            // Add user text first (if any)
+            if (!msg.content.isEmpty()) {
+                contentArray.append(buildTextContentBlock(msg.content));
+            }
+
+            // Add all attachments
+            for (const FileAttachment &file : msg.attachments) {
+                if (file.type == "image") {
+                    contentArray.append(buildImageContentBlock(file.content, file.mimeType));
+                } else {
+                    contentArray.append(buildFileContentBlock(file));
+                }
+            }
+
+            msgObj["content"] = contentArray;
+        }
+
         jsonMessages.append(msgObj);
     }
 
@@ -443,4 +506,35 @@ QString NetworkManager::extractContentFromResponse(const QByteArray &data)
     }
 
     return "未能解析到有效内容";
+}
+
+QJsonObject NetworkManager::buildTextContentBlock(const QString &text)
+{
+    QJsonObject block;
+    block["type"] = "text";
+    block["text"] = text;
+    return block;
+}
+
+QJsonObject NetworkManager::buildImageContentBlock(const QString &base64Data, const QString &mime)
+{
+    QJsonObject block;
+    block["type"] = "image_url";
+
+    QJsonObject imageUrl;
+    imageUrl["url"] = base64Data;  // Already in data:mime;base64,... format
+    block["image_url"] = imageUrl;
+
+    return block;
+}
+
+QJsonObject NetworkManager::buildFileContentBlock(const FileAttachment &file)
+{
+    QJsonObject block;
+    block["type"] = "text";
+
+    // File content already formatted in FileManager
+    block["text"] = file.content;
+
+    return block;
 }

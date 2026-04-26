@@ -8,6 +8,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QSettings>
+#include <QCoreApplication>
+#include <QFile>
 #include <optional>
 #include "datamodels.h"
 
@@ -41,9 +43,13 @@ private slots:
 private:
     void loadSettings();
     void saveSettings();
+    QString loadSystemPrompt();
     QString extractContentFromResponse(const QByteArray &data);
     QString extractDeltaFromSSE(const QByteArray &data, bool isOllama = false);
     QJsonArray buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages);
+    QJsonObject buildTextContentBlock(const QString &text);
+    QJsonObject buildImageContentBlock(const QString &base64Data, const QString &mime);
+    QJsonObject buildFileContentBlock(const FileAttachment &file);
 
     QNetworkAccessManager *m_networkManager;
     QNetworkReply *m_currentReply;
