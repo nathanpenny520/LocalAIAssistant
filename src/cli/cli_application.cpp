@@ -1,8 +1,10 @@
 #include "cli_application.h"
+#include "filemanager.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QTimer>
 #include <QSettings>
+#include <QFileInfo>
 #include <iostream>
 #include "networkmanager.h"
 #include "sessionmanager.h"
@@ -10,6 +12,7 @@
 CLIApplication::CLIApplication(QObject *parent)
     : QObject(parent)
     , m_networkManager(nullptr)
+    , m_fileManager(nullptr)
     , m_running(false)
     , m_interactiveMode(false)
     , m_isStreaming(false)
@@ -19,10 +22,11 @@ CLIApplication::CLIApplication(QObject *parent)
 int CLIApplication::run(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    QCoreApplication::setApplicationName("LocalAIAssistant-CLI");
+    QCoreApplication::setApplicationName("LocalAIAssistant");
     QCoreApplication::setApplicationVersion("1.0.0");
 
     m_networkManager = new NetworkManager(this);
+    m_fileManager = new FileManager(this);
     connect(m_networkManager, &NetworkManager::responseReceived,
             this, &CLIApplication::onResponseReceived);
     connect(m_networkManager, &NetworkManager::errorOccurred,
@@ -138,7 +142,7 @@ int CLIApplication::run(int argc, char *argv[])
 void CLIApplication::printUsage()
 {
     std::cout << "\n本地AI助手 - 命令行版本 v1.0.0\n\n";
-    std::cout << "用法:\n";
+    std::cout << "用法(ai 是 ./LocalAIAssistant-CLI 缩写，可以自己取alias):\n";
     std::cout << "  ai chat                    进入交互式对话模式\n";
     std::cout << "  ai ask <问题>              单次查询\n";
     std::cout << "  ai sessions [选项]         会话管理\n";
@@ -203,6 +207,9 @@ int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLine
     std::cout << "  /config   - 显示配置\n";
     std::cout << "  /stream   - 切换流式输出\n";
     std::cout << "  /clear    - 清屏\n";
+    std::cout << "  /file <路径> - 添加文件到待发送列表\n";
+    std::cout << "  /listfiles   - 显示待发送文件列表\n";
+    std::cout << "  /clearfiles  - 清空待发送文件列表\n";
     std::cout << "  /exit     - 退出程序\n";
     std::cout << "====================================\n\n";
 
@@ -236,6 +243,13 @@ void CLIApplication::readInput()
     m_running = true;
     m_isStreaming = false;
     m_streamingContent.clear();
+
+    // 创建消息并添加附件
+    ChatMessage userMsg("user", qInput);
+    if (m_fileManager->pendingFileCount() > 0) {
+        userMsg.attachments = m_fileManager->pendingFiles();
+        std::cout << "发送消息时携带 " << userMsg.attachments.size() << " 个文件" << std::endl;
+    }
     SessionManager::instance()->addMessageToCurrentSession("user", qInput);
 
     if (m_networkManager->isStreamingEnabled()) {
@@ -244,8 +258,18 @@ void CLIApplication::readInput()
         std::cout << "\nAI正在思考..." << std::endl;
     }
 
-    m_networkManager->sendChatRequestWithContext(
-        SessionManager::instance()->currentSession().messages);
+    // 构建带附件的消息列表发送
+    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    if (!userMsg.attachments.isEmpty()) {
+        // 修改最后一条消息添加附件
+        if (!messages.isEmpty()) {
+            messages.last().attachments = userMsg.attachments;
+        }
+        // 发送后清空待发送文件列表
+        m_fileManager->clearPendingFiles();
+    }
+
+    m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void CLIApplication::handleCommand(const QString &command)
@@ -283,6 +307,14 @@ void CLIApplication::handleCommand(const QString &command)
         #else
             system("clear");
         #endif
+    } else if (cmd.startsWith("/file ")) {
+        handleFileCommand(command);
+        return;
+    } else if (cmd == "/listfiles") {
+        listFiles();
+    } else if (cmd == "/clearfiles") {
+        m_fileManager->clearPendingFiles();
+        std::cout << "已清空待发送文件列表" << std::endl;
     } else if (cmd == "/exit" || cmd == "/quit") {
         quit();
         return;
@@ -305,6 +337,9 @@ void CLIApplication::showHelp()
     std::cout << "  /config   - 显示当前配置\n";
     std::cout << "  /stream   - 切换流式输出开/关\n";
     std::cout << "  /clear    - 清屏\n";
+    std::cout << "  /file <路径> - 添加文件到待发送列表\n";
+    std::cout << "  /listfiles   - 显示待发送文件列表\n";
+    std::cout << "  /clearfiles  - 清空待发送文件列表\n";
     std::cout << "  /exit     - 退出程序\n";
     std::cout << "\n直接输入文本即可与AI对话\n";
 }
@@ -655,6 +690,65 @@ void CLIApplication::onErrorOccurred(const QString &error)
         std::cerr << "错误: " << error.toStdString() << std::endl;
         quit();
     }
+}
+
+void CLIApplication::handleFileCommand(const QString &command)
+{
+    // 提取文件路径（支持空格路径：用引号包裹）
+    QString arg = command.mid(6).trimmed();
+
+    if (arg.isEmpty()) {
+        std::cout << "用法: /file <文件路径>" << std::endl;
+        std::cout << "提示: 路径含空格时请用引号包裹，如 /file \"path with space/file.txt\"" << std::endl;
+        QTimer::singleShot(0, this, &CLIApplication::readInput);
+        return;
+    }
+
+    // 解析路径（处理引号）
+    QString filePath = arg;
+    if (filePath.startsWith('"') && filePath.endsWith('"')) {
+        filePath = filePath.mid(1, filePath.length() - 2);
+    }
+
+    // 添加文件
+    QFileInfo info(filePath);
+    if (!info.exists()) {
+        std::cout << "错误: 文件不存在: " << filePath.toStdString() << std::endl;
+        QTimer::singleShot(0, this, &CLIApplication::readInput);
+        return;
+    }
+
+    if (info.size() > 10 * 1024 * 1024) {
+        std::cout << "错误: 文件过大 (>10MB): " << filePath.toStdString() << std::endl;
+        QTimer::singleShot(0, this, &CLIApplication::readInput);
+        return;
+    }
+
+    if (m_fileManager->addFile(filePath)) {
+        QString typeStr;
+        if (FileManager::isTextFile(filePath)) {
+            typeStr = "文本";
+        } else if (FileManager::isImageFile(filePath)) {
+            typeStr = "图片";
+        } else {
+            typeStr = "二进制";
+        }
+        std::cout << "已添加文件: " << filePath.toStdString()
+                  << " (" << typeStr.toStdString() << ", "
+                  << info.size() << " bytes)" << std::endl;
+        std::cout << "当前待发送文件数: " << m_fileManager->pendingFileCount() << std::endl;
+    } else {
+        std::cout << "错误: 无法添加文件" << std::endl;
+    }
+
+    QTimer::singleShot(0, this, &CLIApplication::readInput);
+}
+
+void CLIApplication::listFiles()
+{
+    QString summary = m_fileManager->fileListSummary();
+    std::cout << summary.toStdString() << std::endl;
+    QTimer::singleShot(0, this, &CLIApplication::readInput);
 }
 
 void CLIApplication::quit()
