@@ -48,6 +48,22 @@ void SessionManager::addMessageToCurrentSession(const QString &role, const QStri
     emit sessionChanged(m_currentSessionId);
 }
 
+void SessionManager::addMessageToCurrentSession(const QString &role, const QString &content, const QVector<FileAttachment> &attachments)
+{
+    ChatMessage msg(role, content);
+    msg.attachments = attachments;
+    m_sessions[m_currentSessionId].messages.append(msg);
+    emit sessionChanged(m_currentSessionId);
+}
+
+void SessionManager::updateSessionTitle(const QString &sessionId, const QString &title)
+{
+    if (m_sessions.contains(sessionId)) {
+        m_sessions[sessionId].title = title;
+        emit sessionChanged(sessionId);
+    }
+}
+
 void SessionManager::removeSession(const QString &sessionId)
 {
     m_sessions.remove(sessionId);
@@ -85,6 +101,22 @@ void SessionManager::saveSessionsToFile()
             QJsonObject msgObj;
             msgObj["role"] = msg.role;
             msgObj["content"] = msg.content;
+
+            // 序列化附件
+            if (!msg.attachments.isEmpty()) {
+                QJsonArray attachmentsArray;
+                for (const auto &attachment : msg.attachments) {
+                    QJsonObject attachObj;
+                    attachObj["path"] = attachment.path;
+                    attachObj["type"] = attachment.type;
+                    attachObj["mimeType"] = attachment.mimeType;
+                    attachObj["content"] = attachment.content;
+                    attachObj["size"] = attachment.size;
+                    attachmentsArray.append(attachObj);
+                }
+                msgObj["attachments"] = attachmentsArray;
+            }
+
             messagesArray.append(msgObj);
         }
         sessionObj["messages"] = messagesArray;
@@ -138,10 +170,30 @@ void SessionManager::loadSessionsFromFile()
                 continue;
             }
             QJsonObject msgObj = msgVal.toObject();
-            session.messages.append(ChatMessage(
+            ChatMessage msg(
                 msgObj["role"].toString(),
                 msgObj["content"].toString()
-            ));
+            );
+
+            // 反序列化附件
+            if (msgObj.contains("attachments")) {
+                QJsonArray attachmentsArray = msgObj["attachments"].toArray();
+                for (const auto &attachVal : attachmentsArray) {
+                    if (!attachVal.isObject()) {
+                        continue;
+                    }
+                    QJsonObject attachObj = attachVal.toObject();
+                    FileAttachment attachment;
+                    attachment.path = attachObj["path"].toString();
+                    attachment.type = attachObj["type"].toString();
+                    attachment.mimeType = attachObj["mimeType"].toString();
+                    attachment.content = attachObj["content"].toString();
+                    attachment.size = attachObj["size"].toVariant().toLongLong();
+                    msg.attachments.append(attachment);
+                }
+            }
+
+            session.messages.append(msg);
         }
 
         m_sessions[session.id] = session;

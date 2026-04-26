@@ -331,23 +331,47 @@ void MainWindow::appendChatMessage(const QString &sender, const QString &message
 
 void MainWindow::renderCurrentSession()
 {
-    qDebug() << "renderCurrentSession called, m_isRendering=" << m_isRendering;
-
     if (m_isRendering) {
-        qDebug() << "renderCurrentSession blocked by m_isRendering";
         return;
     }
     m_isRendering = true;
 
     const auto &session = SessionManager::instance()->currentSession();
-    qDebug() << "Session has" << session.messages.size() << "messages";
 
     QString fullHtml;
 
     for (int i = 0; i < session.messages.size(); ++i) {
         const auto &msg = session.messages[i];
         QString rendered = formatMessageWithThinking(msg.role, msg.content);
-        qDebug() << "Message" << i << "role:" << msg.role << "rendered length:" << rendered.length();
+
+        // 渲染附件信息（仅用户消息）
+        if (msg.role == "user" && !msg.attachments.isEmpty()) {
+            QString attachmentHtml;
+            for (const auto &attachment : msg.attachments) {
+                if (attachment.type == "image") {
+                    // 图片：显示缩略图
+                    attachmentHtml += QString(
+                        "<div style='margin:8px 0;'>"
+                        "<img src='%1' style='max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;' />"
+                        "</div>"
+                    ).arg(attachment.content);
+                } else {
+                    // 其他文件：显示文件名和类型
+                    QString iconColor = (attachment.type == "text") ? "#4CAF50" : "#FF9800";
+                    QString typeLabel = (attachment.type == "text") ? "文本" : "二进制";
+                    QFileInfo info(attachment.path);
+                    attachmentHtml += QString(
+                        "<div style='margin:8px 0; padding:8px 12px; background:#f5f5f5; border-radius:6px; display:inline-block;'>"
+                        "<span style='color:%1; font-weight:bold;'>[%2]</span> %3 (%4 KB)"
+                        "</div>"
+                    ).arg(iconColor).arg(typeLabel).arg(info.fileName()).arg(attachment.size / 1024);
+                }
+            }
+            // 用户消息格式: <div ...><b>用户:</b> 内容</div>
+            // 在 </div> 之前插入附件
+            rendered = rendered.replace("</div>", attachmentHtml + "</div>");
+        }
+
         fullHtml += rendered;
 
         if (i < session.messages.size() - 1) {
@@ -365,9 +389,6 @@ void MainWindow::renderCurrentSession()
             fullHtml += separator;
         }
     }
-
-    qDebug() << "Final HTML length:" << fullHtml.length();
-    qDebug() << "HTML preview (first 200 chars):" << fullHtml.left(200);
 
     m_chatDisplay->setHtml(fullHtml);
 
@@ -429,25 +450,25 @@ void MainWindow::onSendClicked()
 
     // 创建消息并添加附件
     ChatMessage userMsg("user", userInput);
+    QVector<FileAttachment> attachments;
     if (m_fileManager->pendingFileCount() > 0) {
-        userMsg.attachments = m_fileManager->pendingFiles();
+        attachments = m_fileManager->pendingFiles();
     }
 
-    SessionManager::instance()->addMessageToCurrentSession("user", userInput);
-    m_inputLine->clear();
-
-    // 构建带附件的消息列表发送
-    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-    if (!userMsg.attachments.isEmpty()) {
-        // 修改最后一条消息添加附件
-        if (!messages.isEmpty()) {
-            messages.last().attachments = userMsg.attachments;
-        }
-        // 发送后清空待发送文件列表
+    // 使用带附件参数的函数保存消息
+    if (attachments.isEmpty()) {
+        SessionManager::instance()->addMessageToCurrentSession("user", userInput);
+    } else {
+        SessionManager::instance()->addMessageToCurrentSession("user", userInput, attachments);
         m_fileManager->clearPendingFiles();
         clearFileListDisplay();
         m_fileButton->setToolTip(tr("添加文件"));
     }
+
+    m_inputLine->clear();
+
+    // 构建消息列表发送
+    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
 
     m_isStreaming = true;
     m_streamingContent.clear();
@@ -508,6 +529,29 @@ void MainWindow::onStreamFinished(const QString &fullContent)
 
     // Save the complete message
     SessionManager::instance()->addMessageToCurrentSession("assistant", fullContent);
+
+    // 自动命名：如果是新对话的第一条回复，根据用户第一条消息生成标题
+    const auto &session = SessionManager::instance()->currentSession();
+    if (session.title == "新对话" && session.messages.size() == 2) {
+        // 找到第一条用户消息
+        QString firstUserMsg;
+        for (const auto &msg : session.messages) {
+            if (msg.role == "user") {
+                firstUserMsg = msg.content;
+                break;
+            }
+        }
+        // 生成标题：取前30个字符，去掉换行
+        if (!firstUserMsg.isEmpty()) {
+            QString title = firstUserMsg.split('\n')[0].left(30);
+            if (title.length() < firstUserMsg.split('\n')[0].length()) {
+                title += "...";
+            }
+            SessionManager::instance()->updateSessionTitle(session.id, title);
+            updateSessionList();
+        }
+    }
+
     SessionManager::instance()->saveSessionsToFile();
 
     // Clear streaming buffer

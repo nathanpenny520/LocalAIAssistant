@@ -201,8 +201,8 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
         jsonPayload["seed"] = m_seed.value();
     }
 
-    // 统一使用 messages 格式（Ollama /api/chat 也支持）
-    jsonPayload["messages"] = buildMessagesArray(messages, m_maxContext);
+    // 统一使用 messages 格式，传递 isOllama 参数以支持不同格式
+    jsonPayload["messages"] = buildMessagesArray(messages, m_maxContext, isOllama);
 
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
@@ -240,7 +240,7 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
     }
 }
 
-QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages)
+QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages, bool isOllama)
 {
     QJsonArray jsonMessages;
 
@@ -262,8 +262,35 @@ QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messag
         if (msg.attachments.isEmpty()) {
             // No attachments, use simple string format
             msgObj["content"] = msg.content;
+        } else if (isOllama) {
+            // Ollama format: content as string, images as separate array
+            msgObj["content"] = msg.content;
+
+            QJsonArray imagesArray;
+            for (const FileAttachment &file : msg.attachments) {
+                if (file.type == "image") {
+                    // Ollama needs base64 without data URL prefix
+                    QString base64Data = file.content;
+                    if (base64Data.startsWith("data:")) {
+                        // Remove "data:image/png;base64," prefix
+                        int commaPos = base64Data.indexOf(',');
+                        if (commaPos > 0) {
+                            base64Data = base64Data.mid(commaPos + 1);
+                        }
+                    }
+                    imagesArray.append(base64Data);
+                } else {
+                    // Non-image files: append as text content
+                    QString currentContent = msgObj["content"].toString();
+                    currentContent += "\n\n" + file.content;
+                    msgObj["content"] = currentContent;
+                }
+            }
+            if (!imagesArray.isEmpty()) {
+                msgObj["images"] = imagesArray;
+            }
         } else {
-            // Has attachments, use multimodal array format
+            // OpenAI format: content as array with text and image_url types
             QJsonArray contentArray;
 
             // Add user text first (if any)

@@ -19,6 +19,8 @@ public:
     void createNewSession(const QString &title = QString("新对话"));
     void switchToSession(const QString &sessionId);
     void addMessageToCurrentSession(const QString &role, const QString &content);
+    void addMessageToCurrentSession(const QString &role, const QString &content, const QVector<FileAttachment> &attachments);
+    void updateSessionTitle(const QString &sessionId, const QString &title);
     void removeSession(const QString &sessionId);
 
     const QMap<QString, ChatSession>& allSessions() const { return m_sessions; }

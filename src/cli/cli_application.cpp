@@ -245,12 +245,19 @@ void CLIApplication::readInput()
     m_streamingContent.clear();
 
     // 创建消息并添加附件
-    ChatMessage userMsg("user", qInput);
+    QVector<FileAttachment> attachments;
     if (m_fileManager->pendingFileCount() > 0) {
-        userMsg.attachments = m_fileManager->pendingFiles();
-        std::cout << "发送消息时携带 " << userMsg.attachments.size() << " 个文件" << std::endl;
+        attachments = m_fileManager->pendingFiles();
+        std::cout << "发送消息时携带 " << attachments.size() << " 个文件" << std::endl;
     }
-    SessionManager::instance()->addMessageToCurrentSession("user", qInput);
+
+    // 使用带附件参数的函数保存消息
+    if (attachments.isEmpty()) {
+        SessionManager::instance()->addMessageToCurrentSession("user", qInput);
+    } else {
+        SessionManager::instance()->addMessageToCurrentSession("user", qInput, attachments);
+        m_fileManager->clearPendingFiles();
+    }
 
     if (m_networkManager->isStreamingEnabled()) {
         std::cout << "\nAI: " << std::flush;
@@ -258,16 +265,8 @@ void CLIApplication::readInput()
         std::cout << "\nAI正在思考..." << std::endl;
     }
 
-    // 构建带附件的消息列表发送
+    // 构建消息列表发送
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-    if (!userMsg.attachments.isEmpty()) {
-        // 修改最后一条消息添加附件
-        if (!messages.isEmpty()) {
-            messages.last().attachments = userMsg.attachments;
-        }
-        // 发送后清空待发送文件列表
-        m_fileManager->clearPendingFiles();
-    }
 
     m_networkManager->sendChatRequestWithContext(messages);
 }
