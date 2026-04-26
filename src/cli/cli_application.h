@@ -5,6 +5,7 @@
 #include <QCommandLineParser>
 
 class NetworkManager;
+class FileManager;  // 新增
 
 class CLIApplication : public QObject
 {
@@ -28,6 +29,10 @@ private:
     int handleConfigCommand(const QCommandLineParser &parser);
     void quit();
 
+    // 文件相关命令
+    void handleFileCommand(const QString &command);   // 新增
+    void listFiles();                                  // 新增
+
 private slots:
     void onResponseReceived(const QString &response);
     void onErrorOccurred(const QString &error);
@@ -36,6 +41,7 @@ private slots:
 
 private:
     NetworkManager *m_networkManager;
+    FileManager *m_fileManager;  // 新增
     bool m_running;
     bool m_interactiveMode;
     bool m_isStreaming;
