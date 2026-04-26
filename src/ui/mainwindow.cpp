@@ -637,10 +637,24 @@ void MainWindow::updateFileListDisplay()
         }
 
         QLabel *nameLabel = new QLabel(displayName, fileTag);
+
+        // Determine theme-appropriate colors
+        StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+        bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+        if (theme == StyleSheetManager::SystemTheme) {
+            QPalette palette = QApplication::palette();
+            QColor windowColor = palette.color(QPalette::Window);
+            int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+            isDarkTheme = (brightness < 128);
+        }
+
+        QString textColor = isDarkTheme ? "#e0e0e0" : "#333";
+        QString bgColor = isDarkTheme ? "#3a3a3a" : "#f5f5f5";
+
         nameLabel->setStyleSheet(QString(
-            "QLabel { color: #333; font-size: 12px; padding: 2px 6px; "
-            "border: 1px solid %1; border-radius: 4px; background: #f5f5f5; }"
-        ).arg(borderColor));
+            "QLabel { color: %1; font-size: 12px; padding: 2px 6px; "
+            "border: 1px solid %2; border-radius: 4px; background: %3; }"
+        ).arg(textColor, borderColor, bgColor));
         tagLayout->addWidget(nameLabel);
 
         // 删除按钮
