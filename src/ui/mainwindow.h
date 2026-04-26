@@ -58,6 +58,8 @@ private:
     void setInputEnabled(bool enabled);
     QMap<QString, QString> parseThinkingContent(const QString &content);
     QString formatMessageWithThinking(const QString &role, const QString &content);
+    void updateFileListDisplay();         // 新增
+    void clearFileListDisplay();          // 新增
 
     QListWidget *m_historyList;
     QTextBrowser *m_chatDisplay;
@@ -80,8 +82,6 @@ private:
     QPushButton *m_fileButton;            // 新增
     QWidget *m_fileListArea;              // 新增
     QHBoxLayout *m_fileListLayout;        // 新增
-    void updateFileListDisplay();         // 新增
-    void clearFileListDisplay();         // 新增
 };
 
 #endif
