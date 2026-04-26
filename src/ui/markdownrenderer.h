@@ -2,6 +2,7 @@
  * Simple Markdown to HTML Renderer
  * Supports: headers, bold, italic, lists, code blocks, blockquotes, tables
  * Theme-aware rendering for light and dark modes
+ * Built-in syntax highlighting for common languages
  * MIT License
  */
 
@@ -24,6 +25,19 @@ struct MarkdownColors {
     QString tableHeaderBg;  // 表头背景
 };
 
+// Syntax highlighting color theme
+struct SyntaxTheme {
+    QString keyword;        // 关键字
+    QString string;         // 字符串
+    QString comment;        // 注释
+    QString number;         // 数字
+    QString function;       // 函数名
+    QString type;           // 类型名
+    QString operator_;      // 操作符
+    QString preprocessor;   // 预处理指令
+    QString variable;       // 变量
+};
+
 class MarkdownRenderer
 {
 public:
@@ -37,6 +51,20 @@ private:
     // Color constants
     static MarkdownColors lightColors();
     static MarkdownColors darkColors();
+
+    // Syntax highlighting themes
+    static SyntaxTheme lightSyntaxTheme();
+    static SyntaxTheme darkSyntaxTheme();
+    static SyntaxTheme getSyntaxTheme(bool isDarkTheme);
+
+    // Syntax highlighting
+    static QString highlightCode(const QString &code, const QString &language, const SyntaxTheme &theme);
+    static QString highlightCpp(const QString &code, const SyntaxTheme &theme);
+    static QString highlightPython(const QString &code, const SyntaxTheme &theme);
+    static QString highlightJs(const QString &code, const SyntaxTheme &theme);
+    static QString highlightJson(const QString &code, const SyntaxTheme &theme);
+    static QString highlightBash(const QString &code, const SyntaxTheme &theme);
+    static QString highlightGeneric(const QString &code, const SyntaxTheme &theme);
 
     static QString escapeHtml(const QString &text);
     static QString processHeaders(const QString &line, const MarkdownColors &colors);

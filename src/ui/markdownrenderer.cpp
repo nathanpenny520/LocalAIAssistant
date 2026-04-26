@@ -2,11 +2,19 @@
  * Simple Markdown to HTML Renderer
  * Supports: headers, bold, italic, lists, code blocks, blockquotes, tables
  * Theme-aware rendering for light and dark modes
+ * Built-in syntax highlighting for common languages
  */
 
 #include "markdownrenderer.h"
 #include <QRegularExpression>
 #include <QDebug>
+
+// Helper struct for replacement tracking
+struct ReplacementInfo {
+    qsizetype start;
+    qsizetype length;
+    QString text;
+};
 
 MarkdownColors MarkdownRenderer::lightColors()
 {
@@ -43,15 +51,53 @@ MarkdownColors MarkdownRenderer::getColors(bool isDarkTheme)
     return isDarkTheme ? darkColors() : lightColors();
 }
 
+// Syntax highlighting themes
+SyntaxTheme MarkdownRenderer::lightSyntaxTheme()
+{
+    return {
+        "#0000ff",  // keyword - blue
+        "#a31515",  // string - dark red
+        "#008000",  // comment - green
+        "#098658",  // number - teal
+        "#795e26",  // function - brown/gold
+        "#267f99",  // type - teal-blue
+        "#666666",  // operator - gray
+        "#af00db",  // preprocessor - purple
+        "#001080"   // variable - dark blue
+    };
+}
+
+SyntaxTheme MarkdownRenderer::darkSyntaxTheme()
+{
+    return {
+        "#c586c0",  // keyword - purple/pink
+        "#ce9178",  // string - orange
+        "#6a9955",  // comment - green
+        "#b5cea8",  // number - light green
+        "#dcdcaa",  // function - yellow
+        "#4ec9b0",  // type - teal
+        "#d4d4d4",  // operator - light gray
+        "#c586c0",  // preprocessor - purple
+        "#9cdcfe"   // variable - light blue
+    };
+}
+
+SyntaxTheme MarkdownRenderer::getSyntaxTheme(bool isDarkTheme)
+{
+    return isDarkTheme ? darkSyntaxTheme() : lightSyntaxTheme();
+}
+
 QString MarkdownRenderer::toHtml(const QString &markdown, bool isDarkTheme)
 {
     MarkdownColors colors = getColors(isDarkTheme);
+    SyntaxTheme syntaxTheme = getSyntaxTheme(isDarkTheme);
 
     QString result;
     QStringList lines = markdown.split('\n');
 
     bool inCodeBlock = false;
     QString codeBlockContent;
+    QString codeBlockLanguage;
     bool inList = false;
     QString listHtml;
     bool inTable = false;
@@ -65,12 +111,36 @@ QString MarkdownRenderer::toHtml(const QString &markdown, bool isDarkTheme)
             if (!inCodeBlock) {
                 inCodeBlock = true;
                 codeBlockContent.clear();
+                // Extract language identifier
+                QString lang = line.trimmed().mid(3).trimmed().toLower();
+                // Normalize language names
+                if (lang == "c++" || lang == "cpp" || lang == "cc" || lang == "cxx") {
+                    codeBlockLanguage = "cpp";
+                } else if (lang == "c") {
+                    codeBlockLanguage = "c";
+                } else if (lang == "python" || lang == "py") {
+                    codeBlockLanguage = "python";
+                } else if (lang == "javascript" || lang == "js" || lang == "node") {
+                    codeBlockLanguage = "javascript";
+                } else if (lang == "typescript" || lang == "ts") {
+                    codeBlockLanguage = "typescript";
+                } else if (lang == "json") {
+                    codeBlockLanguage = "json";
+                } else if (lang == "bash" || lang == "sh" || lang == "shell" || lang == "zsh") {
+                    codeBlockLanguage = "bash";
+                } else if (lang.isEmpty()) {
+                    codeBlockLanguage = "generic";
+                } else {
+                    codeBlockLanguage = lang;
+                }
                 continue;
             } else {
                 inCodeBlock = false;
-                result += QString("<pre style='background-color: %1; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: monospace; font-size: 13px; color: %2;'>")
+                // Apply syntax highlighting
+                QString highlightedCode = highlightCode(codeBlockContent, codeBlockLanguage, syntaxTheme);
+                result += QString("<pre style='background-color: %1; padding: 12px; border-radius: 8px; overflow-x: auto; font-family: monospace; font-size: 13px;'><code style='color: %2;'>")
                           .arg(colors.codeBg, colors.text)
-                          + escapeHtml(codeBlockContent) + "</pre>\n";
+                          + highlightedCode + "</code></pre>\n";
                 continue;
             }
         }
@@ -358,4 +428,429 @@ QString MarkdownRenderer::getAlignment(const QStringList &rules, int index)
         return rules[index];
     }
     return "text-align: left;";
+}
+
+// ============================================================================
+// Syntax Highlighting Implementation
+// ============================================================================
+
+QString MarkdownRenderer::highlightCode(const QString &code, const QString &language, const SyntaxTheme &theme)
+{
+    QString escaped = escapeHtml(code);
+
+    if (language == "cpp" || language == "c") {
+        return highlightCpp(escaped, theme);
+    } else if (language == "python") {
+        return highlightPython(escaped, theme);
+    } else if (language == "javascript" || language == "typescript") {
+        return highlightJs(escaped, theme);
+    } else if (language == "json") {
+        return highlightJson(escaped, theme);
+    } else if (language == "bash") {
+        return highlightBash(escaped, theme);
+    } else {
+        return highlightGeneric(escaped, theme);
+    }
+}
+
+QString MarkdownRenderer::highlightCpp(const QString &code, const SyntaxTheme &theme)
+{
+    QString result = code;
+
+    // Helper lambda for regex replacement with proper handling
+    auto replaceWithStyle = [&result, &theme](const QRegularExpression &regex, const QString &color, bool bold = false) {
+        QRegularExpressionMatchIterator it = regex.globalMatch(result);
+        QList<ReplacementInfo> replacements;
+
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString matched = match.captured(0);
+            QString styled = bold
+                ? QString("<span style=\"color: %1; font-weight: bold;\">%2</span>").arg(color, matched)
+                : QString("<span style=\"color: %1;\">%2</span>").arg(color, matched);
+            replacements.append({match.capturedStart(), match.capturedLength(), styled});
+        }
+
+        // Apply replacements from end to start
+        for (int i = replacements.size() - 1; i >= 0; --i) {
+            result.replace(replacements[i].start, replacements[i].length, replacements[i].text);
+        }
+    };
+
+    // Process order: strings/preprocessor first, then keywords, comments last
+    // This prevents regex from matching content inside already-processed spans
+
+    // Strings (use negative lookbehind for HTML attributes)
+    QRegularExpression stringLiteral("(?<!style=)\"(?:\\\\\"|[^\"])+\"");
+    QRegularExpression charLiteral("(?<!style=)'(?:\\\\'|[^'])+'");
+    replaceWithStyle(stringLiteral, theme.string);
+    replaceWithStyle(charLiteral, theme.string);
+
+    // Keywords
+    QString cppKeywords = "\\b(alignas|alignof|and|and_eq|asm|auto|bitand|bitor|bool|break|case|catch|char|char8_t|char16_t|char32_t|class|compl|concept|const|consteval|constexpr|const_cast|continue|co_await|co_return|co_yield|decltype|default|delete|do|double|dynamic_cast|else|enum|explicit|export|extern|false|float|for|friend|goto|if|inline|int|long|mutable|namespace|new|noexcept|not|not_eq|nullptr|operator|or|or_eq|private|protected|public|register|reinterpret_cast|requires|return|short|signed|sizeof|static|static_assert|static_cast|struct|switch|template|this|thread_local|throw|true|try|typedef|typeid|typename|union|unsigned|using|virtual|void|volatile|wchar_t|while|xor|xor_eq)\\b";
+    QRegularExpression keywordRegex(cppKeywords);
+    replaceWithStyle(keywordRegex, theme.keyword, true);
+
+    // Types (common C++ types)
+    QString cppTypes = "\\b(std|string|vector|map|set|list|array|deque|queue|stack|pair|tuple|optional|variant|function|unique_ptr|shared_ptr|weak_ptr|make_unique|make_shared|size_t|int8_t|int16_t|int32_t|int64_t|uint8_t|uint16_t|uint32_t|uint64_t|ptrdiff_t|nullptr_t)\\b";
+    QRegularExpression typeRegex(cppTypes);
+    replaceWithStyle(typeRegex, theme.type);
+
+    // Numbers
+    QRegularExpression numberRegex("\\b(\\d+\\.?\\d*|0x[0-9a-fA-F]+|0b[01]+)\\b");
+    replaceWithStyle(numberRegex, theme.number);
+
+    // Function calls - match word before parentheses
+    QRegularExpression functionRegex("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()");
+    QRegularExpressionMatchIterator it = functionRegex.globalMatch(result);
+    QList<ReplacementInfo> funcReplacements;
+    while (it.hasNext()) {
+        QRegularExpressionMatch match = it.next();
+        QString funcName = match.captured(1);
+        QString styled = QString("<span style=\"color: %1;\">%2</span>").arg(theme.function, funcName);
+        funcReplacements.append({match.capturedStart(1), match.capturedLength(1), styled});
+    }
+    for (int i = funcReplacements.size() - 1; i >= 0; --i) {
+        result.replace(funcReplacements[i].start, funcReplacements[i].length, funcReplacements[i].text);
+    }
+
+    // Preprocessor directives - process before comments
+    QRegularExpression preprocessor("#[^\\n]*");
+    replaceWithStyle(preprocessor, theme.preprocessor);
+
+    // Comments - process LAST to avoid matching color codes in span tags
+    QRegularExpression multiLineComment("/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/");
+    QRegularExpression singleLineComment("//[^\n]*");
+    replaceWithStyle(multiLineComment, theme.comment);
+    replaceWithStyle(singleLineComment, theme.comment);
+
+    return result;
+}
+
+QString MarkdownRenderer::highlightPython(const QString &code, const SyntaxTheme &theme)
+{
+    QString result = code;
+
+    // Helper lambda for regex replacement
+    auto replaceWithStyle = [&result, &theme](const QRegularExpression &regex, const QString &color, bool bold = false) {
+        QRegularExpressionMatchIterator it = regex.globalMatch(result);
+        QList<ReplacementInfo> replacements;
+
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString matched = match.captured(0);
+            QString styled = bold
+                ? QString("<span style=\"color: %1; font-weight: bold;\">%2</span>").arg(color, matched)
+                : QString("<span style=\"color: %1;\">%2</span>").arg(color, matched);
+            replacements.append({match.capturedStart(), match.capturedLength(), styled});
+        }
+
+        for (int i = replacements.size() - 1; i >= 0; --i) {
+            result.replace(replacements[i].start, replacements[i].length, replacements[i].text);
+        }
+    };
+
+    // Process order: strings first, then keywords, comments last
+    // This prevents regex from matching content inside already-processed spans
+
+    // Triple-quoted strings (process first, before regular strings)
+    QRegularExpression tripleDouble("\"\"\"[\\s\\S]*?\"\"\"");
+    QRegularExpression tripleSingle("'''[\\s\\S]*?'''");
+    replaceWithStyle(tripleDouble, theme.string);
+    replaceWithStyle(tripleSingle, theme.string);
+
+    // Strings (use negative lookbehind for HTML attributes)
+    QRegularExpression stringLiteral("(?<!style=)\"(?:\\\\\"|[^\"])+\"");
+    QRegularExpression singleString("(?<!style=)'(?:\\\\'|[^'])+'");
+    replaceWithStyle(stringLiteral, theme.string);
+    replaceWithStyle(singleString, theme.string);
+
+    // Keywords
+    QString pythonKeywords = "\\b(and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield|True|False|None)\\b";
+    QRegularExpression keywordRegex(pythonKeywords);
+    replaceWithStyle(keywordRegex, theme.keyword, true);
+
+    // Built-in functions
+    QString builtinFuncs = "\\b(print|len|range|str|int|float|list|dict|set|tuple|type|isinstance|hasattr|getattr|setattr|open|input|format|sorted|map|filter|zip|enumerate|any|all|min|max|sum|abs|round|bool|bytes|bytearray|memoryview|chr|ord|hex|oct|bin|dir|help|id|object|super|property|classmethod|staticmethod|iter|next|slice|reversed|exec|eval|compile|globals|locals|vars|__import__)\\b";
+    QRegularExpression builtinRegex(builtinFuncs);
+    replaceWithStyle(builtinRegex, theme.function);
+
+    // Numbers
+    QRegularExpression numberRegex("\\b(\\d+\\.?\\d*|0x[0-9a-fA-F]+|0b[01]+|0o[0-7]+)\\b");
+    replaceWithStyle(numberRegex, theme.number);
+
+    // Decorators
+    QRegularExpression decoratorRegex("@[a-zA-Z_][a-zA-Z0-9_]*");
+    replaceWithStyle(decoratorRegex, theme.preprocessor);
+
+    // Function definitions - highlight function name
+    QRegularExpression defRegex("\\bdef\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
+    QRegularExpressionMatchIterator defIt = defRegex.globalMatch(result);
+    QList<ReplacementInfo> defReplacements;
+    while (defIt.hasNext()) {
+        QRegularExpressionMatch match = defIt.next();
+        QString nameStyled = QString("<span style=\"color: %1;\">%2</span>").arg(theme.function, match.captured(1));
+        defReplacements.append({match.capturedStart(1), match.capturedLength(1), nameStyled});
+    }
+    for (int i = defReplacements.size() - 1; i >= 0; --i) {
+        result.replace(defReplacements[i].start, defReplacements[i].length, defReplacements[i].text);
+    }
+
+    // Class definitions - highlight class name
+    QRegularExpression classRegex("\\bclass\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
+    QRegularExpressionMatchIterator classIt = classRegex.globalMatch(result);
+    QList<ReplacementInfo> classReplacements;
+    while (classIt.hasNext()) {
+        QRegularExpressionMatch match = classIt.next();
+        QString nameStyled = QString("<span style=\"color: %1;\">%2</span>").arg(theme.type, match.captured(1));
+        classReplacements.append({match.capturedStart(1), match.capturedLength(1), nameStyled});
+    }
+    for (int i = classReplacements.size() - 1; i >= 0; --i) {
+        result.replace(classReplacements[i].start, classReplacements[i].length, classReplacements[i].text);
+    }
+
+    // Comments - process LAST to avoid matching color codes in span tags
+    // Use negative lookahead to exclude hex color codes like #008000, #a31515, etc.
+    QRegularExpression commentRegex("#(?![0-9a-fA-F]{6})[^\\n]*");
+    replaceWithStyle(commentRegex, theme.comment);
+
+    return result;
+}
+
+QString MarkdownRenderer::highlightJs(const QString &code, const SyntaxTheme &theme)
+{
+    QString result = code;
+
+    // Helper lambda for regex replacement
+    auto replaceWithStyle = [&result, &theme](const QRegularExpression &regex, const QString &color, bool bold = false) {
+        QRegularExpressionMatchIterator it = regex.globalMatch(result);
+        QList<ReplacementInfo> replacements;
+
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString matched = match.captured(0);
+            QString styled = bold
+                ? QString("<span style=\"color: %1; font-weight: bold;\">%2</span>").arg(color, matched)
+                : QString("<span style=\"color: %1;\">%2</span>").arg(color, matched);
+            replacements.append({match.capturedStart(), match.capturedLength(), styled});
+        }
+
+        for (int i = replacements.size() - 1; i >= 0; --i) {
+            result.replace(replacements[i].start, replacements[i].length, replacements[i].text);
+        }
+    };
+
+    // Process order: strings first, then keywords, comments last
+    // This prevents regex from matching content inside already-processed spans
+
+    // Strings (template literals first, then regular - use negative lookbehind for HTML attributes)
+    QRegularExpression templateLiteral("`(?:\\\\`|[^`])+`");
+    QRegularExpression doubleString("(?<!style=)\"(?:\\\\\"|[^\"])+\"");
+    QRegularExpression singleString("(?<!style=)'(?:\\\\'|[^'])+'");
+    replaceWithStyle(templateLiteral, theme.string);
+    replaceWithStyle(doubleString, theme.string);
+    replaceWithStyle(singleString, theme.string);
+
+    // Keywords
+    QString jsKeywords = "\\b(async|await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally|for|function|if|implements|import|in|instanceof|interface|let|new|of|package|private|protected|public|return|static|super|switch|this|throw|try|typeof|var|void|while|with|yield|true|false|null|undefined|NaN|Infinity)\\b";
+    QRegularExpression keywordRegex(jsKeywords);
+    replaceWithStyle(keywordRegex, theme.keyword, true);
+
+    // Numbers
+    QRegularExpression numberRegex("\\b(\\d+\\.?\\d*|0x[0-9a-fA-F]+|0b[01]+|0o[0-7]+)\\b");
+    replaceWithStyle(numberRegex, theme.number);
+
+    // Arrow operator
+    QRegularExpression arrowRegex("=>");
+    replaceWithStyle(arrowRegex, theme.operator_);
+
+    // Function declarations
+    QRegularExpression funcDeclRegex("\\bfunction\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
+    QRegularExpressionMatchIterator funcIt = funcDeclRegex.globalMatch(result);
+    QList<ReplacementInfo> funcReplacements;
+    while (funcIt.hasNext()) {
+        QRegularExpressionMatch match = funcIt.next();
+        QString nameStyled = QString("<span style=\"color: %1;\">%2</span>").arg(theme.function, match.captured(1));
+        funcReplacements.append({match.capturedStart(1), match.capturedLength(1), nameStyled});
+    }
+    for (int i = funcReplacements.size() - 1; i >= 0; --i) {
+        result.replace(funcReplacements[i].start, funcReplacements[i].length, funcReplacements[i].text);
+    }
+
+    // Arrow function variable
+    QRegularExpression arrowFuncRegex("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?==>)");
+    QRegularExpressionMatchIterator arrowIt = arrowFuncRegex.globalMatch(result);
+    QList<ReplacementInfo> arrowReplacements;
+    while (arrowIt.hasNext()) {
+        QRegularExpressionMatch match = arrowIt.next();
+        QString nameStyled = QString("<span style=\"color: %1;\">%2</span>").arg(theme.function, match.captured(1));
+        arrowReplacements.append({match.capturedStart(1), match.capturedLength(1), nameStyled});
+    }
+    for (int i = arrowReplacements.size() - 1; i >= 0; --i) {
+        result.replace(arrowReplacements[i].start, arrowReplacements[i].length, arrowReplacements[i].text);
+    }
+
+    // Method/function calls
+    QRegularExpression methodCallRegex("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()");
+    QRegularExpressionMatchIterator methodIt = methodCallRegex.globalMatch(result);
+    QList<ReplacementInfo> methodReplacements;
+    while (methodIt.hasNext()) {
+        QRegularExpressionMatch match = methodIt.next();
+        QString nameStyled = QString("<span style=\"color: %1;\">%2</span>").arg(theme.function, match.captured(1));
+        methodReplacements.append({match.capturedStart(1), match.capturedLength(1), nameStyled});
+    }
+    for (int i = methodReplacements.size() - 1; i >= 0; --i) {
+        result.replace(methodReplacements[i].start, methodReplacements[i].length, methodReplacements[i].text);
+    }
+
+    // Comments - process LAST to avoid matching color codes in span tags
+    QRegularExpression multiLineComment("/\\*[^*]*\\*+(?:[^/*][^*]*\\*+)*/");
+    QRegularExpression singleLineComment("//[^\n]*");
+    replaceWithStyle(multiLineComment, theme.comment);
+    replaceWithStyle(singleLineComment, theme.comment);
+
+    return result;
+}
+
+QString MarkdownRenderer::highlightJson(const QString &code, const SyntaxTheme &theme)
+{
+    QString result = code;
+
+    // Helper lambda for regex replacement
+    auto replaceWithStyle = [&result](const QRegularExpression &regex, const QString &color, bool bold = false) {
+        QRegularExpressionMatchIterator it = regex.globalMatch(result);
+        QList<ReplacementInfo> replacements;
+
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString matched = match.captured(0);
+            QString styled = bold
+                ? QString("<span style=\"color: %1; font-weight: bold;\">%2</span>").arg(color, matched)
+                : QString("<span style=\"color: %1;\">%2</span>").arg(color, matched);
+            replacements.append({match.capturedStart(), match.capturedLength(), styled});
+        }
+
+        for (int i = replacements.size() - 1; i >= 0; --i) {
+            result.replace(replacements[i].start, replacements[i].length, replacements[i].text);
+        }
+    };
+
+    // Strings (keys and values - use negative lookbehind for HTML attributes)
+    QRegularExpression stringRegex("(?<!style=)\"(?:\\\\\"|[^\"])+\"");
+    replaceWithStyle(stringRegex, theme.string);
+
+    // Numbers
+    QRegularExpression numberRegex("\\b(-?\\d+\\.?\\d*(?:[eE][+-]?\\d+)?)\\b");
+    replaceWithStyle(numberRegex, theme.number);
+
+    // Booleans and null
+    QRegularExpression boolRegex("\\b(true|false|null)\\b");
+    replaceWithStyle(boolRegex, theme.keyword, true);
+
+    // Brackets and braces
+    QRegularExpression braceRegex("[{}\\[\\]]");
+    replaceWithStyle(braceRegex, theme.operator_);
+
+    return result;
+}
+
+QString MarkdownRenderer::highlightBash(const QString &code, const SyntaxTheme &theme)
+{
+    QString result = code;
+
+    // Helper lambda for regex replacement
+    auto replaceWithStyle = [&result, &theme](const QRegularExpression &regex, const QString &color, bool bold = false) {
+        QRegularExpressionMatchIterator it = regex.globalMatch(result);
+        QList<ReplacementInfo> replacements;
+
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString matched = match.captured(0);
+            QString styled = bold
+                ? QString("<span style=\"color: %1; font-weight: bold;\">%2</span>").arg(color, matched)
+                : QString("<span style=\"color: %1;\">%2</span>").arg(color, matched);
+            replacements.append({match.capturedStart(), match.capturedLength(), styled});
+        }
+
+        for (int i = replacements.size() - 1; i >= 0; --i) {
+            result.replace(replacements[i].start, replacements[i].length, replacements[i].text);
+        }
+    };
+
+    // Process order: strings/variables first, then keywords, comments last
+    // This prevents regex from matching content inside already-processed spans
+
+    // Strings (use negative lookbehind for HTML attributes)
+    QRegularExpression doubleString("(?<!style=)\"(?:\\\\\"|[^\"])+\"");
+    QRegularExpression singleString("(?<!style=)'(?:\\\\'|[^'])+'");
+    replaceWithStyle(doubleString, theme.string);
+    replaceWithStyle(singleString, theme.string);
+
+    // Keywords
+    QString bashKeywords = "\\b(if|then|else|elif|fi|for|while|do|done|case|esac|in|function|return|exit|break|continue|local|declare|readonly|export|unset|shift|source|eval|exec|trap|true|false)\\b";
+    QRegularExpression keywordRegex(bashKeywords);
+    replaceWithStyle(keywordRegex, theme.keyword, true);
+
+    // Variables ${var} and $var
+    QRegularExpression varBraceRegex("\\$\\{[^}]+\\}");
+    QRegularExpression varRegex("\\$[a-zA-Z_][a-zA-Z0-9_]*");
+    replaceWithStyle(varBraceRegex, theme.variable);
+    replaceWithStyle(varRegex, theme.variable);
+
+    // Numbers
+    QRegularExpression numberRegex("\\b(\\d+)\\b");
+    replaceWithStyle(numberRegex, theme.number);
+
+    // Common commands
+    QString commonCommands = "\\b(echo|printf|read|cd|pwd|ls|mkdir|rmdir|rm|cp|mv|cat|grep|sed|awk|find|sort|uniq|head|tail|wc|tr|cut|split|diff|chmod|chown|chgrp|ln|touch|file|which|whereis|type|man|info|help|sudo|su|apt|apt-get|yum|dnf|pacman|pip|npm|git|docker|kubectl|systemctl|service|journalctl|ps|kill|killall|top|htop|free|df|du|mount|umount|fdisk|mkfs|fsck|tar|gzip|gunzip|zip|unzip|rsync|scp|ssh|curl|wget|ping|netstat|ss|lsof|ifconfig|ip|route|iptables|ufw|firewall-cmd)\\b";
+    QRegularExpression commandRegex(commonCommands);
+    replaceWithStyle(commandRegex, theme.function);
+
+    // Comments - process LAST to avoid matching color codes in span tags
+    // Use negative lookahead to exclude hex color codes like #008000, #a31515, etc.
+    QRegularExpression commentRegex("#(?![0-9a-fA-F]{6})[^\\n]*");
+    replaceWithStyle(commentRegex, theme.comment);
+
+    return result;
+}
+
+QString MarkdownRenderer::highlightGeneric(const QString &code, const SyntaxTheme &theme)
+{
+    QString result = code;
+
+    // Helper lambda for regex replacement
+    auto replaceWithStyle = [&result, &theme](const QRegularExpression &regex, const QString &color, bool bold = false) {
+        QRegularExpressionMatchIterator it = regex.globalMatch(result);
+        QList<ReplacementInfo> replacements;
+
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString matched = match.captured(0);
+            QString styled = bold
+                ? QString("<span style=\"color: %1; font-weight: bold;\">%2</span>").arg(color, matched)
+                : QString("<span style=\"color: %1;\">%2</span>").arg(color, matched);
+            replacements.append({match.capturedStart(), match.capturedLength(), styled});
+        }
+
+        for (int i = replacements.size() - 1; i >= 0; --i) {
+            result.replace(replacements[i].start, replacements[i].length, replacements[i].text);
+        }
+    };
+
+    // Strings (use negative lookbehind for HTML attributes)
+    QRegularExpression doubleString("(?<!style=)\"(?:\\\\\"|[^\"])+\"");
+    QRegularExpression singleString("(?<!style=)'(?:\\\\'|[^'])+'");
+    replaceWithStyle(doubleString, theme.string);
+    replaceWithStyle(singleString, theme.string);
+
+    // Numbers
+    QRegularExpression numberRegex("\\b(\\d+\\.?\\d*)\\b");
+    replaceWithStyle(numberRegex, theme.number);
+
+    // Common keywords across many languages
+    QString commonKeywords = "\\b(if|else|for|while|do|switch|case|break|continue|return|function|class|struct|import|export|from|const|let|var|true|false|null|undefined|void|int|string|bool|float|double|char|long|short|byte|public|private|protected|static|final|abstract|interface|extends|implements|new|this|super|try|catch|finally|throw|throws|async|await|yield)\\b";
+    QRegularExpression keywordRegex(commonKeywords);
+    replaceWithStyle(keywordRegex, theme.keyword, true);
+
+    return result;
 }

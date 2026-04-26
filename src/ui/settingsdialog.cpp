@@ -91,7 +91,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
         QString oldLanguage = settings.value("language", "system").toString();
         QString newLanguage = m_languageComboBox->currentData().toString();
 
-        settings.setValue("apiBaseUrl", m_apiUrlLine->text());
+        settings.setValue("apiBaseUrl", m_apiUrlLine->text().trimmed());
         settings.setValue("apiKey", m_apiKeyLine->text());
         settings.setValue("modelName", m_modelNameLine->text());
         settings.setValue("localMode", m_localModeCheckBox->isChecked());
