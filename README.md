@@ -12,6 +12,8 @@
 ## 功能亮点
 
 - **双模式支持** — GUI 图形界面 + CLI 命令行
+- **文件上传** — 支持文本、图片、PDF 文件附件
+- **多模态识别** — Vision API 图片识别，PDF 文本提取
 - **流式输出** — SSE 实时显示，AI 回复逐字呈现
 - **会话管理** — 多会话切换、历史持久化
 - **多语言** — 简体中文 / English 即时切换
@@ -32,7 +34,9 @@
 │ 对话列表  │      支持 Markdown 渲染             │
 │          │                                    │
 │          ├────────────────────────────────────┤
-│          │  输入框: [________________] [发送]   │
+│          │  [file.txt ×] [image.png ×]        │  ← 文件列表
+│          ├────────────────────────────────────┤
+│          │  输入框: [________] [📁] [发送]      │  ← 文件按钮
 └──────────┴────────────────────────────────────┘
 ```
 
@@ -70,6 +74,7 @@ open build/LocalAIAssistant.app      # GUI 版本 (macOS)
 | C++编译器 | C++17 | macOS: Xcode CLT / Windows: VS2019+ / Linux: GCC 9+ |
 | Qt | 6.x | 跨平台 GUI 框架 |
 | CMake | 3.16+ | 构建工具 |
+| Poppler | 26.x | PDF 解析库（macOS: `brew install poppler`） |
 | AI服务 | - | Ollama（推荐）/ LM Studio / OpenAI API |
 
 ---
@@ -139,6 +144,35 @@ open build/LocalAIAssistant.app
 
 ---
 
+## 文件上传
+
+### GUI 版本
+
+点击输入框右侧的 📁 按钮，选择文件添加为附件。文件列表显示在输入框上方，点击 × 可删除单个文件。
+
+### CLI 版本
+
+```bash
+/file /path/to/document.pdf    # 添加文件
+/listfiles                      # 查看待发送文件
+/clearfiles                     # 清空文件列表
+```
+
+### 支持的文件类型
+
+| 类型 | 扩展名 | 处理方式 |
+|------|--------|---------|
+| 文本文件 | txt, md, py, cpp, json, yaml, ... | 直接读取内容 |
+| 图片文件 | png, jpg, jpeg, gif, bmp, webp | Base64 编码，Vision API 识别 |
+| PDF 文件 | pdf | Poppler 提取文本层 |
+
+> **注意**：
+> - 图片识别需使用支持 Vision 的模型（如 `gpt-4o`、`gpt-4-vision-preview`）
+> - 扫描版 PDF（无文本层）暂不支持，可转为图片后上传
+> - 文件大小限制：10MB
+
+---
+
 ## 文档
 
 | 文档 | 说明 |
@@ -167,6 +201,13 @@ open build/LocalAIAssistant.app
 - **LM Studio** — 图形界面管理模型
 - **LocalAI** — OpenAI API 兼容
 - **OpenAI API** — 云端服务，需 API Key
+</details>
+
+<details>
+<summary><b>Q: 图片/PDF 为什么无法识别？</b></summary>
+
+- **图片识别**：需使用支持 Vision 的模型（`gpt-4o`、`gpt-4-vision-preview`），`gpt-3.5-turbo` 不支持
+- **PDF 文本**：正常 PDF（有文本层）可提取；扫描版 PDF 需转为图片后上传
 </details>
 
 <details>

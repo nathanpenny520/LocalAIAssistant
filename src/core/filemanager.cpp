@@ -186,9 +186,11 @@ QString FileManager::extractPdfText(const QString &path)
     for (int i = 0; i < numPages; ++i) {
         poppler::page *page = doc->create_page(i);
         if (page) {
-            std::string pageText = page->text().to_latin1();
+            // 使用 UTF-8 正确提取文本（支持中文等非 ASCII 字符）
+            poppler::ustring pageText = page->text();
+            QString qText = QString::fromUtf8(pageText.to_utf8().data(), pageText.to_utf8().size());
             content += QString("--- Page %1 ---\n").arg(i + 1);
-            content += QString::fromStdString(pageText);
+            content += qText;
             content += "\n\n";
             delete page;
         }
@@ -196,9 +198,9 @@ QString FileManager::extractPdfText(const QString &path)
 
     delete doc;
 
-    // 如果提取的文本太短，可能是扫描版 PDF
+    // 如果提取的文本太短，可能是扫描版 PDF（无文本层）
     if (content.length() < 100 + numPages * 20) {
-        content += "\n[注意: 此 PDF 可能是扫描版，提取的文本内容有限]\n";
+        content += "\n[注意: 此 PDF 可能是扫描版/图片版，Poppler 无法提取图片中的文字]\n";
     }
 
     return content;

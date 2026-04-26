@@ -54,6 +54,9 @@
 | C++编译器 | C++17支持 | Xcode CLT | VS2019+ / MSVC | GCC 9+ |
 | Qt | 6.x | 官网或Homebrew | 官网安装 | 包管理器 |
 | CMake | 3.16+ | Homebrew | 官网或VS | 包管理器 |
+| Poppler | 26.x+ | Homebrew | MSYS2 | 包管理器 |
+
+> **Poppler 说明**: PDF 文本提取库，用于解析 PDF 文件内容。如不需要 PDF 支持，可跳过安装。
 
 ### 第一步：检查现有环境
 
@@ -104,7 +107,7 @@ xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # 安装依赖
-brew install cmake qt@6
+brew install cmake qt@6 poppler pkg-config
 ```
 
 #### 方式二：Qt 官网安装（推荐开发者）
@@ -181,19 +184,19 @@ pacman -S mingw-w64-x86_64-qt6-base mingw-w64-x86_64-cmake
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools
+sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools libpoppler-cpp-dev pkg-config
 ```
 
 #### Fedora/RHEL
 
 ```bash
-sudo dnf install cmake gcc-c++ qt6-qtbase-devel
+sudo dnf install cmake gcc-c++ qt6-qtbase-devel poppler-cpp-devel pkgconfig
 ```
 
 #### Arch Linux
 
 ```bash
-sudo pacman -S cmake gcc qt6-base
+sudo pacman -S cmake gcc qt6-base poppler pkgconf
 ```
 
 **Qt 安装路径：**
@@ -628,6 +631,32 @@ export LD_LIBRARY_PATH=/usr/lib/qt6/lib:$LD_LIBRARY_PATH
 2. 检查防火墙设置
 
 3. 验证 API URL 和密钥是否正确
+
+### Poppler/PDF 相关问题
+
+**症状**：CMake 报错 `Could not find poppler-cpp`
+
+**解决方案**：
+
+1. 确认 Poppler 已安装：
+   ```bash
+   # macOS
+   brew install poppler pkg-config
+
+   # Ubuntu/Debian
+   sudo apt install libpoppler-cpp-dev pkg-config
+   ```
+
+2. 确认 pkg-config 可检测到 Poppler：
+   ```bash
+   pkg-config --cflags poppler-cpp
+   ```
+
+**症状**：PDF 文件无法识别内容
+
+**原因**：
+- 扫描版 PDF（纯图片）无文本层，Poppler 无法提取
+- 可将 PDF 转为图片后上传，使用 Vision API 识别
 
 ### IDE 中 Qt 报错
 
