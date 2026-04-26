@@ -2,6 +2,7 @@
 #include "stylesheetmanager.h"
 #include "translationmanager.h"
 #include "markdownrenderer.h"
+#include "filemanager.h"
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,6 +14,8 @@
 #include <QTextCursor>
 #include <QEvent>
 #include <QRegularExpression>
+#include <QFileDialog>
+#include <QMessageBox>
 
 // Parse thinking content from AI response
 // Returns a map with "thinking" and "response" keys
@@ -551,4 +554,153 @@ void MainWindow::onLanguageChanged()
     retranslateUi();
     setupMenuBar();
     renderCurrentSession();
+}
+
+void MainWindow::onFileButtonClicked()
+{
+    QString locale = TranslationManager::instance()->currentLocale();
+    QString title = (locale == "en") ? "Select Files" : QStringLiteral("选择文件");
+
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        this,
+        title,
+        QString(),
+        tr("All Files (*.*)")
+    );
+
+    if (filePaths.isEmpty()) {
+        return;
+    }
+
+    for (const QString &path : filePaths) {
+        QFileInfo info(path);
+        if (!info.exists()) {
+            QString msg = (locale == "en")
+                ? QString("File does not exist: %1").arg(path)
+                : QString(QStringLiteral("文件不存在: %1")).arg(path);
+            QMessageBox::warning(this, title, msg);
+            continue;
+        }
+
+        if (info.size() > 10 * 1024 * 1024) {
+            QString msg = (locale == "en")
+                ? QString("File too large (>10MB): %1").arg(path)
+                : QString(QStringLiteral("文件过大 (>10MB): %1")).arg(path);
+            QMessageBox::warning(this, title, msg);
+            continue;
+        }
+
+        if (m_fileManager->addFile(path)) {
+            qDebug() << "File added:" << path;
+        }
+    }
+
+    updateFileListDisplay();
+}
+
+void MainWindow::updateFileListDisplay()
+{
+    // 清除现有文件标签
+    clearFileListDisplay();
+
+    QVector<FileAttachment> files = m_fileManager->pendingFiles();
+    if (files.isEmpty()) {
+        m_fileListArea->setVisible(false);
+        return;
+    }
+
+    m_fileListArea->setVisible(true);
+
+    QString locale = TranslationManager::instance()->currentLocale();
+
+    for (const FileAttachment &file : files) {
+        // 创建文件标签 widget
+        QWidget *fileTag = new QWidget(m_fileListArea);
+        QHBoxLayout *tagLayout = new QHBoxLayout(fileTag);
+        tagLayout->setContentsMargins(4, 2, 4, 2);
+        tagLayout->setSpacing(4);
+
+        // 文件类型颜色
+        QString borderColor;
+        if (file.type == "text") {
+            borderColor = "#007aff";  // 蓝色
+        } else if (file.type == "image") {
+            borderColor = "#34c759";  // 绿色
+        } else {
+            borderColor = "#8e8e93";  // 灰色
+        }
+
+        // 文件名标签
+        QString displayName = QFileInfo(file.path).fileName();
+        if (displayName.length() > 20) {
+            displayName = displayName.left(17) + "...";
+        }
+
+        QLabel *nameLabel = new QLabel(displayName, fileTag);
+        nameLabel->setStyleSheet(QString(
+            "QLabel { color: #333; font-size: 12px; padding: 2px 6px; "
+            "border: 1px solid %1; border-radius: 4px; background: #f5f5f5; }"
+        ).arg(borderColor));
+        tagLayout->addWidget(nameLabel);
+
+        // 删除按钮
+        QPushButton *removeBtn = new QPushButton("×", fileTag);
+        removeBtn->setFixedSize(20, 20);
+        removeBtn->setStyleSheet(
+            "QPushButton { color: #ff3b30; font-size: 14px; font-weight: bold; "
+            "border: none; background: transparent; }"
+            "QPushButton:hover { background: #ffebeb; border-radius: 10px; }"
+        );
+        removeBtn->setProperty("filePath", file.path);  // 存储文件路径用于删除
+        connect(removeBtn, &QPushButton::clicked, this, &MainWindow::onRemoveFileClicked);
+        tagLayout->addWidget(removeBtn);
+
+        // 添加到文件列表布局（在 stretch 之前插入）
+        m_fileListLayout->insertWidget(m_fileListLayout->count() - 1, fileTag);
+    }
+
+    // 更新文件按钮 tooltip 显示文件数量
+    QString tooltip = (locale == "en")
+        ? QString("Add Files (%1 pending)").arg(files.size())
+        : QString(QStringLiteral("添加文件 (%1 个待发送)")).arg(files.size());
+    m_fileButton->setToolTip(tooltip);
+}
+
+void MainWindow::clearFileListDisplay()
+{
+    // 删除所有文件标签 widget（保留 stretch）
+    while (m_fileListLayout->count() > 1) {
+        QLayoutItem *item = m_fileListLayout->takeAt(0);
+        if (item->widget()) {
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+}
+
+void MainWindow::onRemoveFileClicked()
+{
+    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+    if (!btn) {
+        return;
+    }
+
+    QString filePath = btn->property("filePath").toString();
+
+    // 从 FileManager 中移除文件
+    QVector<FileAttachment> files = m_fileManager->pendingFiles();
+    QVector<FileAttachment> newFiles;
+    for (const FileAttachment &file : files) {
+        if (file.path != filePath) {
+            newFiles.append(file);
+        }
+    }
+
+    // 重建 pendingFiles（FileManager 没有 removeSingleFile 方法，需要清空再添加）
+    m_fileManager->clearPendingFiles();
+    for (const FileAttachment &file : newFiles) {
+        m_fileManager->addFile(file.path);
+    }
+
+    updateFileListDisplay();
 }
