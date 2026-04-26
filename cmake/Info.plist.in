@@ -3,7 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>zh_CN</string>
+    <string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>en</string>
+        <string>zh_CN</string>
+    </array>
     <key>CFBundleExecutable</key>
     <string>${PROJECT_NAME}</string>
     <key>CFBundleIconFile</key>
@@ -13,6 +18,8 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
+    <string>LocalAIAssistant</string>
+    <key>CFBundleDisplayName</key>
     <string>本地AI助手</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
@@ -23,7 +30,7 @@
     <key>LSMinimumSystemVersion</key>
     <string>${CMAKE_SYSTEM_VERSION}</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2024. All rights reserved.</string>
+    <string>Copyright © 2026. All rights reserved.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>
