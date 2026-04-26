@@ -592,23 +592,29 @@ void MainWindow::onLanguageChanged()
 
 void MainWindow::onFileButtonClicked()
 {
-    // QFileDialog 默认使用系统语言显示，不需要手动设置标题
+    // 临时禁用翻译器，让文件对话框使用系统语言
+    TranslationManager::instance()->temporarilyDisable();
+
+    // 打开文件对话框（现在使用系统语言）
     QStringList filePaths = QFileDialog::getOpenFileNames(
         this,
-        QString(),  // 使用默认标题（系统语言）
         QString(),
-        QString()   // 使用默认过滤器（系统语言）
+        QString(),
+        QString()
     );
+
+    // 恢复翻译器
+    TranslationManager::instance()->reEnable();
 
     if (filePaths.isEmpty()) {
         return;
     }
 
+    QString locale = TranslationManager::instance()->currentLocale();
+    QString errorTitle = (locale == "en") ? "Error" : QStringLiteral("错误");
+
     for (const QString &path : filePaths) {
         QFileInfo info(path);
-        QString locale = TranslationManager::instance()->currentLocale();
-        QString errorTitle = (locale == "en") ? "Error" : QStringLiteral("错误");
-
         if (!info.exists()) {
             QString msg = (locale == "en")
                 ? QString("File does not exist: %1").arg(path)

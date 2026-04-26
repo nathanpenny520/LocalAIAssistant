@@ -95,3 +95,19 @@ bool TranslationManager::loadTranslation(const QString &locale)
         return false;
     }
 }
+
+void TranslationManager::temporarilyDisable()
+{
+    if (m_translator && isLoaded()) {
+        qApp->removeTranslator(m_translator);
+        m_wasEnabled = true;
+    }
+}
+
+void TranslationManager::reEnable()
+{
+    if (m_translator && m_wasEnabled) {
+        qApp->installTranslator(m_translator);
+        m_wasEnabled = false;
+    }
+}
