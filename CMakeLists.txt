@@ -11,6 +11,8 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(POPPLER REQUIRED poppler-cpp)
 
 set(TS_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
@@ -43,10 +45,16 @@ add_library(LocalAIAssistantCore
 
 target_include_directories(LocalAIAssistantCore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${POPPLER_INCLUDE_DIRS}
+)
+
+target_link_directories(LocalAIAssistantCore PUBLIC
+    ${POPPLER_LIBRARY_DIRS}
 )
 
 target_link_libraries(LocalAIAssistantCore PUBLIC
     Qt6::Network
+    ${POPPLER_LIBRARIES}
 )
 
 add_executable(${PROJECT_NAME}

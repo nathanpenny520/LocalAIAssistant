@@ -4,6 +4,8 @@
 #include <QMimeDatabase>
 #include <QMimeType>
 #include <QDebug>
+#include <poppler-document.h>
+#include <poppler-page.h>
 
 namespace {
     // 文本文件扩展名列表
@@ -15,7 +17,8 @@ namespace {
         "html", "htm", "css", "scss", "sass", "less",
         "sql", "sh", "bash", "zsh", "bat", "cmd", "ps1",
         "dockerfile", "makefile", "cmake", "gradle", "maven",
-        "log", "csv", "tsv", "env", "gitignore", "dockerignore"
+        "log", "csv", "tsv", "env", "gitignore", "dockerignore",
+        "pdf"  // PDF 文件作为特殊文本文件处理
     };
 
     // 图片文件扩展名列表
@@ -139,7 +142,13 @@ FileAttachment FileManager::processFile(const QString &path)
     attachment.size = info.size();
     attachment.mimeType = getMimeType(path);
 
-    if (isTextFile(path)) {
+    QString ext = info.suffix().toLower();
+
+    if (ext == "pdf") {
+        // PDF 文件：使用 Poppler 提取文本
+        attachment.type = "text";
+        attachment.content = extractPdfText(path);
+    } else if (isTextFile(path)) {
         attachment.type = "text";
         attachment.content = readTextFile(path);
     } else if (isImageFile(path)) {
@@ -155,6 +164,44 @@ FileAttachment FileManager::processFile(const QString &path)
     }
 
     return attachment;
+}
+
+QString FileManager::extractPdfText(const QString &path)
+{
+    // 使用 Poppler 提取 PDF 文本
+    poppler::document *doc = poppler::document::load_from_file(path.toStdString());
+
+    if (!doc) {
+        qDebug() << "Failed to load PDF:" << path;
+        return QString("[无法读取 PDF 文件: %1]").arg(QFileInfo(path).fileName());
+    }
+
+    QString content;
+    QFileInfo info(path);
+    content = QString("[PDF 文件: %1]\n\n").arg(info.fileName());
+
+    int numPages = doc->pages();
+    qDebug() << "PDF has" << numPages << "pages";
+
+    for (int i = 0; i < numPages; ++i) {
+        poppler::page *page = doc->create_page(i);
+        if (page) {
+            std::string pageText = page->text().to_latin1();
+            content += QString("--- Page %1 ---\n").arg(i + 1);
+            content += QString::fromStdString(pageText);
+            content += "\n\n";
+            delete page;
+        }
+    }
+
+    delete doc;
+
+    // 如果提取的文本太短，可能是扫描版 PDF
+    if (content.length() < 100 + numPages * 20) {
+        content += "\n[注意: 此 PDF 可能是扫描版，提取的文本内容有限]\n";
+    }
+
+    return content;
 }
 
 QString FileManager::getMimeType(const QString &path)

@@ -207,6 +207,20 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
 
+    // Debug: 打印发送的 JSON（对于图片消息，显示前 500 字符）
+    bool hasAttachments = false;
+    for (const ChatMessage &msg : messages) {
+        if (!msg.attachments.isEmpty()) {
+            hasAttachments = true;
+            break;
+        }
+    }
+    if (hasAttachments) {
+        qDebug() << "=== Multimodal request (with attachments) ===";
+        qDebug() << "JSON payload (first 1000 chars):" << QString(postData).left(1000);
+        qDebug() << "JSON payload size:" << postData.size() << "bytes";
+    }
+
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 

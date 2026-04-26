@@ -38,6 +38,7 @@ private:
     QString getMimeType(const QString &path);
     QString readTextFile(const QString &path);
     QString encodeImageToBase64(const QString &path);
+    QString extractPdfText(const QString &path);
 
     QVector<FileAttachment> m_pendingFiles;
 };
