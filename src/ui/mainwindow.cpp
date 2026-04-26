@@ -592,19 +592,13 @@ void MainWindow::onLanguageChanged()
 
 void MainWindow::onFileButtonClicked()
 {
-    // 临时禁用翻译器，让文件对话框使用系统语言
-    TranslationManager::instance()->temporarilyDisable();
-
-    // 打开文件对话框（现在使用系统语言）
+    // 打开文件对话框（系统对话框自动使用系统语言，不受应用翻译器影响）
     QStringList filePaths = QFileDialog::getOpenFileNames(
         this,
         QString(),
         QString(),
         QString()
     );
-
-    // 恢复翻译器
-    TranslationManager::instance()->reEnable();
 
     if (filePaths.isEmpty()) {
         return;
@@ -698,16 +692,24 @@ void MainWindow::updateFileListDisplay()
         ).arg(textColor, borderColor, bgColor));
         tagLayout->addWidget(nameLabel);
 
-        // 删除按钮 - 使用 Qt 标准图标
+        // 删除按钮 - 使用主题适配的关闭图标
         QPushButton *removeBtn = new QPushButton(fileTag);
-        QIcon closeIcon = QApplication::style()->standardIcon(QStyle::SP_DialogCloseButton);
+        // SP_TitleBarCloseButton 通常有更好的颜色适配
+        QIcon closeIcon = QApplication::style()->standardIcon(QStyle::SP_TitleBarCloseButton);
         removeBtn->setIcon(closeIcon);
         removeBtn->setIconSize(QSize(16, 16));
         removeBtn->setFixedSize(24, 24);
-        removeBtn->setStyleSheet(
-            "QPushButton { border: none; background: transparent; }"
-            "QPushButton:hover { background: #ffebeb; border-radius: 12px; }"
-        );
+
+        // 根据主题设置按钮样式
+        QString removeBtnStyle;
+        if (isDarkTheme) {
+            removeBtnStyle = "QPushButton { border: none; background: transparent; padding: 2px; }"
+                             "QPushButton:hover { background: rgba(255, 59, 48, 0.2); border-radius: 12px; }";
+        } else {
+            removeBtnStyle = "QPushButton { border: none; background: transparent; padding: 2px; }"
+                             "QPushButton:hover { background: #ffebeb; border-radius: 12px; }";
+        }
+        removeBtn->setStyleSheet(removeBtnStyle);
         removeBtn->setProperty("filePath", file.path);  // 存储文件路径用于删除
         connect(removeBtn, &QPushButton::clicked, this, &MainWindow::onRemoveFileClicked);
         tagLayout->addWidget(removeBtn);
