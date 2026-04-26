@@ -655,8 +655,12 @@ export LD_LIBRARY_PATH=/usr/lib/qt6/lib:$LD_LIBRARY_PATH
 **症状**：PDF 文件无法识别内容
 
 **原因**：
-- 扫描版 PDF（纯图片）无文本层，Poppler 无法提取
-- 可将 PDF 转为图片后上传，使用 Vision API 识别
+- 扫描版 PDF（纯图片）无文本层，Poppler 无法提取文字
+- 目前仅支持有文本层的 PDF
+
+**解决方案**：
+- 手动复制 PDF 内容粘贴给 AI
+- 或使用其他工具将 PDF 转为文本文件后上传
 
 ### IDE 中 Qt 报错
 

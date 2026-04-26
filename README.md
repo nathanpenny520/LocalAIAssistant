@@ -162,13 +162,14 @@ open build/LocalAIAssistant.app
 
 | 类型 | 扩展名 | 处理方式 |
 |------|--------|---------|
-| 文本文件 | txt, md, py, cpp, json, yaml, ... | 直接读取内容 |
-| 图片文件 | png, jpg, jpeg, gif, bmp, webp | Base64 编码，Vision API 识别 |
-| PDF 文件 | pdf | Poppler 提取文本层 |
+| 文本文件 | txt, md, py, cpp, json, yaml, ... | 直接读取内容发送 |
+| 图片文件 | png, jpg, jpeg, gif, bmp, webp | Base64 编码发送（需模型支持多模态） |
+| PDF 文件 | pdf | Poppler 本地提取文本层 |
 
 > **注意**：
-> - 图片识别需使用支持 Vision 的模型（如 `gpt-4o`、`gpt-4-vision-preview`）
-> - 扫描版 PDF（无文本层）暂不支持，可转为图片后上传
+> - 图片识别需使用支持多模态的模型（如 `gpt-4o`），普通文本模型无法识别
+> - 本地模型（Ollama）大多不支持图片识别，需确认模型能力
+> - 扫描版 PDF（无文本层）暂不支持
 > - 文件大小限制：10MB
 
 ---
@@ -206,8 +207,9 @@ open build/LocalAIAssistant.app
 <details>
 <summary><b>Q: 图片/PDF 为什么无法识别？</b></summary>
 
-- **图片识别**：需使用支持 Vision 的模型（`gpt-4o`、`gpt-4-vision-preview`），`gpt-3.5-turbo` 不支持
-- **PDF 文本**：正常 PDF（有文本层）可提取；扫描版 PDF 需转为图片后上传
+- **图片识别**：需使用支持多模态的模型（如 `gpt-4o`），普通文本模型无法识别图片
+- **PDF 文本**：正常 PDF（有文本层）可提取；扫描版 PDF（纯图片）暂不支持
+- **本地模型**：Ollama 等本地模型大多不支持图片，需确认具体模型能力
 </details>
 
 <details>
