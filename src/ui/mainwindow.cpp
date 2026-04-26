@@ -129,7 +129,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_markdownDoc(new QTextDocument(this))
     , m_isStreaming(false)
     , m_fileManager(new FileManager(this))
-    , m_fileButton(new QPushButton(tr("📁"), this))
+    , m_fileButton(new QPushButton(this))
     , m_fileListArea(nullptr)
     , m_fileListLayout(nullptr)
 {
@@ -215,7 +215,10 @@ void MainWindow::setupUI()
     inputLayout->addWidget(m_sendButton);
     rightLayout->addLayout(inputLayout);
 
-    // 设置文件按钮样式
+    // 设置文件按钮样式 - 使用 Qt 标准图标
+    QIcon fileIcon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
+    m_fileButton->setIcon(fileIcon);
+    m_fileButton->setIconSize(QSize(20, 20));
     m_fileButton->setFixedSize(40, 30);
     m_fileButton->setToolTip(tr("添加文件"));
 
@@ -285,8 +288,7 @@ void MainWindow::retranslateUi()
     m_deleteAction->setText(tr("删除该对话"));
     setWindowTitle(tr("本地AI助手"));
 
-    // 文件按钮
-    m_fileButton->setText(tr("📁"));
+    // 文件按钮 tooltip
     m_fileButton->setToolTip(tr("添加文件"));
 
     updateSessionList();
@@ -590,14 +592,12 @@ void MainWindow::onLanguageChanged()
 
 void MainWindow::onFileButtonClicked()
 {
-    QString locale = TranslationManager::instance()->currentLocale();
-    QString title = (locale == "en") ? "Select Files" : QStringLiteral("选择文件");
-
+    // QFileDialog 默认使用系统语言显示，不需要手动设置标题
     QStringList filePaths = QFileDialog::getOpenFileNames(
         this,
-        title,
+        QString(),  // 使用默认标题（系统语言）
         QString(),
-        tr("All Files (*.*)")
+        QString()   // 使用默认过滤器（系统语言）
     );
 
     if (filePaths.isEmpty()) {
@@ -606,11 +606,14 @@ void MainWindow::onFileButtonClicked()
 
     for (const QString &path : filePaths) {
         QFileInfo info(path);
+        QString locale = TranslationManager::instance()->currentLocale();
+        QString errorTitle = (locale == "en") ? "Error" : QStringLiteral("错误");
+
         if (!info.exists()) {
             QString msg = (locale == "en")
                 ? QString("File does not exist: %1").arg(path)
                 : QString(QStringLiteral("文件不存在: %1")).arg(path);
-            QMessageBox::warning(this, title, msg);
+            QMessageBox::warning(this, errorTitle, msg);
             continue;
         }
 
@@ -618,7 +621,7 @@ void MainWindow::onFileButtonClicked()
             QString msg = (locale == "en")
                 ? QString("File too large (>10MB): %1").arg(path)
                 : QString(QStringLiteral("文件过大 (>10MB): %1")).arg(path);
-            QMessageBox::warning(this, title, msg);
+            QMessageBox::warning(this, errorTitle, msg);
             continue;
         }
 
