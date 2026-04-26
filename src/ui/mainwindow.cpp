@@ -592,43 +592,48 @@ void MainWindow::onLanguageChanged()
 
 void MainWindow::onFileButtonClicked()
 {
-    // 使用 Qt 内置对话框而非 macOS 原生对话框，以确保显示英文
-    // Qt 内置对话框默认使用英文，不受系统语言影响
-    QFileDialog dialog(this);
-    dialog.setFileMode(QFileDialog::ExistingFiles);
-    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    // macOS 原生文件对话框的语言由系统语言偏好顺序决定
+    // 无法通过 Qt 应用代码直接控制
+    // 如需英文对话框，请在 macOS 系统设置中将英文设为首选语言
 
-    if (dialog.exec()) {
-        QStringList filePaths = dialog.selectedFiles();
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        this,
+        QString(),
+        QString(),
+        QString()
+    );
 
-        QString locale = TranslationManager::instance()->currentLocale();
-        QString errorTitle = (locale == "en") ? "Error" : QStringLiteral("错误");
+    if (filePaths.isEmpty()) {
+        return;
+    }
 
-        for (const QString &path : filePaths) {
-            QFileInfo info(path);
-            if (!info.exists()) {
-                QString msg = (locale == "en")
-                    ? QString("File does not exist: %1").arg(path)
-                    : QString(QStringLiteral("文件不存在: %1")).arg(path);
-                QMessageBox::warning(this, errorTitle, msg);
-                continue;
-            }
+    QString locale = TranslationManager::instance()->currentLocale();
+    QString errorTitle = (locale == "en") ? "Error" : QStringLiteral("错误");
 
-            if (info.size() > 10 * 1024 * 1024) {
-                QString msg = (locale == "en")
-                    ? QString("File too large (>10MB): %1").arg(path)
-                    : QString(QStringLiteral("文件过大 (>10MB): %1")).arg(path);
-                QMessageBox::warning(this, errorTitle, msg);
-                continue;
-            }
-
-            if (m_fileManager->addFile(path)) {
-                qDebug() << "File added:" << path;
-            }
+    for (const QString &path : filePaths) {
+        QFileInfo info(path);
+        if (!info.exists()) {
+            QString msg = (locale == "en")
+                ? QString("File does not exist: %1").arg(path)
+                : QString(QStringLiteral("文件不存在: %1")).arg(path);
+            QMessageBox::warning(this, errorTitle, msg);
+            continue;
         }
 
-        updateFileListDisplay();
+        if (info.size() > 10 * 1024 * 1024) {
+            QString msg = (locale == "en")
+                ? QString("File too large (>10MB): %1").arg(path)
+                : QString(QStringLiteral("文件过大 (>10MB): %1")).arg(path);
+            QMessageBox::warning(this, errorTitle, msg);
+            continue;
+        }
+
+        if (m_fileManager->addFile(path)) {
+            qDebug() << "File added:" << path;
+        }
     }
+
+    updateFileListDisplay();
 }
 
 void MainWindow::updateFileListDisplay()
