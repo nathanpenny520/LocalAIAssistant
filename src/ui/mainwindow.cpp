@@ -285,6 +285,10 @@ void MainWindow::retranslateUi()
     m_deleteAction->setText(tr("删除该对话"));
     setWindowTitle(tr("本地AI助手"));
 
+    // 文件按钮
+    m_fileButton->setText(tr("📁"));
+    m_fileButton->setToolTip(tr("添加文件"));
+
     updateSessionList();
 }
 
