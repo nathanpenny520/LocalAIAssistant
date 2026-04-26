@@ -37,6 +37,8 @@ add_library(LocalAIAssistantCore
     src/core/sessionmanager.cpp
     src/core/sessionmanager.h
     src/core/datamodels.h
+    src/core/filemanager.cpp
+    src/core/filemanager.h
 )
 
 target_include_directories(LocalAIAssistantCore PUBLIC
@@ -105,7 +107,20 @@ if(APPLE)
         COMMENT "Copying app icon to build directory"
     )
 
+    # Copy soul.md to build directory for development
+    set(SOUL_MD_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/soul.md)
+    set(SOUL_MD_DEST ${CMAKE_CURRENT_BINARY_DIR}/core/soul.md)
+
+    add_custom_command(
+        OUTPUT ${SOUL_MD_DEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/core
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SOUL_MD_SOURCE} ${SOUL_MD_DEST}
+        DEPENDS ${SOUL_MD_SOURCE}
+        COMMENT "Copying soul.md to build directory"
+    )
+
     add_custom_target(app_icon ALL DEPENDS ${APP_ICON_DEST})
+    add_custom_target(soul_md ALL DEPENDS ${SOUL_MD_DEST})
 
     set_target_properties(${PROJECT_NAME} PROPERTIES
         MACOSX_BUNDLE TRUE
@@ -113,7 +128,14 @@ if(APPLE)
         RESOURCE ${APP_ICON_DEST}
     )
 
-    add_dependencies(${PROJECT_NAME} app_icon)
+    # Copy soul.md to app bundle Resources after build
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/core
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SOUL_MD_SOURCE} ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/core/soul.md
+        COMMENT "Copying soul.md to app bundle Resources"
+    )
+
+    add_dependencies(${PROJECT_NAME} app_icon soul_md)
 endif()
 
 install(TARGETS ${PROJECT_NAME}-CLI
@@ -133,5 +155,9 @@ if(APPLE)
         ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
         DESTINATION LocalAIAssistant.app/Contents/Resources
         RENAME app.icns
+    )
+    install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/core/soul.md
+        DESTINATION LocalAIAssistant.app/Contents/Resources/core
     )
 endif()
