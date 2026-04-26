@@ -168,7 +168,6 @@ FileAttachment FileManager::processFile(const QString &path)
 
 QString FileManager::extractPdfText(const QString &path)
 {
-    // 使用 Poppler 提取 PDF 文本
     poppler::document *doc = poppler::document::load_from_file(path.toStdString());
 
     if (!doc) {
@@ -181,14 +180,13 @@ QString FileManager::extractPdfText(const QString &path)
     content = QString("[PDF 文件: %1]\n\n").arg(info.fileName());
 
     int numPages = doc->pages();
-    qDebug() << "PDF has" << numPages << "pages";
 
     for (int i = 0; i < numPages; ++i) {
         poppler::page *page = doc->create_page(i);
         if (page) {
-            // 使用 UTF-8 正确提取文本（支持中文等非 ASCII 字符）
             poppler::ustring pageText = page->text();
-            QString qText = QString::fromUtf8(pageText.to_utf8().data(), pageText.to_utf8().size());
+            std::vector<char> utf8Data = pageText.to_utf8();
+            QString qText = QString::fromUtf8(utf8Data.data(), utf8Data.size());
             content += QString("--- Page %1 ---\n").arg(i + 1);
             content += qText;
             content += "\n\n";
@@ -197,11 +195,6 @@ QString FileManager::extractPdfText(const QString &path)
     }
 
     delete doc;
-
-    // 如果提取的文本太短，可能是扫描版 PDF（无文本层）
-    if (content.length() < 100 + numPages * 20) {
-        content += "\n[注意: 此 PDF 可能是扫描版/图片版，Poppler 无法提取图片中的文字]\n";
-    }
 
     return content;
 }
