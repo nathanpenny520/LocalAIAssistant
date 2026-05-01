@@ -123,15 +123,28 @@ MainWindow::MainWindow(QWidget *parent)
     , m_sendButton(new QPushButton(tr("发送"), this))
     , m_newChatButton(new QPushButton(tr("+ 新建对话"), this))
     , m_settingsAction(new QAction(tr("设置"), this))
+    , m_toggleHistoryAction(new QAction(tr("显示历史面板"), this))
     , m_contextMenu(new QMenu(this))
     , m_deleteAction(new QAction(tr("删除该对话"), this))
     , m_networkManager(new NetworkManager(this))
     , m_markdownDoc(new QTextDocument(this))
+    , m_splitter(nullptr)
+    , m_leftPanel(nullptr)
     , m_isStreaming(false)
     , m_fileManager(new FileManager(this))
     , m_fileButton(new QPushButton(this))
     , m_fileListArea(nullptr)
     , m_fileListLayout(nullptr)
+    , m_searchBar(nullptr)
+    , m_searchInput(nullptr)
+    , m_searchPrevBtn(nullptr)
+    , m_searchNextBtn(nullptr)
+    , m_searchCloseBtn(nullptr)
+    , m_searchResultLabel(nullptr)
+    , m_searchAction(new QAction(tr("搜索"), this))
+    , m_girlfriendAction(new QAction(tr("AI女友"), this))
+    , m_currentMatchIndex(0)
+    , m_totalMatches(0)
 {
     setupUI();
     setupMenuBar();
@@ -140,6 +153,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_fileButton, &QPushButton::clicked, this, &MainWindow::onFileButtonClicked);
     connect(m_inputLine, &QLineEdit::returnPressed, this, &MainWindow::onSendClicked);
     connect(m_settingsAction, &QAction::triggered, this, &MainWindow::onSettingsClicked);
+    connect(m_toggleHistoryAction, &QAction::triggered, this, &MainWindow::onToggleHistoryPanel);
     connect(m_newChatButton, &QPushButton::clicked, this, &MainWindow::onNewChatClicked);
     connect(m_historyList, &QListWidget::itemClicked, this, &MainWindow::onSessionItemClicked);
     connect(m_deleteAction, &QAction::triggered, this, &MainWindow::onDeleteSession);
@@ -152,6 +166,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(SessionManager::instance(), &SessionManager::sessionChanged, this, &MainWindow::renderCurrentSession);
     connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this, &MainWindow::onThemeChanged);
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this, &MainWindow::onLanguageChanged);
+
+    // 搜索功能连接
+    m_searchAction->setShortcut(QKeySequence::Find);  // Ctrl+F / Cmd+F
+    connect(m_searchAction, &QAction::triggered, this, &MainWindow::onSearchTriggered);
 
     // Load saved sessions from disk
     SessionManager::instance()->loadSessionsFromFile();
@@ -187,17 +205,25 @@ void MainWindow::setupUI()
     QWidget *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
-    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    m_splitter = new QSplitter(Qt::Horizontal, this);
 
-    QWidget *leftPanel = new QWidget(splitter);
-    QVBoxLayout *leftLayout = new QVBoxLayout(leftPanel);
+    m_leftPanel = new QWidget(m_splitter);
+    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftPanel);
     leftLayout->setContentsMargins(5, 5, 5, 5);
     leftLayout->addWidget(m_newChatButton);
     leftLayout->addWidget(m_historyList);
 
-    QWidget *rightPanel = new QWidget(splitter);
+    // 设置左侧面板最小宽度，防止完全关闭
+    m_leftPanel->setMinimumWidth(120);
+
+    QWidget *rightPanel = new QWidget(m_splitter);
     QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(5, 5, 5, 5);
+
+    // 搜索栏（默认隐藏，Ctrl+F时显示）
+    setupSearchBar();
+    rightLayout->addWidget(m_searchBar);
+
     rightLayout->addWidget(m_chatDisplay, 1);
 
     // 文件列表区域（输入框上方）
@@ -222,11 +248,11 @@ void MainWindow::setupUI()
     m_fileButton->setFixedSize(40, 30);
     m_fileButton->setToolTip(tr("添加文件"));
 
-    splitter->setSizes({180, 600});
+    m_splitter->setSizes({180, 600});
 
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->addWidget(splitter);
+    mainLayout->addWidget(m_splitter);
 
     m_contextMenu->addAction(m_deleteAction);
     m_historyList->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -276,6 +302,32 @@ void MainWindow::setupMenuBar()
     settingsMenu->addAction(m_settingsAction);
 #endif
 
+    // 视图菜单 - 显示/隐藏历史面板
+    QString viewText = (locale == "en") ? "View" : QStringLiteral("视图");
+    QMenu *viewMenu = bar->addMenu(viewText);
+
+    QString toggleHistoryText = (locale == "en") ? "Show History Panel" : QStringLiteral("显示历史面板");
+    m_toggleHistoryAction->setText(toggleHistoryText);
+    m_toggleHistoryAction->setCheckable(true);
+    m_toggleHistoryAction->setChecked(m_leftPanel && m_leftPanel->width() > 0);
+    m_toggleHistoryAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
+    viewMenu->addAction(m_toggleHistoryAction);
+
+    // 编辑菜单 - 搜索功能
+    QString editText = (locale == "en") ? "Edit" : QStringLiteral("编辑");
+    QMenu *editMenu = bar->addMenu(editText);
+
+    QString searchText = (locale == "en") ? "Find..." : QStringLiteral("查找...");
+    m_searchAction->setText(searchText);
+    editMenu->addAction(m_searchAction);
+
+    // AI女友菜单入口
+    QString girlfriendText = (locale == "en") ? "AI Girlfriend" : QStringLiteral("AI女友");
+    m_girlfriendAction->setText(girlfriendText);
+    m_girlfriendAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    viewMenu->addAction(m_girlfriendAction);
+    connect(m_girlfriendAction, &QAction::triggered, this, &MainWindow::onGirlfriendClicked);
+
     if (!menuBar()) {
         setMenuBar(bar);
     }
@@ -290,6 +342,31 @@ void MainWindow::retranslateUi()
 
     // 文件按钮 tooltip
     m_fileButton->setToolTip(tr("添加文件"));
+
+    // 更新显示历史面板菜单项文本
+    QString locale = TranslationManager::instance()->currentLocale();
+    QString toggleHistoryText = (locale == "en") ? "Show History Panel" : QStringLiteral("显示历史面板");
+    m_toggleHistoryAction->setText(toggleHistoryText);
+
+    // 更新搜索相关文本
+    QString searchText = (locale == "en") ? "Find..." : QStringLiteral("查找...");
+    m_searchAction->setText(searchText);
+    if (m_searchInput) {
+        m_searchInput->setPlaceholderText(tr("搜索历史消息..."));
+    }
+    if (m_searchPrevBtn) {
+        m_searchPrevBtn->setToolTip(tr("上一个"));
+    }
+    if (m_searchNextBtn) {
+        m_searchNextBtn->setToolTip(tr("下一个"));
+    }
+    if (m_searchCloseBtn) {
+        m_searchCloseBtn->setToolTip(tr("关闭"));
+    }
+
+    // AI女友菜单项文本
+    QString girlfriendText = (locale == "en") ? "AI Girlfriend" : QStringLiteral("AI女友");
+    m_girlfriendAction->setText(girlfriendText);
 
     updateSessionList();
 }
@@ -472,29 +549,61 @@ void MainWindow::onSendClicked()
 
     m_isStreaming = true;
     m_streamingContent.clear();
+    m_requestSessionId = SessionManager::instance()->currentSessionId();  // 记录发起请求时的会话ID
     setInputEnabled(false);
     m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void MainWindow::onNetworkFinished(const QString &response)
 {
+    // 验证响应是否属于发起请求时的会话
+    if (m_requestSessionId.isEmpty()) {
+        return;
+    }
+
     m_isStreaming = false;
     m_streamingContent.clear();
-    SessionManager::instance()->addMessageToCurrentSession("assistant", response);
+
+    // 直接添加消息到原会话
+    SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
+
+    // 只有当前显示的是原会话才渲染
+    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+        m_isRendering = false;
+        renderCurrentSession();
+    }
+
+    m_requestSessionId.clear();
     setInputEnabled(true);
 }
 
 void MainWindow::onNetworkError(const QString &error)
 {
+    // 验证响应是否属于发起请求时的会话
+    if (m_requestSessionId.isEmpty()) {
+        return;
+    }
+
     m_isStreaming = false;
     m_streamingContent.clear();
-    SessionManager::instance()->addMessageToCurrentSession("assistant", tr("错误: ") + error);
+
+    // 直接添加错误消息到原会话
+    SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", tr("错误: ") + error);
+
+    // 只有当前显示的是原会话才渲染
+    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+        m_isRendering = false;
+        renderCurrentSession();
+    }
+
+    m_requestSessionId.clear();
     setInputEnabled(true);
 }
 
 void MainWindow::onStreamChunkReceived(const QString &chunk)
 {
-    if (!m_isStreaming) {
+    // 验证响应是否属于当前显示的会话
+    if (!m_isStreaming || m_requestSessionId != SessionManager::instance()->currentSessionId()) {
         return;
     }
 
@@ -521,46 +630,49 @@ void MainWindow::onStreamChunkReceived(const QString &chunk)
 
 void MainWindow::onStreamFinished(const QString &fullContent)
 {
-    if (!m_isStreaming) {
+    // 验证响应是否属于发起请求时的会话
+    if (!m_isStreaming || m_requestSessionId.isEmpty()) {
         return;
     }
 
     m_isStreaming = false;
 
-    // Save the complete message
-    SessionManager::instance()->addMessageToCurrentSession("assistant", fullContent);
+    // 直接添加消息到原会话，不需要切换
+    SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullContent);
 
     // 自动命名：如果是新对话的第一条回复，根据用户第一条消息生成标题
-    const auto &session = SessionManager::instance()->currentSession();
-    if (session.title == "新对话" && session.messages.size() == 2) {
-        // 找到第一条用户消息
-        QString firstUserMsg;
-        for (const auto &msg : session.messages) {
-            if (msg.role == "user") {
-                firstUserMsg = msg.content;
-                break;
+    const auto &sessions = SessionManager::instance()->allSessions();
+    if (sessions.contains(m_requestSessionId)) {
+        const auto &session = sessions[m_requestSessionId];
+        if (session.title == "新对话" && session.messages.size() == 2) {
+            QString firstUserMsg;
+            for (const auto &msg : session.messages) {
+                if (msg.role == "user") {
+                    firstUserMsg = msg.content;
+                    break;
+                }
             }
-        }
-        // 生成标题：取前30个字符，去掉换行
-        if (!firstUserMsg.isEmpty()) {
-            QString title = firstUserMsg.split('\n')[0].left(30);
-            if (title.length() < firstUserMsg.split('\n')[0].length()) {
-                title += "...";
+            if (!firstUserMsg.isEmpty()) {
+                QString title = firstUserMsg.split('\n')[0].left(30);
+                if (title.length() < firstUserMsg.split('\n')[0].length()) {
+                    title += "...";
+                }
+                SessionManager::instance()->updateSessionTitle(m_requestSessionId, title);
+                updateSessionList();
             }
-            SessionManager::instance()->updateSessionTitle(session.id, title);
-            updateSessionList();
         }
     }
 
     SessionManager::instance()->saveSessionsToFile();
 
-    // Clear streaming buffer
+    // 只有当前显示的是原会话才渲染
+    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+        m_isRendering = false;
+        renderCurrentSession();
+    }
+
     m_streamingContent.clear();
-
-    // Force render (reset m_isRendering to allow it)
-    m_isRendering = false;
-    renderCurrentSession();
-
+    m_requestSessionId.clear();
     setInputEnabled(true);
 }
 
@@ -580,12 +692,31 @@ void MainWindow::onSettingsClicked()
 
 void MainWindow::onNewChatClicked()
 {
-    SessionManager::instance()->createNewSession();
+    QString defaultTitle = TranslationManager::instance()->currentLocale() == "en"
+        ? "New Chat" : tr("新对话");
+    SessionManager::instance()->createNewSession(defaultTitle);
     m_chatDisplay->clear();
     m_markdownDoc->clear();
     m_inputLine->clear();
     m_inputLine->setFocus();
     updateSessionList();
+}
+
+void MainWindow::onToggleHistoryPanel()
+{
+    if (!m_splitter || !m_leftPanel) {
+        return;
+    }
+
+    // 如果面板当前隐藏（宽度为最小宽度），则恢复到正常宽度
+    if (m_leftPanel->width() <= m_leftPanel->minimumWidth()) {
+        m_splitter->setSizes({180, m_splitter->width() - 180});
+        m_toggleHistoryAction->setChecked(true);
+    } else {
+        // 隐藏面板（设置为最小宽度）
+        m_splitter->setSizes({0, m_splitter->width()});
+        m_toggleHistoryAction->setChecked(false);
+    }
 }
 
 void MainWindow::onSessionItemClicked(QListWidgetItem *item)
@@ -622,9 +753,37 @@ void MainWindow::onCustomContextMenuRequested(const QPoint &pos)
 void MainWindow::onThemeChanged(int theme)
 {
     Q_UNUSED(theme);
+    // Clear search highlights first to avoid display issues
+    if (m_searchBar && m_searchBar->isVisible()) {
+        clearHighlights();
+    }
+
     this->setStyleSheet(StyleSheetManager::instance()->currentStyleSheet());
     // Re-render chat content with new theme colors
     renderCurrentSession();
+
+    // Re-apply highlights with new theme colors if there's a search term
+    // This must be done after renderCurrentSession() completes
+    if (m_searchBar && m_searchBar->isVisible() && m_searchInput) {
+        QString keyword = m_searchInput->text().trimmed();
+        if (!keyword.isEmpty()) {
+            // Recalculate match count after re-render
+            QTextDocument *doc = m_chatDisplay->document();
+            QTextCursor cursor(doc);
+            m_totalMatches = 0;
+            while (!cursor.isNull()) {
+                cursor = doc->find(keyword, cursor);
+                if (!cursor.isNull()) {
+                    m_totalMatches++;
+                }
+            }
+            // Reset to first match
+            m_currentMatchIndex = 1;
+            highlightAllMatches();
+            onSearchNext();
+            updateSearchResultLabel();
+        }
+    }
 }
 
 void MainWindow::onLanguageChanged()
@@ -809,4 +968,277 @@ void MainWindow::onRemoveFileClicked()
     }
 
     updateFileListDisplay();
+}
+
+// ==================== 搜索功能实现 ====================
+
+void MainWindow::setupSearchBar()
+{
+    m_searchBar = new QFrame(this);
+    m_searchBar->setObjectName("searchBar");
+    m_searchBar->setVisible(false);  // 默认隐藏
+
+    QHBoxLayout *searchLayout = new QHBoxLayout(m_searchBar);
+    searchLayout->setContentsMargins(10, 6, 10, 6);
+    searchLayout->setSpacing(8);
+
+    // 搜索输入框
+    m_searchInput = new QLineEdit(m_searchBar);
+    m_searchInput->setObjectName("searchInput");
+    m_searchInput->setPlaceholderText(tr("搜索历史消息..."));
+    m_searchInput->setClearButtonEnabled(true);
+    m_searchInput->setMinimumHeight(32);
+    searchLayout->addWidget(m_searchInput, 1);
+
+    // 搜索结果计数
+    m_searchResultLabel = new QLabel(m_searchBar);
+    m_searchResultLabel->setObjectName("searchResultLabel");
+    m_searchResultLabel->setText("");
+    m_searchResultLabel->setMinimumWidth(70);
+    searchLayout->addWidget(m_searchResultLabel);
+
+    // 上一个按钮
+    m_searchPrevBtn = new QPushButton(m_searchBar);
+    m_searchPrevBtn->setObjectName("searchPrevBtn");
+    m_searchPrevBtn->setText("◀");
+    m_searchPrevBtn->setToolTip(tr("上一个"));
+    searchLayout->addWidget(m_searchPrevBtn);
+
+    // 下一个按钮
+    m_searchNextBtn = new QPushButton(m_searchBar);
+    m_searchNextBtn->setObjectName("searchNextBtn");
+    m_searchNextBtn->setText("▶");
+    m_searchNextBtn->setToolTip(tr("下一个"));
+    searchLayout->addWidget(m_searchNextBtn);
+
+    // 关闭按钮
+    m_searchCloseBtn = new QPushButton(m_searchBar);
+    m_searchCloseBtn->setObjectName("searchCloseBtn");
+    m_searchCloseBtn->setText("✖");
+    m_searchCloseBtn->setToolTip(tr("关闭"));
+    searchLayout->addWidget(m_searchCloseBtn);
+
+    // 连接信号
+    connect(m_searchInput, &QLineEdit::textChanged, this, &MainWindow::onSearchTextChanged);
+    connect(m_searchPrevBtn, &QPushButton::clicked, this, &MainWindow::onSearchPrevious);
+    connect(m_searchNextBtn, &QPushButton::clicked, this, &MainWindow::onSearchNext);
+    connect(m_searchCloseBtn, &QPushButton::clicked, this, &MainWindow::onSearchClose);
+}
+
+void MainWindow::updateSearchBarStyle()
+{
+    // 样式由全局样式表管理，主题切换时自动更新
+    // 此方法保留以备将来需要额外样式调整时使用
+}
+
+void MainWindow::onSearchTriggered()
+{
+    if (!m_searchBar) {
+        setupSearchBar();
+    }
+
+    m_searchBar->setVisible(true);
+    m_searchInput->clear();
+    m_searchInput->setFocus();
+    m_currentMatchIndex = 0;
+    m_totalMatches = 0;
+    m_searchResultLabel->setText("");
+}
+
+void MainWindow::onSearchTextChanged()
+{
+    QString keyword = m_searchInput->text().trimmed();
+
+    if (keyword.isEmpty()) {
+        clearHighlights();
+        m_totalMatches = 0;
+        m_currentMatchIndex = 0;
+        m_searchResultLabel->setText("");
+        return;
+    }
+
+    // 计算匹配数量
+    QTextDocument *doc = m_chatDisplay->document();
+    QTextCursor cursor(doc);
+    m_totalMatches = 0;
+
+    while (!cursor.isNull()) {
+        cursor = doc->find(keyword, cursor);
+        if (!cursor.isNull()) {
+            m_totalMatches++;
+        }
+    }
+
+    m_currentMatchIndex = 0;
+
+    // 高亮第一个匹配
+    highlightAllMatches();
+    if (m_totalMatches > 0) {
+        onSearchNext();
+    }
+
+    updateSearchResultLabel();
+}
+
+void MainWindow::onSearchNext()
+{
+    QString keyword = m_searchInput->text().trimmed();
+    if (keyword.isEmpty()) {
+        return;
+    }
+
+    QTextDocument *doc = m_chatDisplay->document();
+    QTextCursor cursor = m_chatDisplay->textCursor();
+
+    // 从当前位置向后搜索
+    QTextCursor found = doc->find(keyword, cursor);
+
+    if (found.isNull()) {
+        // 没找到，从头开始搜索
+        cursor.movePosition(QTextCursor::Start);
+        found = doc->find(keyword, cursor);
+    }
+
+    if (!found.isNull()) {
+        m_chatDisplay->setTextCursor(found);
+        m_chatDisplay->ensureCursorVisible();
+        // 更新当前索引和高亮
+        updateCurrentMatchIndex();
+        highlightAllMatches();  // 更新高亮显示
+    }
+}
+
+void MainWindow::onSearchPrevious()
+{
+    QString keyword = m_searchInput->text().trimmed();
+    if (keyword.isEmpty()) {
+        return;
+    }
+
+    QTextDocument *doc = m_chatDisplay->document();
+    QTextCursor cursor = m_chatDisplay->textCursor();
+
+    // 从当前位置向前搜索
+    QTextCursor found = doc->find(keyword, cursor, QTextDocument::FindBackward);
+
+    if (found.isNull()) {
+        // 没找到，从末尾开始搜索
+        cursor.movePosition(QTextCursor::End);
+        found = doc->find(keyword, cursor, QTextDocument::FindBackward);
+    }
+
+    if (!found.isNull()) {
+        m_chatDisplay->setTextCursor(found);
+        m_chatDisplay->ensureCursorVisible();
+        updateCurrentMatchIndex();
+        highlightAllMatches();  // 更新高亮显示
+    }
+}
+
+void MainWindow::onSearchClose()
+{
+    clearHighlights();
+    m_searchBar->setVisible(false);
+    m_inputLine->setFocus();
+}
+
+void MainWindow::highlightAllMatches()
+{
+    QString keyword = m_searchInput->text().trimmed();
+    if (keyword.isEmpty()) {
+        return;
+    }
+
+    // 使用 extraSelection 实现高亮效果
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    // 判断当前主题，选择合适的高亮颜色
+    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+    if (theme == StyleSheetManager::SystemTheme) {
+        QPalette palette = QApplication::palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+        isDarkTheme = (brightness < 128);
+    }
+
+    // 匹配项高亮颜色（黄色背景）
+    QColor matchColor = isDarkTheme ? QColor(255, 200, 50, 150) : QColor(255, 235, 130);
+    // 当前匹配高亮颜色（橙色背景，更醒目）
+    QColor currentMatchColor = isDarkTheme ? QColor(255, 165, 0, 200) : QColor(255, 180, 60);
+
+    QTextDocument *doc = m_chatDisplay->document();
+    QTextCursor cursor(doc);
+    int matchIndex = 0;
+
+    // 找到所有匹配并添加高亮
+    while (!cursor.isNull()) {
+        cursor = doc->find(keyword, cursor);
+        if (!cursor.isNull()) {
+            QTextEdit::ExtraSelection selection;
+            selection.cursor = cursor;
+            selection.format.setBackground(matchIndex == m_currentMatchIndex - 1 ? currentMatchColor : matchColor);
+            // 不使用 FullWidthSelection，只高亮匹配的文字
+            extraSelections.append(selection);
+            matchIndex++;
+        }
+    }
+
+    m_chatDisplay->setExtraSelections(extraSelections);
+}
+
+void MainWindow::clearHighlights()
+{
+    // 清除所有高亮
+    m_chatDisplay->setExtraSelections(QList<QTextEdit::ExtraSelection>());
+    // 清除选中状态
+    QTextCursor cursor = m_chatDisplay->textCursor();
+    cursor.clearSelection();
+    m_chatDisplay->setTextCursor(cursor);
+}
+
+void MainWindow::updateCurrentMatchIndex()
+{
+    QString keyword = m_searchInput->text().trimmed();
+    if (keyword.isEmpty() || m_totalMatches == 0) {
+        return;
+    }
+
+    QTextDocument *doc = m_chatDisplay->document();
+    QTextCursor currentCursor = m_chatDisplay->textCursor();
+    QTextCursor cursor(doc);
+    int index = 0;
+
+    while (!cursor.isNull() && cursor.position() <= currentCursor.position()) {
+        cursor = doc->find(keyword, cursor);
+        if (!cursor.isNull()) {
+            if (cursor.position() == currentCursor.position()) {
+                m_currentMatchIndex = index + 1;
+                break;
+            }
+            index++;
+        }
+    }
+
+    updateSearchResultLabel();
+}
+
+void MainWindow::updateSearchResultLabel()
+{
+    if (m_totalMatches == 0) {
+        m_searchResultLabel->setText(tr("无结果"));
+    } else {
+        m_searchResultLabel->setText(QString("%1/%2").arg(m_currentMatchIndex).arg(m_totalMatches));
+    }
+}
+
+void MainWindow::onGirlfriendClicked()
+{
+    static GirlfriendWindow *girlfriendWindow = nullptr;
+    if (!girlfriendWindow) {
+        girlfriendWindow = new GirlfriendWindow(this);
+    }
+    girlfriendWindow->show();
+    girlfriendWindow->raise();
+    girlfriendWindow->activateWindow();
 }
