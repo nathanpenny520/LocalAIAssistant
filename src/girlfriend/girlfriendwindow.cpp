@@ -1,5 +1,6 @@
 #include "girlfriendwindow.h"
 #include <QDebug>
+#include <QScrollBar>
 
 GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     : QWidget(parent)
