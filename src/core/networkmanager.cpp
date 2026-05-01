@@ -2,6 +2,8 @@
 #include "datamodels.h"
 #include <QDebug>
 #include <QBuffer>
+#include <QDir>
+#include <QStandardPaths>
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -43,6 +45,23 @@ void NetworkManager::setStreamingEnabled(bool enabled)
     settings.setValue("streamingEnabled", m_streamingEnabled);
 }
 
+void NetworkManager::setSystemPrompt(const QString &prompt)
+{
+    m_systemPrompt = prompt;
+}
+
+void NetworkManager::abortCurrentRequest()
+{
+    if (m_currentReply) {
+        // Disconnect signals first to prevent abort-triggered finished signal from causing crash
+        m_currentReply->disconnect(this);
+        m_currentReply->abort();
+        m_currentReply->deleteLater();
+        m_currentReply = nullptr;
+    }
+    m_streamBuffer.clear();
+}
+
 void NetworkManager::loadSettings()
 {
     QSettings settings("LocalAIAssistant", "Settings");
@@ -59,7 +78,7 @@ void NetworkManager::loadSettings()
     m_topP = settings.value("topP", 1.0).toDouble();
     m_frequencyPenalty = settings.value("frequencyPenalty", 0.0).toDouble();
 
-    // seed 处理：-1 表示未设置（null）
+    // seed handling: -1 means not set (null)
     int seedValue = settings.value("seed", -1).toInt();
     if (seedValue >= 0) {
         m_seed = seedValue;
@@ -72,17 +91,22 @@ void NetworkManager::loadSettings()
 
 QString NetworkManager::loadSystemPrompt()
 {
-    // 尝试多个可能的路径
+    // Try multiple possible paths
     QStringList possiblePaths;
 
-    // 1. 应用程序目录下的 core/soul.md
+    // 1. Application directory
     QString appDir = QCoreApplication::applicationDirPath();
-    possiblePaths << appDir + "/core/soul.md";
+    possiblePaths << QDir::cleanPath(appDir + "/core/soul.md");
 
-    // 2. macOS app bundle 结构
-    possiblePaths << appDir + "/../Resources/core/soul.md";
+    // 2. macOS app bundle structure
+    possiblePaths << QDir::cleanPath(appDir + "/../Resources/core/soul.md");
 
-    // 3. 开发时相对路径
+    // 3. Linux standard paths
+    possiblePaths << "/usr/share/localaiassistant/core/soul.md";
+    possiblePaths << "/usr/local/share/localaiassistant/core/soul.md";
+    possiblePaths << QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/core/soul.md");
+
+    // 4. Development relative paths
     possiblePaths << "sourcecode-ai-assistant/src/core/soul.md";
     possiblePaths << "src/core/soul.md";
 
@@ -95,7 +119,7 @@ QString NetworkManager::loadSystemPrompt()
         }
     }
 
-    // 降级：内置默认 prompt
+    // Fallback: built-in default prompt
     return "You are a helpful AI assistant integrated into a desktop application.\n\n"
            "## Language\n\n"
            "Adapt to user's language. Reply in the same language the user uses.\n\n"
@@ -120,7 +144,7 @@ void NetworkManager::saveSettings()
     settings.setValue("topP", m_topP);
     settings.setValue("frequencyPenalty", m_frequencyPenalty);
 
-    // seed 保存：-1 表示 null
+    // seed save: -1 means null
     settings.setValue("seed", m_seed.has_value() ? m_seed.value() : -1);
     settings.setValue("streamingEnabled", m_streamingEnabled);
 }
@@ -151,7 +175,7 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
         m_currentReply = nullptr;
     }
 
-    // 去除 URL 两端的空白字符
+    // Trim whitespace from URL
     QString fullUrl = m_apiBaseUrl.trimmed();
 
     if (fullUrl.isEmpty()) {
@@ -189,19 +213,19 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
 
     QJsonObject jsonPayload;
     jsonPayload["model"] = m_modelName;
-    jsonPayload["temperature"] = m_temperature;                  // 使用成员变量而非硬编码
-    jsonPayload["top_p"] = m_topP;                               // 新增
+    jsonPayload["temperature"] = m_temperature;                  // Use member variable instead of hardcoded
+    jsonPayload["top_p"] = m_topP;                               // Added
     jsonPayload["max_tokens"] = m_maxTokens;
     jsonPayload["presence_penalty"] = m_presencePenalty;
-    jsonPayload["frequency_penalty"] = m_frequencyPenalty;       // 新增
+    jsonPayload["frequency_penalty"] = m_frequencyPenalty;       // Added
     jsonPayload["stream"] = m_streamingEnabled;
 
-    // seed 仅在有值时传递
+    // seed only passed when has value
     if (m_seed.has_value()) {
         jsonPayload["seed"] = m_seed.value();
     }
 
-    // 统一使用 messages 格式，传递 isOllama 参数以支持不同格式
+    // Use messages format, pass isOllama parameter to support different formats
     jsonPayload["messages"] = buildMessagesArray(messages, m_maxContext, isOllama);
 
     QJsonDocument doc(jsonPayload);
@@ -344,11 +368,11 @@ void NetworkManager::onStreamReadyRead()
         return;
     }
 
-    // 检查是否是 Ollama
+    // Check if it's Ollama
     bool isOllama = m_apiBaseUrl.contains("11434");
 
     if (isOllama) {
-        // 对于 Ollama，按行读取数据
+        // For Ollama, read data line by line
         while (m_currentReply->canReadLine()) {
             QByteArray line = m_currentReply->readLine();
             QString chunk = extractDeltaFromSSE(line, true);
@@ -359,7 +383,7 @@ void NetworkManager::onStreamReadyRead()
             }
         }
     } else {
-        // 对于其他服务器，保持原来的处理方式
+        // For other servers, keep the original processing
         QByteArray newData = m_currentReply->readAll();
         QString chunk = extractDeltaFromSSE(newData, false);
 
@@ -422,7 +446,7 @@ QString NetworkManager::extractDeltaFromSSE(const QByteArray &data, bool isOllam
     }
 
     if (isOllama) {
-        // 对于 Ollama，直接解析 JSON
+        // For Ollama, parse JSON directly
         QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
         if (doc.isNull() || !doc.isObject()) {
             return result;
@@ -439,11 +463,11 @@ QString NetworkManager::extractDeltaFromSSE(const QByteArray &data, bool isOllam
             return result;
         }
 
-        // 处理 Ollama /api/generate 的流式响应格式
+        // Handle Ollama /api/generate streaming response format
         if (root.contains("response")) {
             result += root["response"].toString();
         }
-        // 处理 Ollama /api/chat 的响应格式
+        // Handle Ollama /api/chat response format
         else if (root.contains("message")) {
             QJsonObject message = root["message"].toObject();
             if (message.contains("content")) {
@@ -451,7 +475,7 @@ QString NetworkManager::extractDeltaFromSSE(const QByteArray &data, bool isOllam
             }
         }
     } else {
-        // 对于其他服务器，保持原来的处理方式
+        // For other servers, keep the original processing
         QStringList lines = text.split('\n');
         for (const QString &line : lines) {
             if (!line.startsWith("data: ")) {
@@ -475,7 +499,7 @@ QString NetworkManager::extractDeltaFromSSE(const QByteArray &data, bool isOllam
                 break;
             }
 
-            // 处理 OpenAI 的响应格式
+            // Handle OpenAI response format
             if (root.contains("choices") && root["choices"].isArray()) {
                 QJsonArray choices = root["choices"].toArray();
                 if (!choices.isEmpty()) {
@@ -504,16 +528,16 @@ QString NetworkManager::extractContentFromResponse(const QByteArray &data)
     if (root.contains("error")) {
         QJsonObject errorObj = root["error"].toObject();
         QString errorMessage = errorObj["message"].toString("Unknown error");
-        return "API 错误: " + errorMessage;
+        return "API Error: " + errorMessage;
     }
 
-    // 处理 Ollama /api/generate 的响应格式
+    // Handle Ollama /api/generate response format
     if (root.contains("response")) {
         QString content = root["response"].toString();
         content = content.trimmed();
         return content;
     }
-    // 处理 Ollama /api/chat 的响应格式
+    // Handle Ollama /api/chat response format
     else if (root.contains("message")) {
         QJsonObject message = root["message"].toObject();
         if (message.contains("content")) {
@@ -522,7 +546,7 @@ QString NetworkManager::extractContentFromResponse(const QByteArray &data)
             return content;
         }
     }
-    // 处理 OpenAI 的响应格式
+    // Handle OpenAI response format
     else if (root.contains("choices") && root["choices"].isArray()) {
         QJsonArray choices = root["choices"].toArray();
         if (!choices.isEmpty()) {
@@ -540,13 +564,13 @@ QString NetworkManager::extractContentFromResponse(const QByteArray &data)
             if (firstChoice.contains("finish_reason")) {
                 QString finishReason = firstChoice["finish_reason"].toString();
                 if (finishReason == "length") {
-                    return "警告: 回复因长度限制被截断";
+                    return "Warning: Response truncated due to length limit";
                 }
             }
         }
     }
 
-    return "未能解析到有效内容";
+    return "Failed to parse valid content";
 }
 
 QJsonObject NetworkManager::buildTextContentBlock(const QString &text)

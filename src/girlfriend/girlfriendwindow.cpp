@@ -3,7 +3,7 @@
 #include <QScrollBar>
 
 GirlfriendWindow::GirlfriendWindow(QWidget *parent)
-    : QWidget(parent)
+    : QWidget(nullptr)  // 不传入 parent，使其成为独立窗口
     , m_avatarWidget(new AvatarWidget(this))
     , m_personalityEngine(new PersonalityEngine(this))
     , m_session(new GirlfriendSession())
@@ -16,6 +16,9 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     , m_voiceButton(new QPushButton("🎤", this))
     , m_isStreaming(false)
 {
+    // 设置为独立顶层窗口，有标题栏和关闭按钮
+    setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinMaxButtonsHint);
+
     setupUI();
 
     // 加载会话历史
@@ -30,8 +33,9 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     connect(m_networkManager, &NetworkManager::streamFinished, this, &GirlfriendWindow::onStreamFinished);
     connect(m_networkManager, &NetworkManager::errorOccurred, this, &GirlfriendWindow::onNetworkError);
 
-    // 加载人设 Prompt
-    m_personalityEngine->loadPersonalityPrompt();
+    // 加载人设 Prompt 并设置为 NetworkManager 的 system prompt
+    QString personalityPrompt = m_personalityEngine->loadPersonalityPrompt();
+    m_networkManager->setSystemPrompt(personalityPrompt);
 
     // 设置窗口属性
     setWindowTitle("AI女友 - 小清");
@@ -190,13 +194,8 @@ void GirlfriendWindow::onSendClicked()
     clearInput();
     setInputEnabled(false);
 
-    // 构建请求消息
+    // 构建请求消息 - 只包含历史消息，system prompt 由 NetworkManager 处理
     QVector<ChatMessage> messages;
-
-    // 添加系统 Prompt
-    QString systemPrompt = m_personalityEngine->buildSystemPrompt();
-    ChatMessage systemMsg("system", systemPrompt);
-    messages.append(systemMsg);
 
     // 添加历史消息
     for (const GirlfriendMessage &gfMsg : m_session->messages()) {

@@ -22,6 +22,8 @@ public:
 
     bool isStreamingEnabled() const;
     void setStreamingEnabled(bool enabled);
+    void setSystemPrompt(const QString &prompt);  // 设置自定义 system prompt
+    void abortCurrentRequest();  // 中止当前请求
 
 signals:
     void responseReceived(const QString &content);
