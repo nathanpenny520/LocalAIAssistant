@@ -46,6 +46,12 @@ public:
     void stopSpeaking();
     bool isSpeaking() const { return m_isSpeaking; }
 
+    // 流式 TTS：分段发送文本
+    void startStreamingTts();
+    void sendStreamingText(const QString &text);
+    void finishStreamingTts();
+    bool isStreamingTts() const { return m_ttsStreaming; }
+
     // 设置
     void setVoiceType(const QString &voiceType);
     void setEnableVoiceOutput(bool enable) { m_enableVoiceOutput = enable; }

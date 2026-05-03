@@ -1036,6 +1036,112 @@ void VoiceManager::sendTtsRequest(const QString &text)
     qDebug() << "  - Voice:" << m_voiceType;
 }
 
+void VoiceManager::startStreamingTts()
+{
+    if (!isConfigured()) {
+        emit ttsError(GTr::xunfeiCredentialsNotConfigured());
+        return;
+    }
+
+    m_ttsAudioBuffer.clear();
+    m_ttsSeq = 0;
+    m_ttsStreaming = true;
+
+    emit statusChanged(GTr::synthesizingVoice());
+
+    // 连接 TTS WebSocket
+    QString authUrl = generateTtsAuthUrl();
+    qDebug() << "VoiceManager: Connecting to streaming TTS:" << authUrl.left(100) + "...";
+    m_ttsWebSocket->open(QUrl(authUrl));
+}
+
+void VoiceManager::sendStreamingText(const QString &text)
+{
+    if (!m_ttsConnected || text.isEmpty() || !m_ttsStreaming) {
+        return;
+    }
+
+    m_ttsSeq++;
+
+    QJsonObject frame;
+
+    // header
+    QJsonObject header;
+    header["app_id"] = m_appId;
+    header["status"] = 1;  // 流式中间帧
+    frame["header"] = header;
+
+    // parameter (首次发送后后续帧可省略，但为安全每次发送)
+    QJsonObject parameter;
+    QJsonObject oral;
+    oral["oral_level"] = "mid";
+    oral["spark_assist"] = 1;
+    parameter["oral"] = oral;
+
+    QJsonObject tts;
+    tts["vcn"] = m_voiceType;
+    QJsonObject audio;
+    audio["encoding"] = "lame";
+    audio["sample_rate"] = 24000;
+    audio["channels"] = 1;
+    audio["bit_depth"] = 16;
+    audio["frame_size"] = 0;
+    tts["audio"] = audio;
+    parameter["tts"] = tts;
+    frame["parameter"] = parameter;
+
+    // payload
+    QJsonObject payload;
+    QJsonObject textObj;
+    textObj["encoding"] = "utf8";
+    textObj["compress"] = "raw";
+    textObj["format"] = "plain";
+    textObj["status"] = 1;  // 中间数据
+    textObj["seq"] = m_ttsSeq;
+    textObj["text"] = QString(text.toUtf8().toBase64());
+    payload["text"] = textObj;
+    frame["payload"] = payload;
+
+    QString jsonFrame = QJsonDocument(frame).toJson(QJsonDocument::Compact);
+    m_ttsWebSocket->sendTextMessage(jsonFrame);
+
+    qDebug() << "VoiceManager: Sent streaming TTS text seq=" << m_ttsSeq
+             << "text=" << text.left(20) << "...";
+}
+
+void VoiceManager::finishStreamingTts()
+{
+    if (!m_ttsConnected || !m_ttsStreaming) {
+        return;
+    }
+
+    m_ttsStreaming = false;
+
+    // 发送结束帧
+    QJsonObject frame;
+
+    QJsonObject header;
+    header["app_id"] = m_appId;
+    header["status"] = 2;  // 结束
+    frame["header"] = header;
+
+    QJsonObject payload;
+    QJsonObject textObj;
+    textObj["encoding"] = "utf8";
+    textObj["compress"] = "raw";
+    textObj["format"] = "plain";
+    textObj["status"] = 2;  // 结束数据
+    textObj["seq"] = m_ttsSeq + 1;
+    textObj["text"] = "";
+    payload["text"] = textObj;
+    frame["payload"] = payload;
+
+    QString jsonFrame = QJsonDocument(frame).toJson(QJsonDocument::Compact);
+    m_ttsWebSocket->sendTextMessage(jsonFrame);
+
+    qDebug() << "VoiceManager: Sent streaming TTS end signal";
+}
+
 void VoiceManager::parseTtsResponse(const QByteArray &binaryData, const QString &jsonMeta)
 {
     // 累积音频数据
