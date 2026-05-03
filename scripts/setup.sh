@@ -7,13 +7,22 @@
 # Usage: ./scripts/setup.sh
 # ============================================================
 
-set -e
-
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
+
+# Pause function for interactive terminal
+pause_if_interactive() {
+    if [ -t 0 ]; then
+        echo ""
+        read -p "按 Enter 键退出..." -r
+    fi
+}
+
+# Trap errors to pause before exit
+trap 'echo ""; echo "❌ 脚本执行出错"; pause_if_interactive; exit 1' ERR
 
 echo ""
 echo "==================================="
@@ -140,6 +149,7 @@ elif command -v qmake6 &> /dev/null || command -v qmake &> /dev/null; then
     echo "  ✅ Qt 已安装 (系统包管理器)"
     # Check Multimedia and WebSockets on Linux
     if [[ "$OSTYPE" == "linux"* ]]; then
+        # Debian/Ubuntu (dpkg)
         if command -v dpkg &> /dev/null; then
             if dpkg -l qt6-multimedia-dev &> /dev/null 2>&1; then
                 echo "  ✅ Multimedia 模块已安装"
@@ -151,6 +161,32 @@ elif command -v qmake6 &> /dev/null || command -v qmake &> /dev/null; then
             else
                 echo "  ⚠️  请安装 qt6-websockets-dev（语音功能必需）"
             fi
+        # Fedora/RHEL (rpm)
+        elif command -v rpm &> /dev/null; then
+            if rpm -q qt6-qtmultimedia-devel &> /dev/null 2>&1; then
+                echo "  ✅ Multimedia 模块已安装"
+            else
+                echo "  ⚠️  请安装 qt6-qtmultimedia-devel（语音功能必需）"
+            fi
+            if rpm -q qt6-qtwebsockets-devel &> /dev/null 2>&1; then
+                echo "  ✅ WebSockets 模块已安装"
+            else
+                echo "  ⚠️  请安装 qt6-qtwebsockets-devel（语音功能必需）"
+            fi
+        # Arch Linux (pacman)
+        elif command -v pacman &> /dev/null; then
+            if pacman -Q qt6-multimedia &> /dev/null 2>&1; then
+                echo "  ✅ Multimedia 模块已安装"
+            else
+                echo "  ⚠️  请安装 qt6-multimedia（语音功能必需）"
+            fi
+            if pacman -Q qt6-websockets &> /dev/null 2>&1; then
+                echo "  ✅ WebSockets 模块已安装"
+            else
+                echo "  ⚠️  请安装 qt6-websockets（语音功能必需）"
+            fi
+        else
+            echo "  ⚠️  无法检测 Qt 模块，请手动确认 Multimedia 和 WebSockets 已安装"
         fi
     fi
 else
@@ -190,8 +226,13 @@ if [ ${#missing_deps[@]} -gt 0 ]; then
             echo "       # Homebrew 的 qt@6 已包含 Multimedia 和 WebSockets"
             ;;
         linux*)
-            echo "     Linux (Ubuntu/Debian):"
-            echo "       sudo apt install build-essential cmake qt6-base-dev qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev"
+            echo "     Linux:"
+            echo "       Ubuntu/Debian:"
+            echo "         sudo apt install build-essential cmake qt6-base-dev qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev"
+            echo "       Fedora/RHEL:"
+            echo "         sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel poppler-cpp-devel"
+            echo "       Arch Linux:"
+            echo "         sudo pacman -S base-devel cmake qt6-base qt6-multimedia qt6-websockets poppler"
             ;;
         msys*|cygwin*|win32*)
             echo "     Windows:"
@@ -214,3 +255,6 @@ echo ""
 echo "  1. 编辑 .env 文件配置讯飞凭证（如需语音功能）"
 echo "  2. 运行构建: ./scripts/build.sh"
 echo ""
+
+# Pause before exit (interactive terminal only)
+pause_if_interactive

@@ -42,6 +42,17 @@ RUN_TARGET=""
 CLI_HELP_ONLY=false
 
 # ============================================================
+# Pause function for interactive terminal
+# ============================================================
+
+pause_if_interactive() {
+    if [ -t 0 ]; then
+        echo ""
+        read -p "按 Enter 键退出..." -r
+    fi
+}
+
+# ============================================================
 # Platform Detection
 # ============================================================
 
@@ -885,6 +896,9 @@ main() {
 
     # NOW check dependencies (after PATH is set up)
     if ! check_dependencies; then
+        echo ""
+        echo "❌ 依赖检查失败，请安装缺少的依赖后重试"
+        pause_if_interactive
         exit 1
     fi
 
@@ -899,8 +913,15 @@ main() {
     mkdir -p "$BUILD_DIR"
 
     # Run build
-    cmd_build
-    exit $?
+    if cmd_build; then
+        pause_if_interactive
+        exit 0
+    else
+        echo ""
+        echo "❌ 编译失败，请检查错误信息"
+        pause_if_interactive
+        exit 1
+    fi
 }
 
 main "$@"
