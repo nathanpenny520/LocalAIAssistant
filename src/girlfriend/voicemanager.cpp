@@ -1006,7 +1006,7 @@ void VoiceManager::sendTtsRequest(const QString &text)
 
     // tts 合成参数
     QJsonObject tts;
-    tts["vcn"] = m_voiceType;        // 发音人：x5_lingxiaoxuan_flow
+    tts["vcn"] = m_voiceType;        // 发音人：x6_wumeinv_pro
     tts["speed"] = 50;               // 语速 0-100
     tts["volume"] = 50;              // 音量 0-100
     tts["pitch"] = 50;               // 语调 0-100
