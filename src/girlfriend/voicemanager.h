@@ -140,7 +140,7 @@ private:
     QString m_ttsUrl;
 
     // 语音设置
-    QString m_voiceType;          // 默认 "xiaoyan"
+    QString m_voiceType;          // 超拟人默认发音人 x6_wumeinv_pro
     bool m_enableVoiceOutput;     // 是否自动播放TTS
 
     // ASR WebSocket

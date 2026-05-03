@@ -41,7 +41,7 @@ VoiceManager::VoiceManager(QObject *parent)
     , m_audioOutput(nullptr)
     , m_ttsTempFile(nullptr)
     , m_isSpeaking(false)
-    , m_voiceType("xiaoyan")
+    , m_voiceType("x6_wumeinv_pro")  // 超拟人默认发音人
     , m_enableVoiceOutput(true)
     , m_asrFrameIndex(0)
     , m_ttsSeq(0)
@@ -271,7 +271,7 @@ bool VoiceManager::loadFromJsonFile(const QString &path)
     m_asrUrl = xfyun["asr_url"].toString();
     m_ttsUrl = xfyun["tts_url"].toString();
 
-    m_voiceType = config["voice_type"].toString("xiaoyan");
+    m_voiceType = config["voice_type"].toString("x6_wumeinv_pro");
     m_enableVoiceOutput = config["enable_voice_output"].toBool(true);
 
     qDebug() << "VoiceManager: AppId:" << m_appId << "ApiKey:" << m_apiKey.left(8) + "...";
