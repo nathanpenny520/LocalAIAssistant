@@ -904,7 +904,7 @@ void VoiceManager::onTtsBinaryMessageReceived(const QByteArray &message)
 
 void VoiceManager::onTtsTextMessageReceived(const QString &message)
 {
-    // 解析 TTS JSON 响应（音频数据在 data.audio 字段，base64 编码）
+    // 解析超拟人 TTS JSON 响应
     qDebug() << "VoiceManager: TTS received text message:" << message.left(100);
 
     QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
@@ -914,35 +914,46 @@ void VoiceManager::onTtsTextMessageReceived(const QString &message)
     }
 
     QJsonObject response = doc.object();
-    int code = response["code"].toInt();
+
+    // 解析 header
+    QJsonObject header = response["header"].toObject();
+    int code = header["code"].toInt();
     if (code != 0) {
-        QString error = GTr::ttsErrorWithCode(code, response["message"].toString());
-        emit ttsError(error);
+        QString errorMsg = header["message"].toString();
+        emit ttsError(GTr::ttsErrorWithCode(code, errorMsg));
         return;
     }
 
-    // 提取音频数据（base64 编码）
-    QJsonObject data = response["data"].toObject();
-    QString audioBase64 = data["audio"].toString();
+    // 解析 payload
+    QJsonObject payload = response["payload"].toObject();
+    if (payload.isEmpty()) {
+        // 空数据帧，忽略（文档说明：data 为空且 code=0 可直接忽略）
+        return;
+    }
+
+    // 解析 audio
+    QJsonObject audioObj = payload["audio"].toObject();
+    QString audioBase64 = audioObj["audio"].toString();
 
     if (!audioBase64.isEmpty()) {
         // 解码 base64 并追加到音频缓冲区
         QByteArray audioData = QByteArray::fromBase64(audioBase64.toUtf8());
         m_ttsAudioBuffer.append(audioData);
-        qDebug() << "VoiceManager: TTS decoded audio:" << audioData.size() << "bytes, total buffer:" << m_ttsAudioBuffer.size();
+        qDebug() << "VoiceManager: TTS decoded audio:" << audioData.size()
+                 << "bytes, total buffer:" << m_ttsAudioBuffer.size();
     }
 
     // 检查合成状态
-    int status = data["status"].toInt();
+    int status = audioObj["status"].toInt();
     if (status == 2) {
         // 合成完成，播放音频
-        qDebug() << "VoiceManager: TTS synthesis complete, total audio:" << m_ttsAudioBuffer.size() << "bytes";
+        qDebug() << "VoiceManager: TTS synthesis complete, total audio:"
+                 << m_ttsAudioBuffer.size() << "bytes";
         emit statusChanged(GTr::voiceSynthesisComplete());
 
         if (!m_ttsAudioBuffer.isEmpty()) {
-            // 保存音频数据并播放
             QByteArray audioToPlay = m_ttsAudioBuffer;
-            m_ttsAudioBuffer.clear();  // 清空缓冲区，避免重复播放
+            m_ttsAudioBuffer.clear();
             playTtsAudio(audioToPlay);
         }
     }
