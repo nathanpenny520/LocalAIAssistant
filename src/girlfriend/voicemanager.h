@@ -91,6 +91,7 @@ private slots:
 
     // 播放回调
     void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
+    void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
 
     // 音频设备变化回调
     void onAudioOutputsChanged();

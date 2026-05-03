@@ -77,6 +77,8 @@ VoiceManager::VoiceManager(QObject *parent)
 
     connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged,
             this, &VoiceManager::onPlaybackStateChanged);
+    connect(m_mediaPlayer, &QMediaPlayer::mediaStatusChanged,
+            this, &VoiceManager::onMediaStatusChanged);
 }
 
 VoiceManager::~VoiceManager()
@@ -1297,10 +1299,12 @@ void VoiceManager::playTtsAudio(const QByteArray &audioData)
     m_ttsTempFile = new QFile(tempFile, this);
     QUrl audioUrl = QUrl::fromLocalFile(tempFile);
 
-    qDebug() << "VoiceManager: Playing WAV from:" << audioUrl.toString();
+    qDebug() << "VoiceManager: Setting audio source:" << audioUrl.toString();
 
+    // 先停止当前播放，重置状态
+    m_mediaPlayer->stop();
     m_mediaPlayer->setSource(audioUrl);
-    m_mediaPlayer->play();
+    // 不立即调用 play()，等待媒体加载完成（onMediaStatusChanged 会处理）
 
     emit statusChanged(GTr::playingVoice());
 }
@@ -1318,6 +1322,25 @@ void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state)
             m_ttsTempFile->deleteLater();
             m_ttsTempFile = nullptr;
         }
+    }
+}
+
+void VoiceManager::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
+{
+    qDebug() << "VoiceManager: Media status changed:" << status;
+
+    // 媒体加载完成后开始播放
+    if (status == QMediaPlayer::LoadedMedia && m_isSpeaking) {
+        qDebug() << "VoiceManager: Media loaded, starting playback";
+        m_mediaPlayer->play();
+    }
+
+    // 处理错误状态
+    if (status == QMediaPlayer::InvalidMedia) {
+        qDebug() << "VoiceManager: Invalid media, playback failed";
+        m_isSpeaking = false;
+        emit ttsError(GTr::audioFileCreateFailed());
+        emit speakingFinished();
     }
 }
 
