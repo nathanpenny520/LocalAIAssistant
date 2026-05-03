@@ -33,6 +33,9 @@ private:
     void handleFileCommand(const QString &command);   // 新增
     void listFiles();                                  // 新增
 
+    // 搜索相关命令
+    void searchMessages(const QString &keyword);       // 新增
+
 private slots:
     void onResponseReceived(const QString &response);
     void onErrorOccurred(const QString &error);

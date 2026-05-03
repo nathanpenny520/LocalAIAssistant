@@ -6,8 +6,60 @@
 #include <QSettings>
 #include <QFileInfo>
 #include <iostream>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include "networkmanager.h"
 #include "sessionmanager.h"
+
+namespace {
+#ifdef Q_OS_WIN
+// Initialize Windows console for UTF-8 support
+// Returns true if successful, false otherwise
+bool initWindowsConsole()
+{
+    // Save original console modes for restoration if needed
+    static DWORD originalOutputMode = 0;
+    static DWORD originalInputMode = 0;
+    static bool initialized = false;
+
+    if (initialized) {
+        return true;
+    }
+
+    // Set console code page to UTF-8
+    if (!SetConsoleOutputCP(CP_UTF8)) {
+        std::cerr << "Warning: Failed to set console output code page to UTF-8" << std::endl;
+    }
+
+    if (!SetConsoleCP(CP_UTF8)) {
+        std::cerr << "Warning: Failed to set console input code page to UTF-8" << std::endl;
+    }
+
+    // Enable virtual terminal processing for ANSI escape sequences (colors, clear screen, etc.)
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
+
+    if (hOut != INVALID_HANDLE_VALUE) {
+        GetConsoleMode(hOut, &originalOutputMode);
+        DWORD newMode = originalOutputMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        SetConsoleMode(hOut, newMode);
+    }
+
+    if (hIn != INVALID_HANDLE_VALUE) {
+        GetConsoleMode(hIn, &originalInputMode);
+        // Enable line input and echo for proper input handling
+        DWORD newMode = originalInputMode | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT;
+        SetConsoleMode(hIn, newMode);
+    }
+
+    initialized = true;
+    return true;
+}
+#endif
+}
 
 CLIApplication::CLIApplication(QObject *parent)
     : QObject(parent)
@@ -21,6 +73,11 @@ CLIApplication::CLIApplication(QObject *parent)
 
 int CLIApplication::run(int argc, char *argv[])
 {
+#ifdef Q_OS_WIN
+    // Initialize Windows console for UTF-8 support (must be before any I/O)
+    initWindowsConsole();
+#endif
+
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("LocalAIAssistant");
     QCoreApplication::setApplicationVersion("1.0.0");
@@ -37,52 +94,52 @@ int CLIApplication::run(int argc, char *argv[])
             this, &CLIApplication::onStreamFinished);
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("\n本地AI助手 - 命令行版本\n"
-                                     "支持交互式对话和单次查询模式");
+    parser.setApplicationDescription("\nLocalAIAssistant - CLI Version\n"
+                                     "Supports interactive chat and single query modes");
     parser.addHelpOption();
     parser.addVersionOption();
 
     parser.addPositionalArgument("command",
-        "命令: chat (交互式对话) | ask <问题> (单次查询) | sessions (会话管理) | config (配置管理)");
+        "Command: chat (interactive) | ask <question> (single query) | sessions (session management) | config (config management)");
 
     QCommandLineOption sessionOpt(QStringList() << "s" << "session",
-        "指定会话ID进行对话", "session-id");
+        "Specify session ID for chat", "session-id");
     QCommandLineOption newSessionOpt(QStringList() << "n" << "new",
-        "创建新会话");
+        "Create new session");
     QCommandLineOption listOpt(QStringList() << "l" << "list",
-        "列出所有会话");
+        "List all sessions");
     QCommandLineOption deleteOpt(QStringList() << "d" << "delete",
-        "删除指定会话", "session-id");
+        "Delete specified session", "session-id");
     QCommandLineOption showOpt(QStringList() << "show",
-        "显示指定会话内容", "session-id");
+        "Show session content", "session-id");
     QCommandLineOption apiURLOpt(QStringList() << "api-url",
-        "设置API基础URL", "url");
+        "Set API base URL", "url");
     QCommandLineOption apiKeyOpt(QStringList() << "api-key",
-        "设置API密钥", "key");
+        "Set API key", "key");
     QCommandLineOption modelOpt(QStringList() << "model",
-        "设置模型名称", "name");
+        "Set model name", "name");
     QCommandLineOption localModeOpt(QStringList() << "local",
-        "使用本地模式");
+        "Use local mode");
     QCommandLineOption externalModeOpt(QStringList() << "external",
-        "使用外部API模式");
+        "Use external API mode");
     QCommandLineOption showConfigOpt(QStringList() << "show-config",
-        "显示当前配置");
+        "Show current config");
     QCommandLineOption noStreamOpt(QStringList() << "no-stream",
-        "禁用流式输出");
+        "Disable streaming output");
     QCommandLineOption temperatureOpt(QStringList() << "temperature",
-        "设置温度参数 (0.0-2.0)", "value");
+        "Set temperature (0.0-2.0)", "value");
     QCommandLineOption topPOpt(QStringList() << "top-p",
-        "设置 top_p 参数 (0.0-1.0)", "value");
+        "Set top_p (0.0-1.0)", "value");
     QCommandLineOption maxTokensOpt(QStringList() << "max-tokens",
-        "设置最大输出 tokens (1-128000)", "value");
+        "Set max output tokens (1-128000)", "value");
     QCommandLineOption presencePenaltyOpt(QStringList() << "presence-penalty",
-        "设置存在惩罚 (-2.0-2.0)", "value");
+        "Set presence penalty (-2.0-2.0)", "value");
     QCommandLineOption frequencyPenaltyOpt(QStringList() << "frequency-penalty",
-        "设置频率惩罚 (-2.0-2.0)", "value");
+        "Set frequency penalty (-2.0-2.0)", "value");
     QCommandLineOption seedOpt(QStringList() << "seed",
-        "设置随机种子 (整数，-1 表示清除)", "value");
+        "Set random seed (integer, -1 to clear)", "value");
     QCommandLineOption maxContextOpt(QStringList() << "max-context",
-        "设置最大上下文消息数 (1-100)", "value");
+        "Set max context messages (1-100)", "value");
 
     parser.addOption(sessionOpt);
     parser.addOption(newSessionOpt);
@@ -108,8 +165,8 @@ int CLIApplication::run(int argc, char *argv[])
 
     const QStringList args = parser.positionalArguments();
     if (args.isEmpty()) {
-        printUsage();
-        return 0;
+        // No arguments: default to interactive chat mode (for double-click launch)
+        return runInteractiveMode(app, parser);
     }
 
     if (parser.isSet("no-stream")) {
@@ -124,7 +181,7 @@ int CLIApplication::run(int argc, char *argv[])
         return runInteractiveMode(app, parser);
     } else if (command == "ask") {
         if (args.size() < 2) {
-            std::cerr << "错误: ask 命令需要提供问题内容" << std::endl;
+            std::cerr << "Error: ask command requires a question" << std::endl;
             return 1;
         }
         return runSingleQuery(app, args.mid(1).join(" "), parser);
@@ -133,7 +190,7 @@ int CLIApplication::run(int argc, char *argv[])
     } else if (command == "config") {
         return handleConfigCommand(parser);
     } else {
-        std::cerr << "错误: 未知命令 '" << command.toStdString() << "'" << std::endl;
+        std::cerr << "Error: Unknown command '" << command.toStdString() << "'" << std::endl;
         printUsage();
         return 1;
     }
@@ -141,42 +198,42 @@ int CLIApplication::run(int argc, char *argv[])
 
 void CLIApplication::printUsage()
 {
-    std::cout << "\n本地AI助手 - 命令行版本 v1.0.0\n\n";
-    std::cout << "用法(ai 是 ./LocalAIAssistant-CLI 缩写，可以自己取alias):\n";
-    std::cout << "  ai chat                    进入交互式对话模式\n";
-    std::cout << "  ai ask <问题>              单次查询\n";
-    std::cout << "  ai sessions [选项]         会话管理\n";
-    std::cout << "  ai config [选项]           配置管理\n\n";
-    std::cout << "会话管理选项:\n";
-    std::cout << "  -l, --list                 列出所有会话\n";
-    std::cout << "  -n, --new                  创建新会话\n";
-    std::cout << "  -d, --delete <id>          删除指定会话\n";
-    std::cout << "  --show <id>                显示会话内容\n";
-    std::cout << "  -s, --session <id>         切换到指定会话\n\n";
-    std::cout << "配置管理选项:\n";
-    std::cout << "  --api-url <url>            设置API基础URL\n";
-    std::cout << "  --api-key <key>            设置API密钥\n";
-    std::cout << "  --model <name>             设置模型名称\n";
-    std::cout << "  --local                    使用本地模式\n";
-    std::cout << "  --external                 使用外部API模式\n";
-    std::cout << "  --show-config              显示当前配置\n\n";
-    std::cout << "模型参数选项:\n";
-    std::cout << "  --temperature <value>      设置温度 (0.0-2.0)\n";
-    std::cout << "  --top-p <value>            设置 top_p (0.0-1.0)\n";
-    std::cout << "  --max-tokens <value>       设置最大输出 tokens (1-128000)\n";
-    std::cout << "  --presence-penalty <value> 设置存在惩罚 (-2.0-2.0)\n";
-    std::cout << "  --frequency-penalty <value> 设置频率惩罚 (-2.0-2.0)\n";
-    std::cout << "  --seed <value>             设置随机种子 (整数，-1清除)\n";
-    std::cout << "  --max-context <value>      设置最大上下文消息数 (1-100)\n\n";
-    std::cout << "输出选项:\n";
-    std::cout << "  --no-stream                禁用流式输出，等待完整响应\n\n";
-    std::cout << "示例:\n";
-    std::cout << "  ai chat                    # 启动交互式对话\n";
-    std::cout << "  ai ask \"什么是量子计算?\"   # 单次查询\n";
-    std::cout << "  ai ask \"你好\" --no-stream  # 禁用流式输出\n";
-    std::cout << "  ai sessions -l             # 列出所有会话\n";
-    std::cout << "  ai config --show-config    # 显示当前配置\n";
-    std::cout << "  ai config --temperature 0.7 --top-p 0.9  # 设置模型参数\n";
+    std::cout << "\nLocalAIAssistant - CLI v1.0.0\n\n";
+    std::cout << "Usage (ai is alias for ./LocalAIAssistant-CLI):\n";
+    std::cout << "  ai chat                    Enter interactive chat mode\n";
+    std::cout << "  ai ask <question>          Single query\n";
+    std::cout << "  ai sessions [options]      Session management\n";
+    std::cout << "  ai config [options]        Config management\n\n";
+    std::cout << "Session options:\n";
+    std::cout << "  -l, --list                 List all sessions\n";
+    std::cout << "  -n, --new                  Create new session\n";
+    std::cout << "  -d, --delete <id>          Delete specified session\n";
+    std::cout << "  --show <id>                Show session content\n";
+    std::cout << "  -s, --session <id>         Switch to specified session\n\n";
+    std::cout << "Config options:\n";
+    std::cout << "  --api-url <url>            Set API base URL\n";
+    std::cout << "  --api-key <key>            Set API key\n";
+    std::cout << "  --model <name>             Set model name\n";
+    std::cout << "  --local                    Use local mode\n";
+    std::cout << "  --external                 Use external API mode\n";
+    std::cout << "  --show-config              Show current config\n\n";
+    std::cout << "Model parameter options:\n";
+    std::cout << "  --temperature <value>      Set temperature (0.0-2.0)\n";
+    std::cout << "  --top-p <value>            Set top_p (0.0-1.0)\n";
+    std::cout << "  --max-tokens <value>       Set max output tokens (1-128000)\n";
+    std::cout << "  --presence-penalty <value> Set presence penalty (-2.0-2.0)\n";
+    std::cout << "  --frequency-penalty <value> Set frequency penalty (-2.0-2.0)\n";
+    std::cout << "  --seed <value>             Set random seed (integer, -1 to clear)\n";
+    std::cout << "  --max-context <value>      Set max context messages (1-100)\n\n";
+    std::cout << "Output options:\n";
+    std::cout << "  --no-stream                Disable streaming output\n\n";
+    std::cout << "Examples:\n";
+    std::cout << "  ai chat                    # Start interactive chat\n";
+    std::cout << "  ai ask \"What is quantum computing?\"   # Single query\n";
+    std::cout << "  ai ask \"Hello\" --no-stream  # Disable streaming\n";
+    std::cout << "  ai sessions -l             # List all sessions\n";
+    std::cout << "  ai config --show-config    # Show current config\n";
+    std::cout << "  ai config --temperature 0.7 --top-p 0.9  # Set model params\n";
     std::cout << std::endl;
 }
 
@@ -188,29 +245,33 @@ int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLine
         QString sessionId = parser.value("session");
         SessionManager::instance()->switchToSession(sessionId);
     } else if (parser.isSet("new")) {
-        SessionManager::instance()->createNewSession("CLI对话");
+        QSettings settings("LocalAIAssistant", "Settings");
+    QString locale = settings.value("language", "zh_CN").toString();
+    QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
+    SessionManager::instance()->createNewSession(defaultTitle);
     }
 
     std::cout << "\n====================================\n";
-    std::cout << "  本地AI助手 - 交互式对话模式\n";
+    std::cout << "  LocalAIAssistant - Interactive Mode\n";
     std::cout << "====================================\n";
-    std::cout << "当前会话: " << SessionManager::instance()->currentSession().title.toStdString() << "\n";
-    std::cout << "会话ID: " << SessionManager::instance()->currentSessionId().toStdString() << "\n";
-    std::cout << "流式输出: " << (m_networkManager->isStreamingEnabled() ? "开启" : "关闭") << "\n";
+    std::cout << "Current session: " << SessionManager::instance()->currentSession().title.toStdString() << "\n";
+    std::cout << "Session ID: " << SessionManager::instance()->currentSessionId().toStdString() << "\n";
+    std::cout << "Streaming: " << (m_networkManager->isStreamingEnabled() ? "ON" : "OFF") << "\n";
     std::cout << "------------------------------------\n";
-    std::cout << "命令:\n";
-    std::cout << "  /help     - 显示帮助信息\n";
-    std::cout << "  /new      - 创建新会话\n";
-    std::cout << "  /list     - 列出所有会话\n";
-    std::cout << "  /switch <id> - 切换会话\n";
-    std::cout << "  /delete <id> - 删除会话\n";
-    std::cout << "  /config   - 显示配置\n";
-    std::cout << "  /stream   - 切换流式输出\n";
-    std::cout << "  /clear    - 清屏\n";
-    std::cout << "  /file <路径> - 添加文件到待发送列表\n";
-    std::cout << "  /listfiles   - 显示待发送文件列表\n";
-    std::cout << "  /clearfiles  - 清空待发送文件列表\n";
-    std::cout << "  /exit     - 退出程序\n";
+    std::cout << "Commands:\n";
+    std::cout << "  /help     - Show help\n";
+    std::cout << "  /new      - Create new session\n";
+    std::cout << "  /list     - List all sessions\n";
+    std::cout << "  /switch <id> - Switch session\n";
+    std::cout << "  /delete <id> - Delete session\n";
+    std::cout << "  /config   - Show config\n";
+    std::cout << "  /stream   - Toggle streaming\n";
+    std::cout << "  /clear    - Clear screen\n";
+    std::cout << "  /file <path> - Add file to pending list\n";
+    std::cout << "  /listfiles   - Show pending files\n";
+    std::cout << "  /clearfiles  - Clear pending files\n";
+    std::cout << "  /search <keyword> - Search messages\n";
+    std::cout << "  /exit     - Exit program\n";
     std::cout << "====================================\n\n";
 
     QTimer::singleShot(0, this, &CLIApplication::readInput);
@@ -219,7 +280,7 @@ int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLine
 
 void CLIApplication::readInput()
 {
-    std::cout << "\n你: ";
+    std::cout << "\nYou: ";
     std::cout.flush();
 
     std::string input;
@@ -244,14 +305,14 @@ void CLIApplication::readInput()
     m_isStreaming = false;
     m_streamingContent.clear();
 
-    // 创建消息并添加附件
+    // Create message with attachments
     QVector<FileAttachment> attachments;
     if (m_fileManager->pendingFileCount() > 0) {
         attachments = m_fileManager->pendingFiles();
-        std::cout << "发送消息时携带 " << attachments.size() << " 个文件" << std::endl;
+        std::cout << "Sending message with " << attachments.size() << " file(s)" << std::endl;
     }
 
-    // 使用带附件参数的函数保存消息
+    // Save message with attachments
     if (attachments.isEmpty()) {
         SessionManager::instance()->addMessageToCurrentSession("user", qInput);
     } else {
@@ -262,10 +323,10 @@ void CLIApplication::readInput()
     if (m_networkManager->isStreamingEnabled()) {
         std::cout << "\nAI: " << std::flush;
     } else {
-        std::cout << "\nAI正在思考..." << std::endl;
+        std::cout << "\nAI is thinking..." << std::endl;
     }
 
-    // 构建消息列表发送
+    // Build message list and send
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
 
     m_networkManager->sendChatRequestWithContext(messages);
@@ -278,8 +339,11 @@ void CLIApplication::handleCommand(const QString &command)
     if (cmd == "/help") {
         showHelp();
     } else if (cmd == "/new") {
-        SessionManager::instance()->createNewSession("CLI对话");
-        std::cout << "已创建新会话: "
+        QSettings settings("LocalAIAssistant", "Settings");
+    QString locale = settings.value("language", "zh_CN").toString();
+    QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
+    SessionManager::instance()->createNewSession(defaultTitle);
+        std::cout << "Created new session: "
                   << SessionManager::instance()->currentSessionId().toStdString()
                   << std::endl;
     } else if (cmd == "/list") {
@@ -287,25 +351,22 @@ void CLIApplication::handleCommand(const QString &command)
     } else if (cmd.startsWith("/switch ")) {
         QString sessionId = command.mid(8).trimmed();
         SessionManager::instance()->switchToSession(sessionId);
-        std::cout << "已切换到会话: "
+        std::cout << "Switched to session: "
                   << SessionManager::instance()->currentSession().title.toStdString()
                   << std::endl;
     } else if (cmd.startsWith("/delete ")) {
         QString sessionId = command.mid(8).trimmed();
         SessionManager::instance()->removeSession(sessionId);
-        std::cout << "已删除会话: " << sessionId.toStdString() << std::endl;
+        std::cout << "Deleted session: " << sessionId.toStdString() << std::endl;
     } else if (cmd == "/config") {
         showConfig();
     } else if (cmd == "/stream") {
         bool enabled = !m_networkManager->isStreamingEnabled();
         m_networkManager->setStreamingEnabled(enabled);
-        std::cout << "流式输出: " << (enabled ? "已开启" : "已关闭") << std::endl;
+        std::cout << "Streaming: " << (enabled ? "ON" : "OFF") << std::endl;
     } else if (cmd == "/clear") {
-        #ifdef Q_OS_WIN
-            system("cls");
-        #else
-            system("clear");
-        #endif
+        // Use ANSI escape sequence for cross-platform clear screen
+        std::cout << "\033[2J\033[H" << std::flush;
     } else if (cmd.startsWith("/file ")) {
         handleFileCommand(command);
         return;
@@ -314,13 +375,19 @@ void CLIApplication::handleCommand(const QString &command)
         return;  // Fix: prevent double readInput scheduling
     } else if (cmd == "/clearfiles") {
         m_fileManager->clearPendingFiles();
-        std::cout << "已清空待发送文件列表" << std::endl;
+        std::cout << "Cleared pending file list" << std::endl;
+    } else if (cmd.startsWith("/search ")) {
+        QString keyword = command.mid(8).trimmed();
+        searchMessages(keyword);
+    } else if (cmd == "/search") {
+        std::cout << "Usage: /search <keyword>" << std::endl;
+        std::cout << "Example: /search hello" << std::endl;
     } else if (cmd == "/exit" || cmd == "/quit") {
         quit();
         return;
     } else {
-        std::cout << "未知命令: " << command.toStdString() << std::endl;
-        std::cout << "输入 /help 查看可用命令" << std::endl;
+        std::cout << "Unknown command: " << command.toStdString() << std::endl;
+        std::cout << "Type /help for available commands" << std::endl;
     }
 
     QTimer::singleShot(0, this, &CLIApplication::readInput);
@@ -328,34 +395,35 @@ void CLIApplication::handleCommand(const QString &command)
 
 void CLIApplication::showHelp()
 {
-    std::cout << "\n可用命令:\n";
-    std::cout << "  /help     - 显示此帮助信息\n";
-    std::cout << "  /new      - 创建新会话\n";
-    std::cout << "  /list     - 列出所有会话\n";
-    std::cout << "  /switch <id> - 切换到指定会话\n";
-    std::cout << "  /delete <id> - 删除指定会话\n";
-    std::cout << "  /config   - 显示当前配置\n";
-    std::cout << "  /stream   - 切换流式输出开/关\n";
-    std::cout << "  /clear    - 清屏\n";
-    std::cout << "  /file <路径> - 添加文件到待发送列表\n";
-    std::cout << "  /listfiles   - 显示待发送文件列表\n";
-    std::cout << "  /clearfiles  - 清空待发送文件列表\n";
-    std::cout << "  /exit     - 退出程序\n";
-    std::cout << "\n直接输入文本即可与AI对话\n";
+    std::cout << "\nAvailable commands:\n";
+    std::cout << "  /help     - Show this help\n";
+    std::cout << "  /new      - Create new session\n";
+    std::cout << "  /list     - List all sessions\n";
+    std::cout << "  /switch <id> - Switch to session\n";
+    std::cout << "  /delete <id> - Delete session\n";
+    std::cout << "  /config   - Show current config\n";
+    std::cout << "  /stream   - Toggle streaming ON/OFF\n";
+    std::cout << "  /clear    - Clear screen\n";
+    std::cout << "  /file <path> - Add file to pending list\n";
+    std::cout << "  /listfiles   - Show pending files\n";
+    std::cout << "  /clearfiles  - Clear pending files\n";
+    std::cout << "  /search <keyword> - Search messages in current session\n";
+    std::cout << "  /exit     - Exit program\n";
+    std::cout << "\nJust type text to chat with AI\n";
 }
 
 void CLIApplication::listSessions()
 {
     const auto &sessions = SessionManager::instance()->allSessions();
-    std::cout << "\n会话列表:\n";
+    std::cout << "\nSession list:\n";
     std::cout << "----------------------------------------\n";
 
     for (auto it = sessions.constBegin(); it != sessions.constEnd(); ++it) {
         QString current = (it.key() == SessionManager::instance()->currentSessionId())
-                        ? " [当前]" : "";
+                        ? " [current]" : "";
         std::cout << "ID: " << it.key().toStdString() << current.toStdString() << "\n";
-        std::cout << "标题: " << it.value().title.toStdString() << "\n";
-        std::cout << "消息数: " << it.value().messages.size() << "\n";
+        std::cout << "Title: " << it.value().title.toStdString() << "\n";
+        std::cout << "Messages: " << it.value().messages.size() << "\n";
         std::cout << "----------------------------------------\n";
     }
 }
@@ -363,19 +431,19 @@ void CLIApplication::listSessions()
 void CLIApplication::showConfig()
 {
     QSettings settings("LocalAIAssistant", "Settings");
-    std::cout << "\n当前配置:\n";
+    std::cout << "\nCurrent config:\n";
     std::cout << "----------------------------------------\n";
-    std::cout << "模式: "
-              << (settings.value("localMode", true).toBool() ? "本地模式" : "外部API模式")
+    std::cout << "Mode: "
+              << (settings.value("localMode", true).toBool() ? "Local mode" : "External API mode")
               << "\n";
     std::cout << "API URL: "
               << settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString().toStdString()
               << "\n";
-    std::cout << "模型: "
+    std::cout << "Model: "
               << settings.value("modelName", "local-model").toString().toStdString()
               << "\n";
     std::cout << "----------------------------------------\n";
-    std::cout << "模型参数:\n";
+    std::cout << "Model parameters:\n";
     std::cout << "  temperature: " << settings.value("temperature", 0.4).toDouble() << "\n";
     std::cout << "  top_p: " << settings.value("topP", 1.0).toDouble() << "\n";
     std::cout << "  max_tokens: " << settings.value("maxTokens", 8192).toInt() << "\n";
@@ -386,12 +454,12 @@ void CLIApplication::showConfig()
     if (seed >= 0) {
         std::cout << "  seed: " << seed << "\n";
     } else {
-        std::cout << "  seed: 未设置 (null)\n";
+        std::cout << "  seed: not set (null)\n";
     }
 
     std::cout << "  max_context: " << settings.value("maxContext", 10).toInt() << "\n";
     std::cout << "----------------------------------------\n";
-    std::cout << "流式输出: " << (m_networkManager->isStreamingEnabled() ? "开启" : "关闭") << "\n";
+    std::cout << "Streaming: " << (m_networkManager->isStreamingEnabled() ? "ON" : "OFF") << "\n";
     std::cout << "----------------------------------------\n";
 }
 
@@ -403,7 +471,10 @@ int CLIApplication::runSingleQuery(QCoreApplication &app, const QString &query, 
         QString sessionId = parser.value("session");
         SessionManager::instance()->switchToSession(sessionId);
     } else if (parser.isSet("new")) {
-        SessionManager::instance()->createNewSession("单次查询");
+        QSettings settings("LocalAIAssistant", "Settings");
+        QString locale = settings.value("language", "zh_CN").toString();
+        QString singleQueryTitle = (locale == "en") ? "Single Query" : QStringLiteral("单次查询");
+        SessionManager::instance()->createNewSession(singleQueryTitle);
     }
 
     SessionManager::instance()->addMessageToCurrentSession("user", query);
@@ -427,21 +498,24 @@ int CLIApplication::handleSessionsCommand(const QCommandLineParser &parser)
     if (parser.isSet("list")) {
         listSessions();
     } else if (parser.isSet("new")) {
-        SessionManager::instance()->createNewSession("CLI对话");
-        std::cout << "已创建新会话: "
+        QSettings settings("LocalAIAssistant", "Settings");
+    QString locale = settings.value("language", "zh_CN").toString();
+    QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
+    SessionManager::instance()->createNewSession(defaultTitle);
+        std::cout << "Created new session: "
                   << SessionManager::instance()->currentSessionId().toStdString()
                   << std::endl;
     } else if (parser.isSet("delete")) {
         QString sessionId = parser.value("delete");
         SessionManager::instance()->removeSession(sessionId);
-        std::cout << "已删除会话: " << sessionId.toStdString() << std::endl;
+        std::cout << "Deleted session: " << sessionId.toStdString() << std::endl;
     } else if (parser.isSet("show")) {
         QString sessionId = parser.value("show");
         showSessionContent(sessionId);
     } else if (parser.isSet("session")) {
         QString sessionId = parser.value("session");
         SessionManager::instance()->switchToSession(sessionId);
-        std::cout << "已切换到会话: " << sessionId.toStdString() << std::endl;
+        std::cout << "Switched to session: " << sessionId.toStdString() << std::endl;
     } else {
         listSessions();
     }
@@ -454,18 +528,18 @@ void CLIApplication::showSessionContent(const QString &sessionId)
 {
     const auto &sessions = SessionManager::instance()->allSessions();
     if (!sessions.contains(sessionId)) {
-        std::cerr << "错误: 会话不存在" << std::endl;
+        std::cerr << "Error: Session not found" << std::endl;
         return;
     }
 
     const ChatSession &session = sessions[sessionId];
-    std::cout << "\n会话: " << session.title.toStdString() << "\n";
+    std::cout << "\nSession: " << session.title.toStdString() << "\n";
     std::cout << "ID: " << session.id.toStdString() << "\n";
     std::cout << "========================================\n";
 
     for (const auto &msg : session.messages) {
         if (msg.role == "user") {
-            std::cout << "\n[用户]: " << msg.content.toStdString() << "\n";
+            std::cout << "\n[User]: " << msg.content.toStdString() << "\n";
         } else {
             std::cout << "\n[AI]: " << msg.content.toStdString() << "\n";
         }
@@ -476,8 +550,8 @@ void CLIApplication::showSessionContent(const QString &sessionId)
 namespace {
     bool validateDoubleParam(const std::string &name, double value, double min, double max) {
         if (value < min || value > max) {
-            std::cerr << "错误: " << name << " 值 " << value
-                      << " 超出范围 [" << min << ", " << max << "]" << std::endl;
+            std::cerr << "Error: " << name << " value " << value
+                      << " out of range [" << min << ", " << max << "]" << std::endl;
             return false;
         }
         return true;
@@ -485,8 +559,8 @@ namespace {
 
     bool validateIntParam(const std::string &name, int value, int min, int max) {
         if (value < min || value > max) {
-            std::cerr << "错误: " << name << " 值 " << value
-                      << " 超出范围 [" << min << ", " << max << "]" << std::endl;
+            std::cerr << "Error: " << name << " value " << value
+                      << " out of range [" << min << ", " << max << "]" << std::endl;
             return false;
         }
         return true;
@@ -569,16 +643,16 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     }
 
     if (validationFailed) {
-        std::cerr << "配置未更新，请修正参数值后重试" << std::endl;
+        std::cerr << "Config not updated, please fix parameter values and retry" << std::endl;
         return 1;
     }
 
-    // 先更新 API 设置（会触发 NetworkManager 保存其缓存值）
+    // Update API settings first (triggers NetworkManager to save cached values)
     if (hasChanges) {
         m_networkManager->updateSettings(apiUrl, apiKey, modelName, isLocalMode);
     }
 
-    // 然后设置模型参数（覆盖 NetworkManager 保存的旧值）
+    // Then set model parameters (override NetworkManager saved old values)
     if (parser.isSet("temperature")) {
         double temp = parser.value("temperature").toDouble();
         settings.setValue("temperature", temp);
@@ -617,7 +691,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     settings.sync();
 
     if (hasChanges) {
-        std::cout << "配置已更新" << std::endl;
+        std::cout << "Config updated" << std::endl;
     }
 
     if (parser.isSet("show-config") || !hasChanges) {
@@ -679,47 +753,47 @@ void CLIApplication::onErrorOccurred(const QString &error)
     m_isStreaming = false;
     m_streamingContent.clear();
 
-    SessionManager::instance()->addMessageToCurrentSession("assistant", "错误: " + error);
+    SessionManager::instance()->addMessageToCurrentSession("assistant", "Error: " + error);
     SessionManager::instance()->saveSessionsToFile();
 
     if (m_interactiveMode) {
-        std::cerr << "\n错误: " << error.toStdString() << std::endl;
+        std::cerr << "\nError: " << error.toStdString() << std::endl;
         m_running = false;
         QTimer::singleShot(0, this, &CLIApplication::readInput);
     } else {
-        std::cerr << "错误: " << error.toStdString() << std::endl;
+        std::cerr << "Error: " << error.toStdString() << std::endl;
         quit();
     }
 }
 
 void CLIApplication::handleFileCommand(const QString &command)
 {
-    // 提取文件路径（支持空格路径：用引号包裹）
+    // Extract file path (supports spaces: wrap with quotes)
     QString arg = command.mid(6).trimmed();
 
     if (arg.isEmpty()) {
-        std::cout << "用法: /file <文件路径>" << std::endl;
-        std::cout << "提示: 路径含空格时请用引号包裹，如 /file \"path with space/file.txt\"" << std::endl;
+        std::cout << "Usage: /file <file_path>" << std::endl;
+        std::cout << "Tip: Use quotes for paths with spaces, e.g. /file \"path with space/file.txt\"" << std::endl;
         QTimer::singleShot(0, this, &CLIApplication::readInput);
         return;
     }
 
-    // 解析路径（处理引号）
+    // Parse path (handle quotes)
     QString filePath = arg;
     if (filePath.startsWith('"') && filePath.endsWith('"')) {
         filePath = filePath.mid(1, filePath.length() - 2);
     }
 
-    // 添加文件
+    // Add file
     QFileInfo info(filePath);
     if (!info.exists()) {
-        std::cout << "错误: 文件不存在: " << filePath.toStdString() << std::endl;
+        std::cout << "Error: File not found: " << filePath.toStdString() << std::endl;
         QTimer::singleShot(0, this, &CLIApplication::readInput);
         return;
     }
 
     if (info.size() > 10 * 1024 * 1024) {
-        std::cout << "错误: 文件过大 (>10MB): " << filePath.toStdString() << std::endl;
+        std::cout << "Error: File too large (>10MB): " << filePath.toStdString() << std::endl;
         QTimer::singleShot(0, this, &CLIApplication::readInput);
         return;
     }
@@ -727,18 +801,18 @@ void CLIApplication::handleFileCommand(const QString &command)
     if (m_fileManager->addFile(filePath)) {
         QString typeStr;
         if (FileManager::isTextFile(filePath)) {
-            typeStr = "文本";
+            typeStr = "text";
         } else if (FileManager::isImageFile(filePath)) {
-            typeStr = "图片";
+            typeStr = "image";
         } else {
-            typeStr = "二进制";
+            typeStr = "binary";
         }
-        std::cout << "已添加文件: " << filePath.toStdString()
+        std::cout << "Added file: " << filePath.toStdString()
                   << " (" << typeStr.toStdString() << ", "
                   << info.size() << " bytes)" << std::endl;
-        std::cout << "当前待发送文件数: " << m_fileManager->pendingFileCount() << std::endl;
+        std::cout << "Pending files: " << m_fileManager->pendingFileCount() << std::endl;
     } else {
-        std::cout << "错误: 无法添加文件" << std::endl;
+        std::cout << "Error: Cannot add file" << std::endl;
     }
 
     QTimer::singleShot(0, this, &CLIApplication::readInput);
@@ -748,6 +822,94 @@ void CLIApplication::listFiles()
 {
     QString summary = m_fileManager->fileListSummary();
     std::cout << summary.toStdString() << std::endl;
+    QTimer::singleShot(0, this, &CLIApplication::readInput);
+}
+
+void CLIApplication::searchMessages(const QString &keyword)
+{
+    if (keyword.isEmpty()) {
+        std::cout << "Error: Search keyword is empty" << std::endl;
+        std::cout << "Usage: /search <keyword>" << std::endl;
+        QTimer::singleShot(0, this, &CLIApplication::readInput);
+        return;
+    }
+
+    const ChatSession &session = SessionManager::instance()->currentSession();
+    const QVector<ChatMessage> &messages = session.messages;
+
+    if (messages.isEmpty()) {
+        std::cout << "No messages in current session" << std::endl;
+        QTimer::singleShot(0, this, &CLIApplication::readInput);
+        return;
+    }
+
+    std::cout << "\nSearching for: \"" << keyword.toStdString() << "\"\n";
+    std::cout << "========================================\n";
+
+    int matchCount = 0;
+    int messageIndex = 0;
+
+    for (const ChatMessage &msg : messages) {
+        messageIndex++;
+        QString roleLabel = (msg.role == "user") ? "[User]" : "[AI]";
+
+        // 搜索消息内容
+        if (msg.content.contains(keyword, Qt::CaseInsensitive)) {
+            matchCount++;
+            std::cout << "\nMessage #" << messageIndex << " " << roleLabel.toStdString() << "\n";
+
+            // 显示匹配上下文（截取包含关键词的部分）
+            QString content = msg.content;
+            int keywordPos = content.indexOf(keyword, 0, Qt::CaseInsensitive);
+
+            if (keywordPos != -1) {
+                // 显示前后各50个字符的上下文
+                int contextStart = qMax(0, keywordPos - 50);
+                int contextEnd = qMin(content.length(), keywordPos + keyword.length() + 50);
+                QString context = content.mid(contextStart, contextEnd - contextStart);
+
+                // 添加省略号指示
+                if (contextStart > 0) {
+                    context = "..." + context;
+                }
+                if (contextEnd < content.length()) {
+                    context = context + "...";
+                }
+
+                std::cout << context.toStdString() << "\n";
+            }
+        }
+
+        // 搜索附件内容（如果有）
+        for (const FileAttachment &attachment : msg.attachments) {
+            if (attachment.type == "text" && attachment.content.contains(keyword, Qt::CaseInsensitive)) {
+                matchCount++;
+                std::cout << "\nMessage #" << messageIndex << " " << roleLabel.toStdString()
+                          << " [Attachment: " << attachment.path.toStdString() << "]\n";
+
+                // 显示匹配上下文
+                int keywordPos = attachment.content.indexOf(keyword, 0, Qt::CaseInsensitive);
+                if (keywordPos != -1) {
+                    int contextStart = qMax(0, keywordPos - 30);
+                    int contextEnd = qMin(attachment.content.length(), keywordPos + keyword.length() + 30);
+                    QString context = attachment.content.mid(contextStart, contextEnd - contextStart);
+
+                    if (contextStart > 0) context = "..." + context;
+                    if (contextEnd < attachment.content.length()) context = context + "...";
+
+                    std::cout << context.toStdString() << "\n";
+                }
+            }
+        }
+    }
+
+    std::cout << "\n========================================\n";
+    if (matchCount == 0) {
+        std::cout << "No matches found\n";
+    } else {
+        std::cout << "Found " << matchCount << " match(es)\n";
+    }
+
     QTimer::singleShot(0, this, &CLIApplication::readInput);
 }
 

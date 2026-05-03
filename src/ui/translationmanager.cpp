@@ -22,15 +22,26 @@ QString TranslationManager::findQmFile(const QString &locale)
 {
     QString qmFile = QString("localai_%1.qm").arg(locale);
 
-    QStringList searchPaths = {
+    QStringList searchPaths;
+
 #ifdef TRANSLATIONS_DIR
-        QString(TRANSLATIONS_DIR),
+    searchPaths << QString(TRANSLATIONS_DIR);
 #endif
-        QApplication::applicationDirPath() + "/../Resources/translations",
-        QApplication::applicationDirPath() + "/translations",
-        QDir::currentPath() + "/translations",
-        QDir::currentPath() + "/../translations"
-    };
+
+#ifdef Q_OS_MACOS
+    // macOS app bundle structure
+    searchPaths << QApplication::applicationDirPath() + "/../Resources/translations";
+#elif defined(Q_OS_WIN)
+    // Windows: translations in executable directory
+    searchPaths << QApplication::applicationDirPath() + "/translations";
+#else
+    // Linux
+    searchPaths << QApplication::applicationDirPath() + "/translations";
+#endif
+
+    // 通用备用路径
+    searchPaths << QDir::currentPath() + "/translations";
+    searchPaths << QDir::currentPath() + "/../translations";
 
     for (const QString &path : searchPaths) {
         QString fullPath = path + "/" + qmFile;
@@ -69,15 +80,22 @@ bool TranslationManager::loadTranslation(const QString &locale)
     }
 
     if (!loaded) {
-        QStringList searchPaths = {
+        QStringList searchPaths;
+
 #ifdef TRANSLATIONS_DIR
-            QString(TRANSLATIONS_DIR),
+        searchPaths << QString(TRANSLATIONS_DIR);
 #endif
-            QApplication::applicationDirPath() + "/../Resources/translations",
-            QApplication::applicationDirPath() + "/translations",
-            QDir::currentPath() + "/translations",
-            QDir::currentPath() + "/../translations"
-        };
+
+#ifdef Q_OS_MACOS
+        searchPaths << QApplication::applicationDirPath() + "/../Resources/translations";
+#elif defined(Q_OS_WIN)
+        searchPaths << QApplication::applicationDirPath() + "/translations";
+#else
+        searchPaths << QApplication::applicationDirPath() + "/translations";
+#endif
+
+        searchPaths << QDir::currentPath() + "/translations";
+        searchPaths << QDir::currentPath() + "/../translations";
 
         for (const QString &path : searchPaths) {
             loaded = m_translator->load(qmFile, path);

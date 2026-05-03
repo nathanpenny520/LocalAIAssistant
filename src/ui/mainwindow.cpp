@@ -296,10 +296,20 @@ void MainWindow::setupMenuBar()
     QMenu *fileMenu = bar->addMenu((locale == "en") ? "&File" : QStringLiteral("文件"));
     fileMenu->menuAction()->setText((locale == "en") ? "File" : QStringLiteral("文件"));
 #else
-    QString settingsText = (locale == "en") ? "Settings" : QStringLiteral("设置");
+    // Windows/Linux: 标准 File 菜单
+    QString fileText = (locale == "en") ? "&File" : QStringLiteral("文件");
+    QMenu *fileMenu = bar->addMenu(fileText);
+
+    QString settingsText = (locale == "en") ? "Settings..." : QStringLiteral("设置...");
     m_settingsAction->setText(settingsText);
-    QMenu *settingsMenu = bar->addMenu(settingsText);
-    settingsMenu->addAction(m_settingsAction);
+    fileMenu->addAction(m_settingsAction);
+
+    fileMenu->addSeparator();
+
+    QString exitText = (locale == "en") ? "E&xit" : QStringLiteral("退出");
+    QAction *exitAction = fileMenu->addAction(exitText);
+    exitAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
+    connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
 #endif
 
     // 视图菜单 - 显示/隐藏历史面板
@@ -1235,6 +1245,14 @@ void MainWindow::updateSearchResultLabel()
 void MainWindow::onGirlfriendClicked()
 {
     static GirlfriendWindow *girlfriendWindow = nullptr;
+
+    // 如果窗口已存在且可见，则关闭它
+    if (girlfriendWindow && girlfriendWindow->isVisible()) {
+        girlfriendWindow->close();
+        return;
+    }
+
+    // 否则创建或显示窗口
     if (!girlfriendWindow) {
         girlfriendWindow = new GirlfriendWindow(this);
     }

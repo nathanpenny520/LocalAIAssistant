@@ -1,4 +1,5 @@
 #include "avatarwidget.h"
+#include "girlfriend_translations.h"
 #include <QDebug>
 #include <QDir>
 #include <QCoreApplication>
@@ -10,19 +11,24 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     , m_currentEmotion("default")
     , m_isSpeaking(false)
 {
+    // 设置背景透明
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAutoFillBackground(false);
+
     loadAvatarImages();
 
-    // 设置布局：图片居中，情绪标签在左上角
+    // 图片覆盖整个区域，保持比例裁剪
     m_avatarLabel->setAlignment(Qt::AlignCenter);
-    m_avatarLabel->setScaledContents(false);
+    m_avatarLabel->setScaledContents(true);  // 允许缩放填充
 
-    // 情绪标签样式
+    // 情绪标签样式 - 完全透明背景
     m_emotionTagLabel->setStyleSheet(
-        "QLabel { background: rgba(255, 255, 255, 0.6); "
-        "padding: 4px 12px; border-radius: 12px; font-size: 12px; }"
+        "QLabel { background: transparent; "
+        "padding: 4px 12px; font-size: 12px; }"
     );
-    m_emotionTagLabel->setText("💕 默认");
+    m_emotionTagLabel->setText(GTr::emotionDefault());
     m_emotionTagLabel->move(12, 12);
+    m_emotionTagLabel->raise();  // 确保标签在图片上方
 
     updateDisplay();
 }
@@ -33,8 +39,19 @@ void AvatarWidget::loadAvatarImages()
     QStringList possiblePaths;
 
     QString appDir = QCoreApplication::applicationDirPath();
+
+#ifdef Q_OS_MACOS
+    // macOS app bundle 结构
     possiblePaths << QDir::cleanPath(appDir + "/../Resources/AIGirlfriend");
+#elif defined(Q_OS_WIN)
+    // Windows: 资源在可执行文件同级目录
     possiblePaths << QDir::cleanPath(appDir + "/AIGirlfriend");
+#else
+    // Linux
+    possiblePaths << QDir::cleanPath(appDir + "/AIGirlfriend");
+#endif
+
+    // 通用备用路径
     possiblePaths << "AIGirlfriend";
     possiblePaths << "sourcecode-ai-assistant/AIGirlfriend";
 
@@ -57,7 +74,7 @@ void AvatarWidget::loadAvatarImages()
     // 加载所有表情图片
     QStringList emotions = {
         "default", "happy", "shy", "love", "hate",
-        "sad", "angry", "afraid", "awaiting", "speaking", "studying"
+        "sad", "angry", "afraid", "awaiting", "speaking", "studying", "worried"
     };
 
     QMap<QString, QString> fileNames = {
@@ -68,10 +85,11 @@ void AvatarWidget::loadAvatarImages()
         {"hate", "hate.png"},
         {"sad", "sad.png"},
         {"angry", "angry.png"},
-        {"afraid", "afraid.png"},
+        {"afraid", "afraid.png"},   
         {"awaiting", "awaiting.png"},
         {"speaking", "speaking.png"},
-        {"studying", "studying.png"}
+        {"studying", "studying.png"},
+        {"worried", "worried.png"}   // 新增 worried 情绪
     };
 
     for (const QString &emotion : emotions) {
@@ -110,40 +128,48 @@ void AvatarWidget::updateDisplay()
     if (m_avatarImages.contains(displayEmotion)) {
         QPixmap pixmap = m_avatarImages[displayEmotion];
 
-        // 缩放图片以适应窗口，保持比例
-        QSize labelSize = this->size();
+        // 缩放图片覆盖整个区域，保持比例裁剪
+        QSize widgetSize = this->size();
+
+        // 计算缩放比例，选择能覆盖整个区域的缩放方式
         QPixmap scaled = pixmap.scaled(
-            labelSize,
-            Qt::KeepAspectRatio,
+            widgetSize,
+            Qt::KeepAspectRatioByExpanding,  // 覆盖整个区域，可能裁剪
             Qt::SmoothTransformation
         );
 
+        // 如果缩放后仍比窗口大，居中裁剪
+        if (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height()) {
+            int x = (scaled.width() - widgetSize.width()) / 2;
+            int y = (scaled.height() - widgetSize.height()) / 2;
+            scaled = scaled.copy(x, y, widgetSize.width(), widgetSize.height());
+        }
+
         m_avatarLabel->setPixmap(scaled);
-        m_avatarLabel->resize(scaled.size());
-        m_avatarLabel->move(
-            (labelSize.width() - scaled.width()) / 2,
-            (labelSize.height() - scaled.height()) / 2
-        );
+        m_avatarLabel->resize(widgetSize);
+        m_avatarLabel->move(0, 0);
     }
 
-    // 更新情绪标签
+    // 更新情绪标签 - 使用 displayEmotion 保持与图片同步
     QMap<QString, QString> emotionLabels = {
-        {"default", "💕 默认"},
-        {"happy", "💕 开心"},
-        {"shy", " blush 害羞"},
-        {"love", "💖 爱意"},
-        {"hate", "哼 嫌弃"},
-        {"sad", "😢 难过"},
-        {"angry", "😤 生气"},
-        {"afraid", "关心"},
-        {"awaiting", "期待"},
-        {"speaking", "说话中"},
-        {"studying", "📚 思考"}
+        {"default", GTr::emotionDefault()},
+        {"happy", GTr::emotionHappy()},
+        {"shy", GTr::emotionShy()},
+        {"love", GTr::emotionLove()},
+        {"hate", GTr::emotionHate()},
+        {"sad", GTr::emotionSad()},
+        {"angry", GTr::emotionAngry()},
+        {"afraid", GTr::emotionAfraid()},
+        {"awaiting", GTr::emotionAwaiting()},
+        {"speaking", GTr::emotionSpeaking()},
+        {"studying", GTr::emotionStudying()},
+        {"worried", GTr::emotionWorried()}
     };
 
-    QString labelText = emotionLabels.value(m_currentEmotion, "💕 默认");
+    QString labelText = emotionLabels.value(displayEmotion, GTr::emotionDefault());
     m_emotionTagLabel->setText(labelText);
     m_emotionTagLabel->adjustSize();
+    m_emotionTagLabel->raise();  // 确保标签在图片上方
 }
 
 QString AvatarWidget::getAvatarPath(const QString &emotion) const
@@ -159,7 +185,8 @@ QString AvatarWidget::getAvatarPath(const QString &emotion) const
         {"afraid", "afraid.png"},
         {"awaiting", "awaiting.png"},
         {"speaking", "speaking.png"},
-        {"studying", "studying.png"}
+        {"studying", "studying.png"},
+        {"worried", "worried.png"}
     };
 
     QString fileName = fileNames.value(emotion, emotion + ".png");
@@ -171,4 +198,10 @@ void AvatarWidget::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
     updateDisplay();
     m_emotionTagLabel->move(12, 12);
+}
+
+void AvatarWidget::retranslateUi()
+{
+    // 更新情绪标签文字
+    updateDisplay();
 }

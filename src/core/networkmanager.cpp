@@ -96,17 +96,24 @@ QString NetworkManager::loadSystemPrompt()
 
     // 1. Application directory
     QString appDir = QCoreApplication::applicationDirPath();
-    possiblePaths << QDir::cleanPath(appDir + "/core/soul.md");
 
-    // 2. macOS app bundle structure
+#ifdef Q_OS_MACOS
+    // macOS app bundle structure
     possiblePaths << QDir::cleanPath(appDir + "/../Resources/core/soul.md");
-
-    // 3. Linux standard paths
+#elif defined(Q_OS_WIN)
+    // Windows: 资源在可执行文件同级目录
+    possiblePaths << QDir::cleanPath(appDir + "/core/soul.md");
+#else
+    // Linux
+    possiblePaths << QDir::cleanPath(appDir + "/core/soul.md");
     possiblePaths << "/usr/share/localaiassistant/core/soul.md";
     possiblePaths << "/usr/local/share/localaiassistant/core/soul.md";
+#endif
+
+    // 用户数据目录
     possiblePaths << QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/core/soul.md");
 
-    // 4. Development relative paths
+    // 开发时的相对路径
     possiblePaths << "sourcecode-ai-assistant/src/core/soul.md";
     possiblePaths << "src/core/soul.md";
 
@@ -230,20 +237,6 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
 
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
-
-    // Debug: 打印发送的 JSON（对于图片消息，显示前 500 字符）
-    bool hasAttachments = false;
-    for (const ChatMessage &msg : messages) {
-        if (!msg.attachments.isEmpty()) {
-            hasAttachments = true;
-            break;
-        }
-    }
-    if (hasAttachments) {
-        qDebug() << "=== Multimodal request (with attachments) ===";
-        qDebug() << "JSON payload (first 1000 chars):" << QString(postData).left(1000);
-        qDebug() << "JSON payload size:" << postData.size() << "bytes";
-    }
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
@@ -371,22 +364,18 @@ void NetworkManager::onStreamReadyRead()
     // Check if it's Ollama
     bool isOllama = m_apiBaseUrl.contains("11434");
 
+    QByteArray newData = m_currentReply->readAll();
+
     if (isOllama) {
         // For Ollama, read data line by line
-        while (m_currentReply->canReadLine()) {
-            QByteArray line = m_currentReply->readLine();
-            QString chunk = extractDeltaFromSSE(line, true);
-
-            if (!chunk.isEmpty()) {
-                m_streamBuffer += chunk;
-                emit streamChunkReceived(chunk);
-            }
+        QString chunk = extractDeltaFromSSE(newData, true);
+        if (!chunk.isEmpty()) {
+            m_streamBuffer += chunk;
+            emit streamChunkReceived(chunk);
         }
     } else {
-        // For other servers, keep the original processing
-        QByteArray newData = m_currentReply->readAll();
+        // For OpenAI format, extract content
         QString chunk = extractDeltaFromSSE(newData, false);
-
         if (!chunk.isEmpty()) {
             m_streamBuffer += chunk;
             emit streamChunkReceived(chunk);
@@ -410,6 +399,7 @@ void NetworkManager::onStreamFinished()
         return;
     }
 
+    // 读取剩余数据
     QByteArray remainingData = m_currentReply->readAll();
     if (!remainingData.isEmpty()) {
         QString chunk = extractDeltaFromSSE(remainingData);
@@ -418,15 +408,11 @@ void NetworkManager::onStreamFinished()
         }
     }
 
-    if (m_streamBuffer.isEmpty()) {
-        m_currentReply->deleteLater();
-        m_currentReply = nullptr;
-        return;
+    if (!m_streamBuffer.isEmpty()) {
+        emit streamFinished(m_streamBuffer);
+        m_streamBuffer.clear();
     }
 
-    emit streamFinished(m_streamBuffer);
-
-    m_streamBuffer.clear();
     m_currentReply->deleteLater();
     m_currentReply = nullptr;
 }

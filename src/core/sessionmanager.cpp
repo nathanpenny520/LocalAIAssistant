@@ -10,7 +10,7 @@ SessionManager* SessionManager::m_instance = nullptr;
 SessionManager::SessionManager(QObject *parent)
     : QObject(parent)
 {
-    createNewSession("新对话");
+    createNewSession();
 }
 
 SessionManager* SessionManager::instance()
@@ -28,7 +28,8 @@ ChatSession& SessionManager::currentSession()
 
 void SessionManager::createNewSession(const QString &title)
 {
-    ChatSession newSession(title);
+    QString sessionTitle = title.isEmpty() ? QStringLiteral("新对话") : title;
+    ChatSession newSession(sessionTitle);
     m_sessions[newSession.id] = newSession;
     m_currentSessionId = newSession.id;
     emit sessionChanged(m_currentSessionId);
@@ -54,6 +55,14 @@ void SessionManager::addMessageToCurrentSession(const QString &role, const QStri
     msg.attachments = attachments;
     m_sessions[m_currentSessionId].messages.append(msg);
     emit sessionChanged(m_currentSessionId);
+}
+
+void SessionManager::addMessageToSession(const QString &sessionId, const QString &role, const QString &content)
+{
+    if (m_sessions.contains(sessionId)) {
+        m_sessions[sessionId].messages.append(ChatMessage(role, content));
+        emit sessionChanged(sessionId);
+    }
 }
 
 void SessionManager::updateSessionTitle(const QString &sessionId, const QString &title)
@@ -162,7 +171,7 @@ void SessionManager::loadSessionsFromFile()
 
         ChatSession session;
         session.id = sessionObj["id"].toString();
-        session.title = sessionObj["title"].toString("新对话");
+        session.title = sessionObj["title"].toString(QStringLiteral("新对话"));
 
         QJsonArray messagesArray = sessionObj["messages"].toArray();
         for (const auto &msgVal : messagesArray) {
@@ -202,6 +211,6 @@ void SessionManager::loadSessionsFromFile()
     if (!m_sessions.isEmpty()) {
         m_currentSessionId = m_sessions.constBegin().key();
     } else {
-        createNewSession("新对话");
+        createNewSession();
     }
 }

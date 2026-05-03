@@ -4,8 +4,11 @@
 #include <QMimeDatabase>
 #include <QMimeType>
 #include <QDebug>
+
+#ifndef NO_PDF_SUPPORT
 #include <poppler-document.h>
 #include <poppler-page.h>
+#endif
 
 namespace {
     // 文本文件扩展名列表
@@ -17,8 +20,10 @@ namespace {
         "html", "htm", "css", "scss", "sass", "less",
         "sql", "sh", "bash", "zsh", "bat", "cmd", "ps1",
         "dockerfile", "makefile", "cmake", "gradle", "maven",
-        "log", "csv", "tsv", "env", "gitignore", "dockerignore",
-        "pdf"  // PDF 文件作为特殊文本文件处理
+        "log", "csv", "tsv", "env", "gitignore", "dockerignore"
+#ifndef NO_PDF_SUPPORT
+        , "pdf"  // PDF 文件作为特殊文本文件处理（需要 Poppler）
+#endif
     };
 
     // 图片文件扩展名列表
@@ -168,6 +173,7 @@ FileAttachment FileManager::processFile(const QString &path)
 
 QString FileManager::extractPdfText(const QString &path)
 {
+#ifndef NO_PDF_SUPPORT
     poppler::document *doc = poppler::document::load_from_file(path.toStdString());
 
     if (!doc) {
@@ -197,6 +203,13 @@ QString FileManager::extractPdfText(const QString &path)
     delete doc;
 
     return content;
+#else
+    // 没有 Poppler 支持，返回提示信息
+    QFileInfo info(path);
+    return QString("[PDF 文件: %1 (%2 bytes)]\n\n注意: PDF 支持未启用，需要安装 Poppler 库")
+        .arg(info.fileName())
+        .arg(info.size());
+#endif
 }
 
 QString FileManager::getMimeType(const QString &path)

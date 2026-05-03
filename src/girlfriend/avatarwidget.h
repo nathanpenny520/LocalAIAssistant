@@ -18,6 +18,7 @@ public:
     void setEmotion(const QString &emotion);
     void setSpeaking(bool speaking);
     QString currentEmotion() const { return m_currentEmotion; }
+    void retranslateUi();  // 更新情绪标签文字
 
 signals:
     void emotionChanged(const QString &emotion);

@@ -37,6 +37,8 @@ VoiceManager::VoiceManager(QObject *parent)
     , m_audioIODevice(nullptr)
     , m_isRecording(false)
     , m_actualSampleRate(16000)
+    , m_actualChannelCount(1)
+    , m_audioPollTimer(nullptr)
     , m_mediaPlayer(nullptr)
     , m_audioOutput(nullptr)
     , m_ttsTempFile(nullptr)
@@ -77,8 +79,6 @@ VoiceManager::VoiceManager(QObject *parent)
 
     connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged,
             this, &VoiceManager::onPlaybackStateChanged);
-    connect(m_mediaPlayer, &QMediaPlayer::mediaStatusChanged,
-            this, &VoiceManager::onMediaStatusChanged);
 }
 
 VoiceManager::~VoiceManager()
@@ -442,26 +442,70 @@ void VoiceManager::startRecording()
 
     m_audioFormat = actualFormat;
     m_actualSampleRate = actualFormat.sampleRate();
+    m_actualChannelCount = actualFormat.channelCount();
 
     // 创建 QAudioSource
     m_audioSource = new QAudioSource(defaultDevice, actualFormat, this);
+
+    // 设置缓冲区大小（Windows 上需要足够的缓冲区）
+    // 16kHz, 16bit, mono: 16000 * 2 * 1 = 32000 bytes per second
+    // 100ms 缓冲区 = 3200 bytes
+    m_audioSource->setBufferSize(6400);  // 200ms 缓冲区
+
     m_audioIODevice = m_audioSource->start();
 
     if (!m_audioIODevice) {
         qDebug() << "VoiceManager: Failed to start audio source";
+#ifdef Q_OS_WIN
+        emit asrError(GTr::voiceNotConfigured() +
+            "\n\nPossible causes:\n"
+            "1. Microphone is in use by another application\n"
+            "2. Windows Settings > Privacy > Microphone - ensure access is enabled\n"
+            "3. Check that your microphone is properly connected");
+#else
         emit asrError(GTr::voiceNotConfigured());
+#endif
         m_audioSource->deleteLater();
         m_audioSource = nullptr;
         m_isRecording = false;
         return;
     }
 
-    // 连接 readyRead 信号以接收音频数据
+    // 检查音频源状态
+    QAudio::State audioState = m_audioSource->state();
+    qDebug() << "VoiceManager: Audio source state:" << audioState
+             << "- buffer size:" << m_audioSource->bufferSize()
+             << "- bytes available:" << m_audioIODevice->bytesAvailable();
+
+    if (audioState == QAudio::StoppedState || audioState == QAudio::IdleState) {
+        qDebug() << "VoiceManager: Audio source not in ActiveState, checking error...";
+        QAudio::Error audioError = m_audioSource->error();
+        qDebug() << "VoiceManager: Audio error:" << audioError;
+        if (audioError != QAudio::NoError) {
+            emit asrError(GTr::voiceNotConfigured() + QString(" (error: %1)").arg(audioError));
+            m_audioSource->stop();
+            m_audioSource->deleteLater();
+            m_audioSource = nullptr;
+            m_audioIODevice = nullptr;
+            m_isRecording = false;
+            return;
+        }
+    }
+
+    // 使用定时器轮询音频数据（Windows 兼容方案）
+    // Windows 上 readyRead 信号可能不可靠，使用定时器主动轮询
+    m_audioPollTimer = new QTimer(this);
+    connect(m_audioPollTimer, &QTimer::timeout, this, &VoiceManager::onAudioPollTimeout);
+    m_audioPollTimer->start(50);  // 每 50ms 轮询一次
+
+    // 同时连接 readyRead 信号作为备用（某些平台可能工作）
     connect(m_audioIODevice, &QIODevice::readyRead, this, &VoiceManager::onAudioDataReady);
 
     qDebug() << "VoiceManager: Recording started with QAudioSource"
              << "- sample rate:" << m_actualSampleRate
-             << "- format:" << (m_audioFormat.sampleFormat() == QAudioFormat::Int16 ? "Int16" : "Float");
+             << "- channels:" << m_actualChannelCount
+             << "- format:" << (m_audioFormat.sampleFormat() == QAudioFormat::Int16 ? "Int16" : "Float")
+             << "- polling mode: 50ms interval";
 }
 
 void VoiceManager::stopRecording()
@@ -471,6 +515,13 @@ void VoiceManager::stopRecording()
     }
 
     m_isRecording = false;
+
+    // 停止轮询定时器
+    if (m_audioPollTimer) {
+        m_audioPollTimer->stop();
+        m_audioPollTimer->deleteLater();
+        m_audioPollTimer = nullptr;
+    }
 
     // 停止音频源
     if (m_audioSource) {
@@ -708,6 +759,39 @@ void VoiceManager::processAndSendAudioData()
         audioData = int16Data;
     }
 
+    // 声道转换：多声道转单声道（讯飞要求 mono）
+    // 在 Float 转 Int16 之后进行，此时数据已是 16-bit PCM
+    if (m_actualChannelCount > 1) {
+        qDebug() << "VoiceManager: Converting" << m_actualChannelCount << "channels to mono";
+
+        int bytesPerSample = 2;  // 16-bit = 2 bytes
+        int bytesPerFrame = bytesPerSample * m_actualChannelCount;  // 一帧包含所有声道
+        int frameCount = audioData.size() / bytesPerFrame;
+
+        QByteArray monoData;
+        monoData.reserve(frameCount * bytesPerSample);
+
+        for (int i = 0; i < frameCount; i++) {
+            int frameOffset = i * bytesPerFrame;
+
+            // 计算所有声道的平均值
+            int sum = 0;
+            for (int ch = 0; ch < m_actualChannelCount; ch++) {
+                int sampleOffset = frameOffset + ch * bytesPerSample;
+                if (sampleOffset + 2 <= audioData.size()) {
+                    short sample = *reinterpret_cast<const short*>(audioData.constData() + sampleOffset);
+                    sum += sample;
+                }
+            }
+            // 平均值
+            short monoSample = static_cast<short>(sum / m_actualChannelCount);
+            monoData.append(reinterpret_cast<char*>(&monoSample), 2);
+        }
+
+        audioData = monoData;
+        qDebug() << "VoiceManager: Converted to mono, data size:" << audioData.size();
+    }
+
     // 如果采样率不是 16kHz，需要重采样
     if (m_actualSampleRate != 16000 && m_actualSampleRate > 16000) {
         int ratio = m_actualSampleRate / 16000;
@@ -809,6 +893,44 @@ void VoiceManager::onAudioDataReady()
     m_audioBuffer.append(newData);
 
     qDebug() << "VoiceManager: Read" << newData.size() << "bytes, total buffer:" << m_audioBuffer.size();
+}
+
+void VoiceManager::onAudioPollTimeout()
+{
+    // 定时轮询音频数据（Windows 兼容方案）
+    // 主动检查并读取可用的音频数据
+    if (!m_audioIODevice || !m_isRecording || !m_audioSource) {
+        return;
+    }
+
+    // 检查音频源状态（Windows 上可能意外停止）
+    QAudio::State state = m_audioSource->state();
+    if (state == QAudio::StoppedState) {
+        QAudio::Error error = m_audioSource->error();
+        if (error != QAudio::NoError) {
+            qDebug() << "VoiceManager: Audio source stopped with error:" << error;
+            m_isRecording = false;
+            emit asrError(GTr::voiceNotConfigured() + QString(" (audio error: %1)").arg(error));
+            if (m_audioPollTimer) {
+                m_audioPollTimer->stop();
+            }
+            return;
+        }
+    }
+
+    // 检查是否有可用数据
+    qint64 bytesAvailable = m_audioIODevice->bytesAvailable();
+    if (bytesAvailable > 0) {
+        // 每 500ms 输出一次状态，避免日志过多
+        static int pollCount = 0;
+        pollCount++;
+        if (pollCount % 10 == 0) {  // 50ms * 10 = 500ms
+            qDebug() << "VoiceManager: Polling - bytes available:" << bytesAvailable
+                     << ", buffer size:" << m_audioBuffer.size()
+                     << ", audio state:" << state;
+        }
+        onAudioDataReady();
+    }
 }
 
 // ==================== TTS（语音合成） ====================
@@ -1299,12 +1421,10 @@ void VoiceManager::playTtsAudio(const QByteArray &audioData)
     m_ttsTempFile = new QFile(tempFile, this);
     QUrl audioUrl = QUrl::fromLocalFile(tempFile);
 
-    qDebug() << "VoiceManager: Setting audio source:" << audioUrl.toString();
+    qDebug() << "VoiceManager: Playing WAV from:" << audioUrl.toString();
 
-    // 先停止当前播放，重置状态
-    m_mediaPlayer->stop();
     m_mediaPlayer->setSource(audioUrl);
-    // 不立即调用 play()，等待媒体加载完成（onMediaStatusChanged 会处理）
+    m_mediaPlayer->play();
 
     emit statusChanged(GTr::playingVoice());
 }
@@ -1322,25 +1442,6 @@ void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state)
             m_ttsTempFile->deleteLater();
             m_ttsTempFile = nullptr;
         }
-    }
-}
-
-void VoiceManager::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
-{
-    qDebug() << "VoiceManager: Media status changed:" << status;
-
-    // 媒体缓冲完成后开始播放（确保音频数据已就绪，避免开头截断）
-    if (status == QMediaPlayer::BufferedMedia && m_isSpeaking) {
-        qDebug() << "VoiceManager: Media buffered, starting playback";
-        m_mediaPlayer->play();
-    }
-
-    // 处理错误状态
-    if (status == QMediaPlayer::InvalidMedia) {
-        qDebug() << "VoiceManager: Invalid media, playback failed";
-        m_isSpeaking = false;
-        emit ttsError(GTr::audioFileCreateFailed());
-        emit speakingFinished();
     }
 }
 

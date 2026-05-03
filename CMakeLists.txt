@@ -10,7 +10,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools Multimedia WebSockets)
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
     pkg_check_modules(POPPLER poppler-cpp)
@@ -99,6 +99,13 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     TRANSLATIONS_DIR="${CMAKE_CURRENT_BINARY_DIR}/translations"
 )
 
+# Windows uses relative path for translations
+if(WIN32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        TRANSLATIONS_DIR_RELATIVE="translations"
+    )
+endif()
+
 add_dependencies(${PROJECT_NAME} translations)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -116,11 +123,16 @@ add_library(GirlfriendModule
     src/girlfriend/personalityengine.h
     src/girlfriend/girlfriendsession.cpp
     src/girlfriend/girlfriendsession.h
+    src/girlfriend/memorymanager.cpp
+    src/girlfriend/memorymanager.h
+    src/girlfriend/voicemanager.cpp
+    src/girlfriend/voicemanager.h
 )
 
 target_include_directories(GirlfriendModule PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
 )
 
 target_link_libraries(GirlfriendModule PUBLIC
@@ -128,6 +140,7 @@ target_link_libraries(GirlfriendModule PUBLIC
     Qt6::Widgets
     Qt6::Multimedia
     Qt6::Network
+    Qt6::WebSockets
 )
 
 # 链接到主程序
@@ -221,6 +234,23 @@ if(APPLE)
         COMMENT "Copying personality.md to app bundle Resources"
     )
 
+    # Copy memory.md to app bundle Resources
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/girlfriend
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/memory.md
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/girlfriend/memory.md
+        COMMENT "Copying memory.md to app bundle Resources"
+    )
+
+    # Copy .env to app bundle Resources (if exists)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/.env
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/.env
+        COMMENT "Copying .env to app bundle Resources (if exists)"
+    )
+
     add_dependencies(${PROJECT_NAME} app_icon soul_md)
 endif()
 
@@ -229,6 +259,28 @@ if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES
         WIN32_EXECUTABLE TRUE
     )
+
+    # Fix windres path space issues by using temp file instead of popen
+    set(CMAKE_RC_FLAGS "--use-temp-file")
+
+    # Windows icon resource (requires app.ico)
+    # Copy ico to build directory first to avoid path space issues
+    set(APP_ICON_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
+    set(APP_ICON_DEST "${CMAKE_CURRENT_BINARY_DIR}/app.ico")
+
+    configure_file(${APP_ICON_SOURCE} ${APP_ICON_DEST} COPYONLY)
+
+    # Copy rc to build directory (rc uses relative path "app.ico")
+    set(APP_RC_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.rc")
+    set(APP_RC_DEST "${CMAKE_CURRENT_BINARY_DIR}/app.rc")
+
+    configure_file(${APP_RC_SOURCE} ${APP_RC_DEST} COPYONLY)
+
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
+        target_sources(${PROJECT_NAME} PRIVATE ${APP_RC_DEST})
+    else()
+        message(WARNING "Windows icon file app.ico not found. Please create it from app.icns.")
+    endif()
 
     # Copy soul.md to build directory
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -239,16 +291,52 @@ if(WIN32)
         COMMENT "Copying soul.md to build directory"
     )
 
-    # Copy translations to app bundle Resources directory
+    # Copy AIGirlfriend images to build directory
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/../Resources/translations"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/AIGirlfriend"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/AIGirlfriend"
+        COMMENT "Copying AIGirlfriend images to build directory"
+    )
+
+    # Copy personality.md to build directory
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/girlfriend"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/personality.md"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/girlfriend/personality.md"
+        COMMENT "Copying personality.md to build directory"
+    )
+
+    # Copy memory.md to build directory
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/memory.md"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/girlfriend/memory.md"
+        COMMENT "Copying memory.md to build directory"
+    )
+
+    # Copy .env to build directory (if exists)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/.env"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/.env"
+            COMMENT "Copying .env to build directory"
+        )
+    endif()
+
+    # Copy translations to build directory
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/../Resources/translations/localai_zh_CN.qm"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_zh_CN.qm"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/../Resources/translations/localai_en.qm"
-        COMMENT "Copying translations to app bundle Resources"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
+        COMMENT "Copying translations to build directory"
     )
 endif()
 

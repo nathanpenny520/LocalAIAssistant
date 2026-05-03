@@ -29,6 +29,8 @@
     <string>${CMAKE_SYSTEM_VERSION}</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026. All rights reserved.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app needs microphone access for voice input and speech recognition in the AI Girlfriend feature.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

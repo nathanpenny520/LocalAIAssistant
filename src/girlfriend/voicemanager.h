@@ -12,6 +12,7 @@
 #include <QFile>
 #include <QAudioOutput>
 #include <QAudioFormat>
+#include <QTimer>
 
 /**
  * 语音管理器
@@ -88,10 +89,10 @@ private slots:
 
     // 音频录制回调
     void onAudioDataReady();            // 从 QAudioSource 读取音频数据
+    void onAudioPollTimeout();          // 定时轮询音频数据（Windows 兼容）
 
     // 播放回调
     void onPlaybackStateChanged(QMediaPlayer::PlaybackState state);
-    void onMediaStatusChanged(QMediaPlayer::MediaStatus status);
 
     // 音频设备变化回调
     void onAudioOutputsChanged();
@@ -158,6 +159,8 @@ private:
     QByteArray m_audioBuffer;           // 累积音频数据
     QAudioFormat m_audioFormat;         // 实际使用的音频格式
     int m_actualSampleRate;             // 实际采样率（用于重采样）
+    int m_actualChannelCount;           // 实际声道数（用于声道转换）
+    QTimer *m_audioPollTimer;           // 音频数据轮询定时器（Windows 兼容）
     bool m_isRecording;
 
     // TTS 音频播放

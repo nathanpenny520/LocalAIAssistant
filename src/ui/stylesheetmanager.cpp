@@ -160,6 +160,57 @@ QString StyleSheetManager::lightStyleSheet()
         QPushButton#newChatButton:hover {
             background-color: #e0e0e0;
         }
+        /* 搜索栏样式 */
+        QFrame#searchBar {
+            background-color: #f5f5f5;
+            border: 2px solid #d0d0d0;
+            border-radius: 10px;
+        }
+        QLineEdit#searchInput {
+            padding: 8px 14px;
+            border: 2px solid #c0c0c0;
+            border-radius: 8px;
+            background-color: #ffffff;
+            font-size: 14px;
+        }
+        QLineEdit#searchInput:focus {
+            border-color: #007aff;
+        }
+        QLabel#searchResultLabel {
+            color: #666666;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        QPushButton#searchPrevBtn, QPushButton#searchNextBtn {
+            padding: 6px;
+            border: 2px solid #c0c0c0;
+            border-radius: 8px;
+            background-color: #e8e8e8;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333333;
+            min-width: 36px;
+            min-height: 32px;
+        }
+        QPushButton#searchPrevBtn:hover, QPushButton#searchNextBtn:hover {
+            background-color: #d8d8d8;
+            border-color: #999999;
+        }
+        QPushButton#searchCloseBtn {
+            padding: 6px;
+            border: 2px solid #dc3545;
+            border-radius: 8px;
+            background-color: #dc3545;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            min-width: 36px;
+            min-height: 32px;
+        }
+        QPushButton#searchCloseBtn:hover {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
         QMenuBar {
             background-color: #f5f5f5;
             border-bottom: 1px solid #e0e0e0;
@@ -339,6 +390,58 @@ QString StyleSheetManager::darkStyleSheet()
         }
         QPushButton#newChatButton:hover {
             background-color: #3d3d3d;
+        }
+        /* 搜索栏样式 */
+        QFrame#searchBar {
+            background-color: #2d2d2d;
+            border: 2px solid #4d4d4d;
+            border-radius: 10px;
+        }
+        QLineEdit#searchInput {
+            padding: 8px 14px;
+            border: 2px solid #4d4d4d;
+            border-radius: 8px;
+            background-color: #3a3a3a;
+            font-size: 14px;
+            color: #e0e0e0;
+        }
+        QLineEdit#searchInput:focus {
+            border-color: #0a84ff;
+        }
+        QLabel#searchResultLabel {
+            color: #888888;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        QPushButton#searchPrevBtn, QPushButton#searchNextBtn {
+            padding: 6px;
+            border: 2px solid #4d4d4d;
+            border-radius: 8px;
+            background-color: #3d3d3d;
+            font-size: 18px;
+            font-weight: bold;
+            color: #e0e0e0;
+            min-width: 36px;
+            min-height: 32px;
+        }
+        QPushButton#searchPrevBtn:hover, QPushButton#searchNextBtn:hover {
+            background-color: #4d4d4d;
+            border-color: #5d5d5d;
+        }
+        QPushButton#searchCloseBtn {
+            padding: 6px;
+            border: 2px solid #dc3545;
+            border-radius: 8px;
+            background-color: #dc3545;
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffffff;
+            min-width: 36px;
+            min-height: 32px;
+        }
+        QPushButton#searchCloseBtn:hover {
+            background-color: #c82333;
+            border-color: #c82333;
         }
         QMenuBar {
             background-color: #2d2d2d;
