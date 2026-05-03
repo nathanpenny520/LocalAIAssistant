@@ -56,10 +56,14 @@ sourcecode-ai-assistant/
 │       └── voice_config.json      # 语音配置模板
 ├── AIGirlfriend/       # 表情图片资源（11张）
 ├── scripts/            # 构建脚本
-│   └── build.sh        # 统一跨平台构建脚本
+│   ├── build.sh        # 统一跨平台构建脚本
+│   └── setup.sh        # 首次克隆初始化脚本
 ├── translations/       # 国际化翻译文件
 ├── resources/          # 资源文件（图标、配置）
-└── cmake/              # CMake 配置模板
+├── cmake/              # CMake 配置模板
+├── .gitattributes      # Git 换行符配置
+├── .env.example        # 讯飞语音凭证模板
+└── README.md           # 项目说明文档
 ```
 
 ---
