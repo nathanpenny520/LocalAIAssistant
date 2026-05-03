@@ -962,42 +962,67 @@ void VoiceManager::sendTtsRequest(const QString &text)
         return;
     }
 
+    // 超拟人 TTS 协议结构
     QJsonObject frame;
-    QJsonObject common;
-    common["app_id"] = m_appId;
-    frame["common"] = common;
 
-    QJsonObject business;
-    // MP3 格式参数 (讯飞 TTS WebSocket API)
-    business["aue"] = "lame";           // 音频编码：lame = MP3
-    business["sfl"] = 1;                 // 开启流式返回
-    business["auf"] = "audio/L16;rate=16000";  // 音频格式
-    business["vcn"] = m_voiceType;       // 发音人
-    business["tte"] = "UTF8";            // 文本编码格式，必须与实际编码一致
-    business["speed"] = 50;              // 语速 (0-100)
-    business["volume"] = 50;             // 音量 (0-100)
-    business["pitch"] = 50;              // 音高 (0-100)
-    business["bgs"] = 0;                 // 背景音
-    business["ent"] = "ent_tts_cn";      // TTS 引擎类型
-    frame["business"] = business;
+    // header 协议头
+    QJsonObject header;
+    header["app_id"] = m_appId;
+    header["status"] = 2;  // 一次性合成传 2，流式传 0/1/2
+    frame["header"] = header;
 
-    QJsonObject data;
-    data["status"] = 2;                  // 一次性发送全部文本
-    // 文本需要 UTF-8 编码后 base64
-    QByteArray textBytes = text.toUtf8();
-    QString textBase64 = QString(textBytes.toBase64());
-    data["text"] = textBase64;
-    frame["data"] = data;
+    // parameter 能力参数
+    QJsonObject parameter;
+
+    // oral 口语化配置（仅 x4 系列发音人支持）
+    QJsonObject oral;
+    oral["oral_level"] = "mid";      // 口语化等级：high/mid/low
+    oral["spark_assist"] = 1;        // 大模型辅助口语化
+    oral["stop_split"] = 0;          // 不关闭服务端拆句
+    oral["remain"] = 0;              // 不保留原书面语
+    parameter["oral"] = oral;
+
+    // tts 合成参数
+    QJsonObject tts;
+    tts["vcn"] = m_voiceType;        // 发音人：x5_lingxiaoxuan_flow
+    tts["speed"] = 50;               // 语速 0-100
+    tts["volume"] = 50;              // 音量 0-100
+    tts["pitch"] = 50;               // 语调 0-100
+    tts["bgs"] = 0;                  // 无背景音
+    tts["reg"] = 0;                  // 英文发音方式：自动判断
+    tts["rdn"] = 0;                  // 数字发音方式：自动判断
+    tts["rhy"] = 0;                  // 不返回拼音标注
+
+    // audio 音频格式参数
+    QJsonObject audio;
+    audio["encoding"] = "lame";      // MP3 格式
+    audio["sample_rate"] = 24000;    // 24k 采样率（超拟人支持更高音质）
+    audio["channels"] = 1;           // 单声道
+    audio["bit_depth"] = 16;         // 16 bit
+    audio["frame_size"] = 0;         // 默认帧大小
+    tts["audio"] = audio;
+
+    parameter["tts"] = tts;
+    frame["parameter"] = parameter;
+
+    // payload 输入数据
+    QJsonObject payload;
+    QJsonObject textObj;
+    textObj["encoding"] = "utf8";
+    textObj["compress"] = "raw";
+    textObj["format"] = "plain";
+    textObj["status"] = 2;           // 数据状态：2=结束
+    textObj["seq"] = 0;              // 序号
+    textObj["text"] = QString(text.toUtf8().toBase64());
+    payload["text"] = textObj;
+    frame["payload"] = payload;
 
     QString jsonFrame = QJsonDocument(frame).toJson(QJsonDocument::Compact);
     m_ttsWebSocket->sendTextMessage(jsonFrame);
 
-    // 详细调试：打印编码信息
-    qDebug() << "VoiceManager: Sent TTS request";
-    qDebug() << "  - Original text:" << text;
-    qDebug() << "  - UTF-8 bytes:" << textBytes.size() << "[" << textBytes.left(20) << "...]";
-    qDebug() << "  - Base64:" << textBase64.left(30) << "...";
-    qDebug() << "  - Decode test:" << QByteArray::fromBase64(textBase64.toUtf8());
+    qDebug() << "VoiceManager: Sent super realistic TTS request";
+    qDebug() << "  - Text:" << text;
+    qDebug() << "  - Voice:" << m_voiceType;
 }
 
 void VoiceManager::parseTtsResponse(const QByteArray &binaryData, const QString &jsonMeta)
