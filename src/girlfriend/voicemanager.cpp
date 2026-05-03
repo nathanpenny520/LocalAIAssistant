@@ -1329,9 +1329,9 @@ void VoiceManager::onMediaStatusChanged(QMediaPlayer::MediaStatus status)
 {
     qDebug() << "VoiceManager: Media status changed:" << status;
 
-    // 媒体加载完成后开始播放
-    if (status == QMediaPlayer::LoadedMedia && m_isSpeaking) {
-        qDebug() << "VoiceManager: Media loaded, starting playback";
+    // 媒体缓冲完成后开始播放（确保音频数据已就绪，避免开头截断）
+    if (status == QMediaPlayer::BufferedMedia && m_isSpeaking) {
+        qDebug() << "VoiceManager: Media buffered, starting playback";
         m_mediaPlayer->play();
     }
 
