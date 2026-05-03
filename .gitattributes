@@ -1,0 +1,39 @@
+# Shell scripts - always LF (Unix line endings)
+*.sh text eol=lf
+
+# Windows scripts - always CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Source code - auto detect
+*.cpp text
+*.h text
+*.cmake text
+*CMakeLists.txt text
+
+# CMake/config templates
+*.in text
+*.rc text
+
+# Markdown/docs - auto detect
+*.md text
+*.txt text
+*.json text
+*.clangd text
+
+# Translation/localization files
+*.ts text
+*.qm binary
+*.strings text
+
+# Binary files - don't touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.zip binary
+*.pdf binary
+*.mp3 binary
+*.wav binary

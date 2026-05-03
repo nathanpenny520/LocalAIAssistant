@@ -13,7 +13,7 @@
 - **会话管理** — 多会话切换、历史持久化
 - **多语言** — 简体中文 / English 切换
 - **主题切换** — 亮色 / 暗色 / 跟随系统
-- **跨平台** — macOS / Windows / Linux
+- **跨平台** — macOS / Windows / Linux（暂未进行测试，可能不可用）
 
 ### AI 女友模块 🎀
 - **独立窗口** — 沉浸式全屏头像背景
@@ -26,7 +26,7 @@
 > ⚠️ **平台兼容性说明**：
 > - **macOS**: 语音输入/输出完整支持 ✅
 > - **Windows**: 语音输出（TTS）正常，语音输入（ASR）暂不支持 ⚠️
-> - **Linux**: 语音功能依赖 PulseAudio，部分发行版可能需要额外配置
+> - **Linux**: 作者没有Linux笔记本，暂未测试具体实现情况
 
 ## 技术栈
 
@@ -35,7 +35,7 @@
 | 语言 | C++17 |
 | 框架 | Qt 6.x (Widgets, Network, Multimedia, WebSockets) |
 | 构建 | CMake 3.16+ |
-| PDF解析 | Poppler 26.x |
+| PDF解析 | Poppler 26.x（不安装则上传文件时不支持PDF解析） |
 | 语音服务 | 讯飞开放平台 (WebSocket API) |
 
 ## 项目结构
@@ -72,8 +72,12 @@ sourcecode-ai-assistant/
 |------|------|-------|---------|-------|
 | C++编译器 | C++17 | Xcode CLT | MinGW（Qt自带）或 MSVC | GCC 9+ |
 | Qt | 6.x | 官网或 Homebrew | 官网安装（MinGW 或 MSVC） | 包管理器 |
+| Qt Multimedia | ⚠️ 需额外勾选 | Homebrew 自动安装 | Qt Maintenance Tool 勾选 | `qt6-multimedia-dev` |
+| Qt WebSockets | ⚠️ 需额外勾选 | Homebrew 自动安装 | Qt Maintenance Tool 勾选 | `qt6-websockets-dev` |
 | CMake | 3.16+ | `brew install cmake` | 官网下载 | `sudo apt install cmake` |
 | Poppler | 26.x | `brew install poppler` | MSYS2 或 vcpkg | `sudo apt install poppler` |
+
+> **Qt 模块说明**：Multimedia 和 WebSockets 需在 Qt Maintenance Tool 中额外勾选（语音功能必需）
 
 #### macOS 快速安装
 
@@ -84,15 +88,17 @@ xcode-select --install
 # 安装 Homebrew（如未安装）
 # 参考: https://brew.sh
 
-# 安装依赖
+# 安装依赖（qt@6 已包含 Multimedia 和 WebSockets）
 brew install cmake qt@6 poppler
+
+# 注：官网安装 Qt 时需在 Maintenance Tool 中额外勾选 Multimedia 和 WebSockets
 ```
 
 #### Linux 快速安装 (Ubuntu/Debian)
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools libpoppler-cpp-dev
+sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev
 ```
 
 #### Windows 快速安装
@@ -102,8 +108,9 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools libpopple
 1. 安装 **Git for Windows**：https://git-scm.com/download/win（包含 Git Bash）
 2. 安装 **CMake**：https://cmake.org/download/
 3. 安装 **Qt 6**：https://www.qt.io/download
-   - 选择 `Qt 6.x.x for MinGW 11.2 64-bit`（Qt 自带编译器，无需额外安装）
-4. 安装 **Poppler**：通过 MSYS2 (`pacman -S poppler`) 或 vcpkg
+   - 选择 `Qt 6.x.x for MinGW 11.2 64-bit`（Qt 自带编译器，无需额外安装其他编译器如visual studio）
+   - ⚠️ **重要**：在 Qt Maintenance Tool 中额外勾选 **Qt Multimedia** 和 **Qt WebSockets**（语音功能必需）
+4. 安装 **Poppler**：通过 MSYS2 (`pacman -S poppler`) 或 vcpkg 
 
 **方式二：MSVC（需 Visual Studio）**
 
@@ -111,27 +118,21 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools libpopple
 2. 安装 **CMake**：https://cmake.org/download/
 3. 安装 **Qt 6**：https://www.qt.io/download
    - 选择 `Qt 6.x.x for MSVC 2019 64-bit`
+   - ⚠️ **重要**：在 Qt Maintenance Tool 中额外勾选 **Qt Multimedia** 和 **Qt WebSockets**（语音功能必需）
 4. 安装 **Poppler**：通过 MSYS2 或 vcpkg
 
 > **提示**：MinGW 版本更轻量，Qt 安装包自带编译器；MSVC 版本调试体验更好。
 
 ### 2. 编译项目
 
-**macOS / Linux / Windows (Git Bash)**：
 ```bash
 cd scripts
 ./build.sh
 ```
 
-> **Windows 提示**：脚本会自动检测 Qt 和 MinGW 编译器路径，并添加到 PATH 中，无需手动配置环境变量。
-
-**Windows PowerShell / CMD（备选方案）**：
-```powershell
-# 需要在 Git Bash 中运行 build.sh
-# 或直接使用 cmake 命令：
-cmake -B build -DCMAKE_PREFIX_PATH="C:/Qt/6.x.x/msvc2019_64"
-cmake --build build --config Release
-```
+> **Windows 提示**：
+> - 需在 **Git Bash** 中运行（安装 Git for Windows 时自带）
+> - 脚本会自动检测 Qt 和 MinGW 编译器路径，无需手动配置环境变量
 
 ### 编译选项
 
@@ -188,10 +189,20 @@ build\LocalAIAssistant.exe --debug
 ### 运行 CLI 版本
 
 ```bash
-# 进入交互式聊天（双击 CLI 也可直接进入）
+# macOS / Linux
 ./build/LocalAIAssistant-CLI
 
-# 或显式指定 chat 命令
+# Windows (Git Bash)
+./build/LocalAIAssistant-CLI.exe
+
+# Windows (CMD/PowerShell)
+build\LocalAIAssistant-CLI.exe
+```
+
+**CLI 命令示例**：
+
+```bash
+# 进入交互式聊天
 ./build/LocalAIAssistant-CLI chat
 
 # 单次查询
@@ -229,7 +240,7 @@ build\LocalAIAssistant.exe --debug
 
 本程序需要连接 AI 服务才能工作。
 
-### 推荐方案：Ollama（本地部署）
+### 本地部署：Ollama（部分功能可能不支持）
 
 1. 下载安装 Ollama：https://ollama.com/download
 2. 下载模型：`ollama pull llama3`
@@ -237,13 +248,13 @@ build\LocalAIAssistant.exe --debug
    - API URL: `http://127.0.0.1:11434`
    - 模型名: `llama3`
 
-### 其他支持的服务
+### 使用云端API（推荐，已验证）
 
 | 服务 | API URL | 说明 |
 |------|---------|------|
 | LM Studio | `http://127.0.0.1:1234` | 图形界面管理模型 |
 | OpenAI | `https://api.openai.com` | 需要 API Key |
-| 硅基流动 | `https://api.siliconflow.cn` | 国内 API 代理服务 |
+| 并行科技 | `https://llmapi.paratera.com` | 国内 API 代理服务 |
 | 其他 OpenAI 兼容服务 | 按服务商文档配置 | — |
 
 ---
@@ -264,8 +275,8 @@ AI 女友模块提供语音交互体验，需要配置讯飞语音服务。
 
 | 服务 | 名称 | 用途 |
 |------|------|------|
-| **语音听写** | 流式版（WebSocket） | 语音转文字 |
-| **语音合成** | 在线版（WebSocket） | 文字转语音 |
+| **语音听写（识别）** | 流式版（WebSocket） | 语音转文字 |
+| **语音合成** | 超拟人版（WebSocket） | 文字转语音 |
 
 ### 第三步：获取 API 凭证
 
@@ -278,8 +289,6 @@ API Secret - API密钥密文
 ```
 
 ### 第四步：配置凭证
-
-**方式一：.env 文件（推荐，不写入系统）**
 
 在项目根目录创建 `.env` 文件：
 
@@ -297,52 +306,16 @@ XFYUN_API_KEY=你的APIKey
 XFYUN_API_SECRET=你的APISecret
 ```
 
-> **安全提示**：`.env` 文件已在 `.gitignore` 中，不会被提交到 Git。请勿将凭证写入系统环境变量或提交到代码仓库。
-
-**方式二：环境变量（备选）**
-
-将凭证添加到环境变量配置文件：
-
-```bash
-# macOS / Linux - 添加到 ~/.zshrc 或 ~/.bashrc
-export XFYUN_APP_ID="你的APPID"
-export XFYUN_API_KEY="你的APIKey"
-export XFYUN_API_SECRET="你的APISecret"
-
-# 应用环境变量
-source ~/.zshrc  # 或重启终端
-```
-
-```powershell
-# Windows PowerShell - 添加到用户环境变量
-[System.Environment]::SetEnvironmentVariable('XFYUN_APP_ID', '你的APPID', 'User')
-[System.Environment]::SetEnvironmentVariable('XFYUN_API_KEY', '你的APIKey', 'User')
-[System.Environment]::SetEnvironmentVariable('XFYUN_API_SECRET', '你的APISecret', 'User')
-
-# 重启 PowerShell 或重启电脑生效
-```
-
-### 讯飞免费额度
-
-讯飞为开发者提供免费额度：
-
-| 服务 | 免费额度 | 说明 |
-|------|----------|------|
-| 语音听写 | 每日 500 次 | 足够个人日常使用 |
-| 语音合成 | 每日 200 次 | 足够个人日常使用 |
-
-超出额度需购买付费套餐。
+> **安全提示**：`.env` 文件已在 `.gitignore` 中，不会被提交到 Git。
 
 ### TTS 音色选择
 
-可通过修改配置选择不同女声音色：
+可通过修改.env中TTS音色选择不同音色，如：
 
 | 音色参数 | 名称 | 特点 |
 |----------|------|------|
-| `x6_wumeinv_pro` | 超拟人女声 | 自然逼真、情感丰富 ⭐推荐 |
-| `xiaoyan` | 晓燕 | 温柔亲和、年轻女声 |
-| `aisxping` | 小萍 | 温柔甜美 |
-| `aisjinger` | 婧儿 | 活泼可爱 |
+| `x6_wumeinv_pro` | 妩媚姐姐 | 自然逼真、情感丰富 ⭐推荐，但需要自己添加 |
+| `x6_lingfeiyi_pro` | 聆飞逸  | 青春温暖，男声 ⭐推荐，开通后自带 |
 
 ---
 
@@ -350,7 +323,7 @@ source ~/.zshrc  # 或重启终端
 
 ### 打开 AI 女友窗口
 
-在主窗口菜单中选择「AI女友」，或使用快捷键 `Ctrl/Cmd+G`。
+在窗口view（视图）中选择「AI女友」，或使用快捷键 `Ctrl/Cmd+G`。
 
 ### 语音交互流程
 
@@ -366,78 +339,44 @@ source ~/.zshrc  # 或重启终端
 
 ### 自定义人设
 
-编辑 `src/girlfriend/personality.md` 可自定义 AI 女友的性格和回复风格：
-
-```markdown
-# 角色设定
-你是小清，温柔体贴的AI女友，19岁。
-
-## 回复规则
-1. 回复要短！控制在30字以内
-2. 多用口语化表达：嗯嗯、呀、啦、哼、~
-3. 偶尔撒娇，说"哼！"或"不理你了"
-...
-```
-
+编辑 `src/girlfriend/personality.md` 可自定义 AI 女友的性格和回复风格。
 修改后需要重新编译或将文件复制到应用资源目录。
 
 ### 记忆系统工作原理
 
-AI 女友的记忆系统通过文本标记实现，无需 API 工具调用支持：
-
-**记忆标记格式**：
-```
-[更新记忆:分类|内容]
-```
-
-**分类类型**：
-| 分类 | 说明 | 示例 |
-|------|------|------|
-| `basic_info` | 基本信息 | 姓名、职业、年龄 |
-| `preferences` | 喜好偏好 | 兴趣爱好、喜欢的食物 |
-| `events` | 重要事件 | 考试、面试、约会 |
-| `reminders` | 特别提醒 | 用户希望记住的事项 |
-
-**工作流程**：
-1. 用户透露个人信息（如"我叫小明，是程序员"）
-2. AI 在回复中输出记忆标记：`[更新记忆:basic_info|昵称是小明]`
-3. 系统自动解析标记，写入 `memory.md`
-4. 下次对话时 AI 会参考记忆内容
-
-**注意事项**：
-- 记忆功能依赖 AI 正确输出标记，部分模型可能不支持
-- 若记忆未被记录，可在 `personality.md` 中强调记忆规则
-- 清空对话历史不会影响已保存的记忆
+AI 女友的记忆系统通过文本标记实现（在personality.md中通过系统提示词定义实现**记忆系统**这部分代码不建议删去），无需 API 工具调用支持。
 
 ---
 
 ## 安装依赖补充说明
 
-### Qt 6 WebSockets 模块
+### Qt 6 Multimedia 和 WebSockets 模块
 
-AI 女友语音功能需要 Qt WebSockets 模块。
+AI 女友语音功能需要 Qt Multimedia（音频录制/播放）和 Qt WebSockets（讯飞 API 连接）模块。
 
 **macOS（Qt 官方安装）**：
 1. 打开 `/Applications/Qt/MaintenanceTool.app`
 2. 选择「Add or remove components」
 3. 找到 Qt 6.x → Additional Libraries
-4. 勾选「Qt WebSockets」
+4. 勾选「Qt Multimedia」和「Qt WebSockets」
 5. 点击安装
+
+> **注**：Homebrew 安装的 `qt@6` 已自动包含这两个模块。
 
 **Linux（包管理器）**：
 ```bash
 # Ubuntu/Debian
-sudo apt install qt6-websockets-dev
+sudo apt install qt6-multimedia-dev qt6-websockets-dev
 
 # Fedora
-sudo dnf install qt6-qtwebsockets-devel
+sudo dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel
 
 # Arch Linux
-sudo pacman -S qt6-websockets
+sudo pacman -S qt6-multimedia qt6-websockets
 ```
 
 **Windows（Qt 官方安装）**：
-同 macOS，在 Qt Maintenance Tool 中勾选 WebSockets。
+同 macOS，在 Qt Maintenance Tool 中勾选 Multimedia 和 WebSockets。
 
 ---
 
@@ -445,42 +384,29 @@ sudo pacman -S qt6-websockets
 
 ### Qt 版本要求
 
-- 最低版本：Qt 6.2
-- 推荐版本：Qt 6.5+ 或最新稳定版
+- 最低版本：Qt 6.10.3
+- 推荐版本：Qt 6.10.3
 
 ### 编译器要求
 
 - **C++17 支持**（必需）
 - macOS：AppleClang 10.0+（Xcode 10+）
-- Windows：MSVC 2019+ 或 MinGW GCC 9+
+- Windows：MSVC 2019+ 或 MinGW GCC 9+（Qt 自带）
 - Linux：GCC 9+ 或 Clang 10+
-
-### CMake 配置选项
-
-程序使用以下 CMake 配置：
-
-```cmake
-# Qt 路径（必需）
--DCMAKE_PREFIX_PATH=/path/to/qt
-
-# 构建类型
--DCMAKE_BUILD_TYPE=Release  # 或 Debug
-
-# PDF 支持（自动检测 Poppler）
-# 如未安装 Poppler，PDF 功能将被禁用
-```
 
 ---
 
 ## 数据存储位置
 
-| 平台 | 会话数据 | AI 女友数据 | 配置文件 |
-|------|----------|-------------|----------|
-| macOS | `~/Library/Application Support/LocalAIAssistant/` | `~/Library/Application Support/LocalAIAssistant/girlfriend/` | QSettings (plist) |
-| Windows | `%APPDATA%/LocalAIAssistant/` | `%APPDATA%/LocalAIAssistant/girlfriend/` | 注册表 |
-| Linux | `~/.local/share/LocalAIAssistant/` | `~/.local/share/LocalAIAssistant/girlfriend/` | `~/.config/` |
+AI 女友数据文件存储在用户数据目录的 `girlfriend/` 子目录中：
 
-### AI 女友数据文件
+| 平台 | 数据目录完整路径 |
+|------|------------------|
+| macOS | `~/Library/Application Support/LocalAIAssistant/girlfriend/` |
+| Windows | `%APPDATA%\LocalAIAssistant\girlfriend\` |
+| Linux | `~/.local/share/LocalAIAssistant/girlfriend/` |
+
+子目录中的文件：
 
 | 文件 | 内容 |
 |------|------|
@@ -496,10 +422,10 @@ sudo pacman -S qt6-websockets
 **问题**：点击语音按钮提示「语音未配置」
 
 **解决**：
-1. 检查环境变量是否设置：`echo $XFYUN_APP_ID`
-2. 确认已在讯飞控制台开通「语音听写」和「语音合成」服务
-3. 确认 Qt WebSockets 模块已安装
-4. 重启终端或重新编译应用
+1. 检查 `.env` 文件是否存在且凭证正确
+2. 确认已在讯飞控制台开通「语音听写」和「超拟人语音合成」服务
+3. 确认 Qt Multimedia 和 WebSockets 模块已安装
+4. 重新编译应用
 
 **Windows 语音输入问题**：
 
@@ -507,7 +433,7 @@ sudo pacman -S qt6-websockets
 
 临时解决方案：
 - 使用文字输入代替语音输入
-- 语音播报（TTS）功能正常可用
+- 但语音播报（TTS）功能应该正常可用
 
 ### 编译找不到 WebSockets
 
@@ -559,25 +485,9 @@ sudo pacman -S qt6-websockets
 
 ---
 
-## 更新日志
-
-### v1.1.0 (2026-05)
-- 新增 AI 女友模块：情绪系统、记忆系统、语音交互
-- 新增超拟人语音合成支持
-- 新增调试模式（`--debug` 参数）
-- 优化语音输入架构：使用 QAudioSource 替代 QMediaRecorder
-- 修复声道转换问题（多声道转单声道）
-- 修复 macOS 语音输入兼容性
-- Windows 语音输入暂不支持（待后续修复）
-
----
-
 ## 许可证
 
 MIT License
 
 ---
 
-## 作者
-
-大作业项目
