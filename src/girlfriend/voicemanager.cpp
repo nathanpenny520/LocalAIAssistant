@@ -880,9 +880,20 @@ void VoiceManager::stopSpeaking()
 void VoiceManager::onTtsConnected()
 {
     m_ttsConnected = true;
+    emit statusChanged(GTr::voiceServiceConnected());
+    qDebug() << "VoiceManager: TTS WebSocket connected";
 
-    // 发送 TTS 请求（使用保存的文本）
-    sendTtsRequest(m_ttsText);
+    // 流式模式下不自动发送，等待调用者通过 sendStreamingText 发送
+    if (m_ttsStreaming) {
+        // 发送流式第一帧（status=0）
+        sendStreamingFirstFrame();
+        return;
+    }
+
+    // 非流式模式：连接后立即发送请求
+    if (!m_ttsText.isEmpty()) {
+        sendTtsRequest(m_ttsText);
+    }
 }
 
 void VoiceManager::onTtsDisconnected()
@@ -1140,6 +1151,68 @@ void VoiceManager::finishStreamingTts()
     m_ttsWebSocket->sendTextMessage(jsonFrame);
 
     qDebug() << "VoiceManager: Sent streaming TTS end signal";
+}
+
+void VoiceManager::sendStreamingFirstFrame()
+{
+    if (!m_ttsConnected || !m_ttsStreaming) {
+        return;
+    }
+
+    // 发送流式第一帧，status=0 表示开始
+    QJsonObject frame;
+
+    // header
+    QJsonObject header;
+    header["app_id"] = m_appId;
+    header["status"] = 0;  // 第一帧，开始
+    frame["header"] = header;
+
+    // parameter - 首帧需要发送完整参数
+    QJsonObject parameter;
+    QJsonObject oral;
+    oral["oral_level"] = "mid";
+    oral["spark_assist"] = 1;
+    oral["stop_split"] = 0;
+    oral["remain"] = 0;
+    parameter["oral"] = oral;
+
+    QJsonObject tts;
+    tts["vcn"] = m_voiceType;
+    tts["speed"] = 50;
+    tts["volume"] = 50;
+    tts["pitch"] = 50;
+    tts["bgs"] = 0;
+    tts["reg"] = 0;
+    tts["rdn"] = 0;
+    tts["rhy"] = 0;
+
+    QJsonObject audio;
+    audio["encoding"] = "lame";
+    audio["sample_rate"] = 24000;
+    audio["channels"] = 1;
+    audio["bit_depth"] = 16;
+    audio["frame_size"] = 0;
+    tts["audio"] = audio;
+    parameter["tts"] = tts;
+    frame["parameter"] = parameter;
+
+    // payload - 第一帧通常不包含文本，仅建立会话
+    QJsonObject payload;
+    QJsonObject textObj;
+    textObj["encoding"] = "utf8";
+    textObj["compress"] = "raw";
+    textObj["format"] = "plain";
+    textObj["status"] = 0;  // 第一帧
+    textObj["seq"] = 0;
+    textObj["text"] = "";
+    payload["text"] = textObj;
+    frame["payload"] = payload;
+
+    QString jsonFrame = QJsonDocument(frame).toJson(QJsonDocument::Compact);
+    m_ttsWebSocket->sendTextMessage(jsonFrame);
+
+    qDebug() << "VoiceManager: Sent streaming TTS first frame (status=0)";
 }
 
 void VoiceManager::parseTtsResponse(const QByteArray &binaryData, const QString &jsonMeta)

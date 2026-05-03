@@ -114,6 +114,9 @@ private:
     // 发送文本到 TTS
     void sendTtsRequest(const QString &text);
 
+    // 流式 TTS：发送第一帧（status=0）
+    void sendStreamingFirstFrame();
+
     // 解析讯飞响应
     void parseAsrResponse(const QString &jsonResponse);
     void parseTtsResponse(const QByteArray &binaryData, const QString &jsonMeta);
