@@ -1,5 +1,7 @@
 # 本地AI助手 (LocalAIAssistant)
 
+**中文** | [English](README_EN.md)
+
 一个基于 Qt 6 的跨平台 AI 助手桌面应用，支持 GUI 和 CLI 双模式，内置 AI 女友语音交互模块。
 
 ![Demo](AIGirlfriend/demo.png)
