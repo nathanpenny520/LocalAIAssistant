@@ -1251,7 +1251,7 @@ void VoiceManager::playTtsAudio(const QByteArray &audioData)
         return;
     }
 
-    // TTS 返回的是 MP3 格式音频（因为 aue = "lame"），直接保存为 MP3 文件
+    // 超拟人 TTS 返回的是 MP3 格式音频（encoding=lame），24k 采样率
     QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString tempFile = tempPath + "/tts_output_" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss") + ".mp3";
 
