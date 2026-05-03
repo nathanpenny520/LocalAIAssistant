@@ -44,6 +44,9 @@ VoiceManager::VoiceManager(QObject *parent)
     , m_voiceType("xiaoyan")
     , m_enableVoiceOutput(true)
     , m_asrFrameIndex(0)
+    , m_ttsSeq(0)
+    , m_ttsStreaming(false)
+    , m_ttsStreamingBuffer("")
 {
     loadConfig();
 
