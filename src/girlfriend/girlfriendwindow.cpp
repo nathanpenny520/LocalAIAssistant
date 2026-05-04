@@ -1370,7 +1370,6 @@ void GirlfriendWindow::updateOverlayVisibility()
         }
     }
 }
-}
 
 // ==================== Helper Methods ====================
 
