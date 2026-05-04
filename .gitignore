@@ -26,6 +26,7 @@ Makefile
 # IDE files
 .vscode/
 .idea/
+.claude/
 *.pro.user
 *.pro.user.*
 *.autosave
