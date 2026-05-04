@@ -39,10 +39,19 @@ QString GirlfriendSession::storagePath()
 
 void GirlfriendSession::saveToFile()
 {
+    saveToFile(storagePath());
+}
+
+void GirlfriendSession::loadFromFile()
+{
+    loadFromFile(storagePath());
+}
+
+void GirlfriendSession::saveToFile(const QString &path)
+{
     QJsonObject json = toJson();
     QJsonDocument doc(json);
 
-    QString path = storagePath();
     QFile file(path);
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
@@ -53,9 +62,8 @@ void GirlfriendSession::saveToFile()
     }
 }
 
-void GirlfriendSession::loadFromFile()
+void GirlfriendSession::loadFromFile(const QString &path)
 {
-    QString path = storagePath();
     QFile file(path);
     if (file.exists() && file.open(QIODevice::ReadOnly)) {
         QByteArray data = file.readAll();

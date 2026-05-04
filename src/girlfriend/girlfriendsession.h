@@ -37,6 +37,8 @@ public:
     // 持久化
     void saveToFile();
     void loadFromFile();
+    void saveToFile(const QString &path);
+    void loadFromFile(const QString &path);
     static QString storagePath();
 
 private:

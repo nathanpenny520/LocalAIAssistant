@@ -10,7 +10,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools Multimedia WebSockets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools Multimedia MultimediaWidgets WebSockets)
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
     pkg_check_modules(POPPLER poppler-cpp)
@@ -123,6 +123,8 @@ add_library(GirlfriendModule
     src/girlfriend/personalityengine.h
     src/girlfriend/girlfriendsession.cpp
     src/girlfriend/girlfriendsession.h
+    src/girlfriend/girlfriendsessionmanager.cpp
+    src/girlfriend/girlfriendsessionmanager.h
     src/girlfriend/memorymanager.cpp
     src/girlfriend/memorymanager.h
     src/girlfriend/voicemanager.cpp
@@ -141,6 +143,7 @@ target_link_libraries(GirlfriendModule PUBLIC
     LocalAIAssistantCore
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::MultimediaWidgets
     Qt6::Network
     Qt6::WebSockets
 )
