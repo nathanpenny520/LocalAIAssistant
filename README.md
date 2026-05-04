@@ -20,11 +20,20 @@ GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 - **跨平台** — macOS / Windows / Linux（暂未进行测试，可能不可用）
 
 ### AI 女友模块 🎀
-- **独立窗口** — 沉浸式全屏头像背景
-- **情绪系统** — 11种表情实时切换（开心、害羞、爱意、撒娇等）
+- **独立窗口** — 沉浸式全屏头像背景，9:16 窗口比例
+- **头像等级系统** — 三种等级可选：
+  - Level 1 (Belle): PNG 静态图片，经典风格
+  - Level 2 (Hot): PNG 静态图片，完整显示
+  - Level 3 (Hotter): MP4 动态视频，循环播放
+- **情绪系统** — 14种表情实时切换（开心、害羞、爱意、撒娇、哭泣、旅行等）
+- **心情值显示** — 左上角实时显示心情进度条和百分比
+- **心情影响等级** — 可设置情绪检测的心情影响程度（低/中/高）
 - **记忆系统** — 通过文本标记自动记录用户信息，长期记忆持久化
+- **多会话管理** — 创建、切换、删除多个独立会话
 - **语音交互** — 语音输入（ASR）+ 语音播报（TTS）
 - **人设定制** — 可修改 personality.md 自定义性格
+- **语音输出开关** — 可在设置中开启/关闭语音播报
+- **视频声音开关** — Level 3 视频模式下可开启/关闭背景声音
 - **快捷键** — Command/Ctrl+G 快速打开/关闭女友窗口
 
 > ⚠️ **平台兼容性说明**：
@@ -48,17 +57,33 @@ GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 sourcecode-ai-assistant/
 ├── src/
 │   ├── core/           # 核心业务逻辑（网络请求、会话管理、文件处理）
+│   │   └── datamodels.h    # 数据模型定义
 │   ├── ui/             # GUI 界面（主窗口、设置对话框）
 │   ├── cli/            # CLI 命令行界面
 │   └── girlfriend/     # AI 女友模块
-│       ├── girlfriendwindow.cpp  # 女友窗口
-│       ├── avatarwidget.cpp       # 头像/表情组件
-│       ├── personalityengine.cpp  # 人设引擎、情绪检测
+│       ├── girlfriendwindow.cpp   # 女友窗口
+│       ├── girlfriendwindow.h     # 女友窗口头文件
+│       ├── avatarwidget.cpp       # 头像/表情/视频组件
+│       ├── avatarwidget.h         # 头像组件头文件
+│       ├── personalityengine.cpp  # 人设引擎、情绪检测、心情计算
+│       ├── personalityengine.h    # 人设引擎头文件
 │       ├── voicemanager.cpp       # 语音管理（讯飞 ASR/TTS）
+│       ├── voicemanager.h         # 语音管理头文件
 │       ├── memorymanager.cpp      # 长期记忆管理
+│       ├── memorymanager.h        # 记忆管理头文件
+│       ├── girlfriendsettings.cpp # 设置管理（头像等级、心情影响等）
+│       ├── girlfriendsettings.h   # 设置管理头文件
+│       ├── girlfriendsessionmanager.cpp # 多会话管理
+│       ├── girlfriendsessionmanager.h   # 会话管理头文件
+│       ├── girlfriendsession.cpp  # 单个会话数据
+│       ├── girlfriendsession.h    # 会话数据头文件
+│       ├── girlfriend_translations.h # 翻译辅助类
 │       ├── personality.md         # 人设 Prompt（可自定义）
 │       └── memory.md              # 用户记忆档案
-├── AIGirlfriend/       # 表情图片资源（11张）
+├── AIGirlfriend/       # 头像资源目录
+│   ├── level-1-belle/  # Level 1 PNG 图片
+│   ├── level-2-hot/    # Level 2 PNG 图片
+│   └── level-3-hotter/ # Level 3 MP4 视频
 ├── scripts/            # 构建脚本
 │   ├── build.sh        # 统一跨平台构建脚本
 │   ├── setup.sh        # 首次克隆初始化脚本
@@ -453,7 +478,9 @@ AI 女友数据文件存储在用户数据目录的 `girlfriend/` 子目录中�
 
 | 文件 | 内容 |
 |------|------|
-| `girlfriend_session.json` | 对话历史 + 情绪状态 |
+| `settings.json` | 全局设置（头像等级、心情影响、语音输出开关等） |
+| `sessions.json` | 会话元数据列表（ID、名称、创建时间） |
+| `session_<id>.json` | 单个会话数据（对话历史、情绪状态） |
 | `memory.md` | 用户记忆档案（基本信息、喜好、事件） |
 
 ---
@@ -513,8 +540,24 @@ AI 女友数据文件存储在用户数据目录的 `girlfriend/` 子目录中�
 
 **解决**：
 1. 检查 AI 回复是否包含 `[情绪:xxx]` 标记
-2. 确认 `AIGirlfriend/` 目录图片完整（11张）
-3. 查看控制台日志确认情绪检测是否触发
+2. 确认对应等级的 `AIGirlfriend/LevelX/` 目录资源完整
+3. Level 1/2 需要 PNG 图片，Level 3 需要 MP4 视频
+4. 查看控制台日志确认情绪检测是否触发
+
+### 视频模式下UI不可见
+
+**问题**：Level 3 视频模式下，情绪标签和设置按钮看不见
+
+**说明**：这是 Qt QVideoWidget 在 macOS 上使用原生窗口渲染的技术限制。当前版本暂未完全解决，建议使用 Level 1 或 Level 2 的图片模式。
+
+### 多会话数据丢失
+
+**问题**：切换会话后发现对话历史消失
+
+**解决**：
+1. 检查 `sessions.json` 和 `session_<id>.json` 文件是否存在
+2. 确认切换会话前数据已自动保存
+3. 避免手动删除会话数据文件
 
 ### 记忆未被记录
 

@@ -172,6 +172,13 @@ void AvatarWidget::setAvatarLevel(AvatarLevel level)
     }
 }
 
+void AvatarWidget::hideInternalLabels(bool hide)
+{
+    m_emotionTagLabel->setVisible(!hide);
+    m_moodBarWidget->setVisible(!hide);
+    m_moodPercentLabel->setVisible(!hide);
+}
+
 void AvatarWidget::updateMoodDisplay()
 {
     int percent = static_cast<int>(m_currentMood * 100);

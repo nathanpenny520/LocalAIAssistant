@@ -26,6 +26,7 @@ public:
     double currentMood() const { return m_currentMood; }
     void retranslateUi();  // 更新情绪标签文字
     void setAvatarLevel(AvatarLevel level);
+    void hideInternalLabels(bool hide);  // 隐藏内部情绪/mood标签
 
 signals:
     void emotionChanged(const QString &emotion);

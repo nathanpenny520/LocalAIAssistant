@@ -38,6 +38,7 @@ protected:
 
 private:
     void retranslateUi();  // 更新界面文字
+    void updateOverlayLabels();  // 更新overlay上的情绪标签和mood bar
 
 private slots:
     void onSendClicked();
@@ -67,6 +68,8 @@ private slots:
     void onSettingsAvatarLevelChanged(AvatarLevel level);
     void onSettingsVideoSoundChanged(bool enabled);
     void onSettingsVoiceOutputChanged(bool enabled);
+    void onAvatarEmotionChanged(const QString &emotion);  // 情绪变化时更新overlay标签
+    void onAvatarMoodChanged(double mood);  // mood变化时更新overlay标签
 
 private:
     void setupUI();
@@ -77,6 +80,7 @@ private:
     void updateAvatarEmotion(const QString &text);
     void loadSessionMessages();  // Load messages from current session
     void clearChatUI();          // Clear all message bubbles
+    void updateOverlayVisibility();  // 根据头像等级更新overlay可见性
 
     // 流式思考过滤器
     QString filterThinkingFromChunk(const QString &chunk);
@@ -89,6 +93,13 @@ private:
     MemoryManager *m_memoryManager;
     NetworkManager *m_networkManager;
     VoiceManager *m_voiceManager;      // 语音管理器
+
+    // Overlay UI elements (在AvatarWidget之上，视频模式可见)
+    QLabel *m_overlayEmotionLabel;     // 情绪标签（GirlfriendWindow直接子widget）
+    QLabel *m_overlayMoodBarLabel;     // Mood进度条
+    QLabel *m_overlayMoodPercentLabel; // Mood百分比
+    QString m_currentOverlayEmotion;   // 当前情绪
+    double m_currentOverlayMood;       // 当前mood值
 
     QScrollArea *m_chatScrollArea;
     QWidget *m_chatContainer;

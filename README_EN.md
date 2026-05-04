@@ -20,11 +20,20 @@ Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 - **Cross-platform** — macOS / Windows / Linux (Linux not tested)
 
 ### AI Girlfriend Module 🎀
-- **Independent Window** — Immersive full-screen avatar background
-- **Emotion System** — 11 expressions real-time switching (happy, shy, loving, playful, etc.)
+- **Independent Window** — Immersive full-screen avatar background, 9:16 window ratio
+- **Avatar Level System** — Three levels available:
+  - Level 1 (Belle): PNG static images, classic style
+  - Level 2 (Hot): PNG static images, full display
+  - Level 3 (Hotter): MP4 dynamic video, loop playback
+- **Emotion System** — 14 expressions real-time switching (happy, shy, loving, playful, crying, travelling, etc.)
+- **Mood Display** — Real-time mood progress bar and percentage at top-left corner
+- **Mood Influence Level** — Configurable mood influence on emotion detection (Low/Med/High)
 - **Memory System** — Automatically records user information via text markers, long-term memory persistence
+- **Multi-session Management** — Create, switch, delete multiple independent sessions
 - **Voice Interaction** — Voice input (ASR) + Voice output (TTS)
 - **Personality Customization** — Modify personality.md to customize character
+- **Voice Output Toggle** — Enable/disable voice playback in settings
+- **Video Sound Toggle** — Enable/disable background sound in Level 3 video mode
 - **Shortcut Key** — Command/Ctrl+G to quickly open/close girlfriend window
 
 > ⚠️ **Platform Compatibility**:
@@ -48,17 +57,33 @@ Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 sourcecode-ai-assistant/
 ├── src/
 │   ├── core/           # Core business logic (network, session, file handling)
+│   │   └── datamodels.h    # Data model definitions
 │   ├── ui/             # GUI interface (main window, settings dialog)
 │   ├── cli/            # CLI command line interface
 │   └── girlfriend/     # AI Girlfriend module
-│       ├── girlfriendwindow.cpp  # Girlfriend window
-│       ├── avatarwidget.cpp       # Avatar/expression component
-│       ├── personalityengine.cpp  # Personality engine, emotion detection
+│       ├── girlfriendwindow.cpp   # Girlfriend window
+│       ├── girlfriendwindow.h     # Girlfriend window header
+│       ├── avatarwidget.cpp       # Avatar/expression/video component
+│       ├── avatarwidget.h         # Avatar widget header
+│       ├── personalityengine.cpp  # Personality engine, emotion detection, mood calculation
+│       ├── personalityengine.h    # Personality engine header
 │       ├── voicemanager.cpp       # Voice management (iFlytek ASR/TTS)
+│       ├── voicemanager.h         # Voice manager header
 │       ├── memorymanager.cpp      # Long-term memory management
+│       ├── memorymanager.h        # Memory manager header
+│       ├── girlfriendsettings.cpp # Settings management (avatar level, mood influence, etc.)
+│       ├── girlfriendsettings.h   # Settings header
+│       ├── girlfriendsessionmanager.cpp # Multi-session management
+│       ├── girlfriendsessionmanager.h   # Session manager header
+│       ├── girlfriendsession.cpp  # Single session data
+│       ├── girlfriendsession.h    # Session data header
+│       ├── girlfriend_translations.h # Translation helper class
 │       ├── personality.md         # Personality Prompt (customizable)
 │       └── memory.md              # User memory archive
-├── AIGirlfriend/       # Expression image resources (11 images)
+├── AIGirlfriend/       # Avatar resources directory
+│   ├── level-1-belle/  # Level 1 PNG images
+│   ├── level-2-hot/    # Level 2 PNG images
+│   └── level-3-hotter/ # Level 3 MP4 videos
 ├── scripts/            # Build scripts
 │   ├── build.sh        # Unified cross-platform build script
 │   ├── setup.sh        # First-time clone initialization script
@@ -453,7 +478,9 @@ Files in subdirectory:
 
 | File | Content |
 |------|---------|
-| `girlfriend_session.json` | Conversation history + emotion state |
+| `settings.json` | Global settings (avatar level, mood influence, voice output toggle, etc.) |
+| `sessions.json` | Session metadata list (ID, name, creation time) |
+| `session_<id>.json` | Single session data (conversation history, emotion state) |
 | `memory.md` | User memory archive (basic info, preferences, events) |
 
 ---
@@ -513,8 +540,24 @@ Temporary workaround:
 
 **Solution**:
 1. Check if AI response contains `[emotion:xxx]` marker
-2. Confirm `AIGirlfriend/` directory has complete images (11 files)
-3. Check console log to confirm emotion detection triggered
+2. Confirm corresponding level's `AIGirlfriend/LevelX/` directory has complete resources
+3. Level 1/2 need PNG images, Level 3 needs MP4 videos
+4. Check console log to confirm emotion detection triggered
+
+### Video Mode UI Invisible
+
+**Problem**: In Level 3 video mode, emotion labels and chat area not visible
+
+**Explanation**: This is a technical limitation of Qt QVideoWidget using native window rendering on macOS. Only the settings button remains visible for level switching. Recommend using Level 1 or Level 2 image modes for full UI experience.
+
+### Multi-session Data Loss
+
+**Problem**: Conversation history disappeared after switching sessions
+
+**Solution**:
+1. Check if `sessions.json` and `session_<id>.json` files exist
+2. Confirm data was auto-saved before switching
+3. Avoid manually deleting session data files
 
 ### Memory Not Recorded
 

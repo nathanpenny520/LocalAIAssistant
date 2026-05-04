@@ -131,6 +131,11 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     , m_thinkFilterBuffer("")
     , m_streamingBubble(nullptr)
     , m_streamingTextLabel(nullptr)
+    , m_overlayEmotionLabel(nullptr)
+    , m_overlayMoodBarLabel(nullptr)
+    , m_overlayMoodPercentLabel(nullptr)
+    , m_currentOverlayEmotion("default")
+    , m_currentOverlayMood(0.6)
 {
     // 设置为独立顶层窗口，有标题栏和关闭按钮
     setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinMaxButtonsHint);
@@ -169,7 +174,15 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     // 连接心情变化信号
     connect(m_personalityEngine, &PersonalityEngine::moodChanged,
             m_avatarWidget, &AvatarWidget::setMood);
+    connect(m_personalityEngine, &PersonalityEngine::moodChanged,
+            this, &GirlfriendWindow::onAvatarMoodChanged);
     m_avatarWidget->setMood(m_personalityEngine->mood());
+    m_currentOverlayMood = m_personalityEngine->mood();
+
+    // 连接情绪变化信号 - overlay标签
+    connect(m_avatarWidget, &AvatarWidget::emotionChanged,
+            this, &GirlfriendWindow::onAvatarEmotionChanged);
+    m_currentOverlayEmotion = m_avatarWidget->currentEmotion();
 
     // 连接设置变化信号
     connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
@@ -223,6 +236,22 @@ void GirlfriendWindow::resizeEvent(QResizeEvent *event)
     // 关键：确保AvatarWidget在所有overlay之下
     m_avatarWidget->lower();
 
+    // 更新overlay标签位置 - 确保在最上层
+    if (m_overlayEmotionLabel) {
+        m_overlayEmotionLabel->move(12, 12);
+        m_overlayEmotionLabel->raise();
+    }
+    if (m_overlayMoodBarLabel) {
+        int emotionLabelHeight = m_overlayEmotionLabel ? m_overlayEmotionLabel->sizeHint().height() : 24;
+        m_overlayMoodBarLabel->move(12, 12 + emotionLabelHeight + 4);
+        m_overlayMoodBarLabel->raise();
+    }
+    if (m_overlayMoodPercentLabel) {
+        int emotionLabelHeight = m_overlayEmotionLabel ? m_overlayEmotionLabel->sizeHint().height() : 24;
+        m_overlayMoodPercentLabel->move(12 + 54, 12 + emotionLabelHeight + 2);
+        m_overlayMoodPercentLabel->raise();
+    }
+
     // 更新设置按钮位置（右上角）- 确保在最上层
     m_settingsButton->move(width() - 40, 12);
     m_settingsButton->raise();
@@ -265,8 +294,11 @@ void GirlfriendWindow::retranslateUi()
         m_voiceButton->setToolTip(GTr::voiceNotConfiguredTooltip());
     }
 
-    // 更新左上角情绪标签
+    // 更新左上角情绪标签（AvatarWidget内部）
     m_avatarWidget->retranslateUi();
+
+    // 更新overlay标签（GirlfriendWindow直接子widget）
+    updateOverlayLabels();
 
     // 更新设置菜单项（菜单会在每次点击时重建，所以这里不需要更新）
 
@@ -280,7 +312,39 @@ void GirlfriendWindow::setupUI()
     m_avatarWidget->setParent(this);
     m_avatarWidget->setGeometry(0, 0, width(), height());
 
+    // === Overlay labels (direct children of GirlfriendWindow, above AvatarWidget) ===
+    // 情绪标签 - 粉红色背景白色文字
+    m_overlayEmotionLabel = new QLabel(this);
+    m_overlayEmotionLabel->setStyleSheet(
+        "QLabel { background: rgba(233, 30, 99, 0.85); color: white; "
+        "padding: 4px 12px; font-size: 12px; border-radius: 6px; }"
+    );
+    m_overlayEmotionLabel->setText(GTr::emotionDefault());
+    m_overlayEmotionLabel->adjustSize();
+    m_overlayEmotionLabel->move(12, 12);
+
+    // Mood bar - 进度条
+    m_overlayMoodBarLabel = new QLabel(this);
+    m_overlayMoodBarLabel->setStyleSheet("QLabel { background: transparent; }");
+    m_overlayMoodBarLabel->setFixedHeight(6);
+    m_overlayMoodBarLabel->setFixedWidth(50);
+
+    // Mood percentage label
+    m_overlayMoodPercentLabel = new QLabel(this);
+    m_overlayMoodPercentLabel->setStyleSheet(
+        "QLabel { background: transparent; font-size: 10px; color: white; }"
+    );
+
+    // 初始化mood显示
+    updateOverlayLabels();
+
+    // 隐藏AvatarWidget内部的情绪/mood标签，使用GirlfriendWindow的overlay标签
+    m_avatarWidget->hideInternalLabels(true);
+
     // 设置按钮 - 右上角，白色背景黑色文字
+    // 使用原生窗口属性，尝试在视频模式下也能显示
+    m_settingsButton->setAttribute(Qt::WA_NativeWindow);
+    m_settingsButton->setAttribute(Qt::WA_ShowWithoutActivating);
     m_settingsButton->setFixedSize(28, 28);
     m_settingsButton->setStyleSheet(
         "QPushButton { background: white; color: black; border: none; "
@@ -1032,7 +1096,7 @@ void GirlfriendWindow::onDeleteSessionClicked()
     // 只有一个会话时不能删除
     if (sessions.size() <= 1) {
         QMessageBox::information(this, GTr::deleteSessionConfirmTitle(),
-            tr("Cannot delete the only session."));
+            GTr::cannotDeleteOnlySession());
         return;
     }
 
@@ -1047,7 +1111,7 @@ void GirlfriendWindow::onDeleteSessionClicked()
 
     QVBoxLayout *layout = new QVBoxLayout(dialog);
 
-    QLabel *label = new QLabel(tr("Select session to delete:"), dialog);
+    QLabel *label = new QLabel(GTr::selectSessionToDelete(), dialog);
     label->setStyleSheet("QLabel { color: white; font-size: 14px; padding: 8px; }");
     layout->addWidget(label);
 
@@ -1074,7 +1138,7 @@ void GirlfriendWindow::onDeleteSessionClicked()
 
     // 确认和取消按钮 - 白色文字
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    QPushButton *cancelBtn = new QPushButton(tr("Cancel"), dialog);
+    QPushButton *cancelBtn = new QPushButton(GTr::cancelButton(), dialog);
     cancelBtn->setStyleSheet(
         "QPushButton { background: #f8bbd9; color: white; padding: 10px 20px; "
         "border-radius: 6px; font-size: 13px; border: none; }"
@@ -1137,6 +1201,7 @@ void GirlfriendWindow::onAvatarLevelChanged(int level)
 {
     GirlfriendSettings::instance()->setAvatarLevel(static_cast<AvatarLevel>(level - 1));
     m_avatarWidget->setAvatarLevel(static_cast<AvatarLevel>(level - 1));
+    updateOverlayVisibility();  // 根据等级更新overlay可见性
     qDebug() << "GirlfriendWindow: Avatar level changed to" << level;
 }
 
@@ -1156,6 +1221,7 @@ void GirlfriendWindow::onVideoSoundToggled()
 void GirlfriendWindow::onSettingsAvatarLevelChanged(AvatarLevel level)
 {
     m_avatarWidget->setAvatarLevel(level);
+    updateOverlayVisibility();  // 根据等级更新overlay可见性
 }
 
 void GirlfriendWindow::onSettingsVideoSoundChanged(bool enabled)
@@ -1168,6 +1234,142 @@ void GirlfriendWindow::onSettingsVoiceOutputChanged(bool enabled)
 {
     Q_UNUSED(enabled)
     // Voice output setting changed - no immediate action needed
+}
+
+// ==================== Overlay Label Slots ====================
+
+void GirlfriendWindow::onAvatarEmotionChanged(const QString &emotion)
+{
+    m_currentOverlayEmotion = emotion;
+    updateOverlayLabels();
+}
+
+void GirlfriendWindow::onAvatarMoodChanged(double mood)
+{
+    m_currentOverlayMood = mood;
+    updateOverlayLabels();
+}
+
+void GirlfriendWindow::updateOverlayLabels()
+{
+    if (!m_overlayEmotionLabel || !m_overlayMoodBarLabel || !m_overlayMoodPercentLabel) {
+        return;
+    }
+
+    // 首先更新可见性
+    updateOverlayVisibility();
+
+    // 如果标签被隐藏，不需要更新内容
+    if (!m_overlayEmotionLabel->isVisible()) {
+        return;
+    }
+
+    // 更新情绪标签文字
+    QMap<QString, QString> emotionLabels = {
+        {"default", GTr::emotionDefault()},
+        {"happy", GTr::emotionHappy()},
+        {"shy", GTr::emotionShy()},
+        {"love", GTr::emotionLove()},
+        {"hate", GTr::emotionHate()},
+        {"sad", GTr::emotionSad()},
+        {"angry", GTr::emotionAngry()},
+        {"afraid", GTr::emotionAfraid()},
+        {"awaiting", GTr::emotionAwaiting()},
+        {"speaking", GTr::emotionSpeaking()},
+        {"studying", GTr::emotionStudying()},
+        {"worried", GTr::emotionWorried()},
+        {"crying", GTr::emotionCrying()},
+        {"travelling", GTr::emotionTravelling()}
+    };
+
+    QString labelText = emotionLabels.value(m_currentOverlayEmotion, GTr::emotionDefault());
+    m_overlayEmotionLabel->setText(labelText);
+    m_overlayEmotionLabel->adjustSize();
+    m_overlayEmotionLabel->raise();
+
+    // 更新mood bar
+    int percent = static_cast<int>(m_currentOverlayMood * 100);
+
+    QString barColor;
+    if (m_currentOverlayMood > 0.7) {
+        barColor = "linear-gradient(90deg, #e91e63, #ff4081)";
+    } else if (m_currentOverlayMood >= 0.4) {
+        barColor = "#e91e63";
+    } else {
+        barColor = "#9e9e9e";
+    }
+
+    QString barHtml = QString(
+        "<div style='background: #e0e0e0; border-radius: 3px; width: 50px; height: 6px;'>"
+        "<div style='background: %1; border-radius: 3px; width: %2px; height: 6px;'>"
+        "</div></div>"
+    ).arg(barColor).arg(static_cast<int>(m_currentOverlayMood * 50));
+
+    m_overlayMoodBarLabel->setText(barHtml);
+    m_overlayMoodBarLabel->setTextFormat(Qt::RichText);
+    m_overlayMoodBarLabel->adjustSize();
+
+    m_overlayMoodPercentLabel->setText(QString("%1%").arg(percent));
+    m_overlayMoodPercentLabel->adjustSize();
+
+    // 重新定位mood bar - 在情绪标签下方
+    int emotionLabelHeight = m_overlayEmotionLabel->sizeHint().height();
+    m_overlayMoodBarLabel->move(12, 12 + emotionLabelHeight + 4);
+    m_overlayMoodBarLabel->raise();
+    m_overlayMoodPercentLabel->move(12 + 54, 12 + emotionLabelHeight + 2);
+    m_overlayMoodPercentLabel->raise();
+}
+
+void GirlfriendWindow::updateOverlayVisibility()
+{
+    AvatarLevel currentLevel = GirlfriendSettings::instance()->avatarLevel();
+
+    // Level 3 (视频模式): 只保留设置按钮，隐藏情绪标签、心情条和底部聊天区域
+    // 因为 QVideoWidget 使用原生窗口渲染，QWidget 无法覆盖
+    if (currentLevel == AvatarLevel::Level3_Hotter) {
+        // 隐藏情绪标签和心情条
+        if (m_overlayEmotionLabel) {
+            m_overlayEmotionLabel->hide();
+        }
+        if (m_overlayMoodBarLabel) {
+            m_overlayMoodBarLabel->hide();
+        }
+        if (m_overlayMoodPercentLabel) {
+            m_overlayMoodPercentLabel->hide();
+        }
+        // 设置按钮保持可见（使用原生窗口属性）
+        if (m_settingsButton) {
+            m_settingsButton->show();
+            m_settingsButton->raise();
+        }
+        // 隐藏底部聊天区域
+        QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
+        if (bottomOverlay) {
+            bottomOverlay->hide();
+        }
+    } else {
+        // Level 1/2 (图片模式): 显示所有UI元素
+        if (m_overlayEmotionLabel) {
+            m_overlayEmotionLabel->show();
+        }
+        if (m_overlayMoodBarLabel) {
+            m_overlayMoodBarLabel->show();
+        }
+        if (m_overlayMoodPercentLabel) {
+            m_overlayMoodPercentLabel->show();
+        }
+        if (m_settingsButton) {
+            m_settingsButton->show();
+            m_settingsButton->raise();
+        }
+        // 显示底部聊天区域
+        QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
+        if (bottomOverlay) {
+            bottomOverlay->show();
+            bottomOverlay->raise();
+        }
+    }
+}
 }
 
 // ==================== Helper Methods ====================

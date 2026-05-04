@@ -227,6 +227,15 @@ public:
     static QString sessionDefaultName(int n) {
         return tr("Session %1").arg(n);
     }
+    static QString selectSessionToDelete() {
+        return tr("Select session to delete:");
+    }
+    static QString cannotDeleteOnlySession() {
+        return tr("Cannot delete the only session.");
+    }
+    static QString cancelButton() {
+        return tr("Cancel");
+    }
 
     // Level & Mood
     static QString avatarLevelLabel() {
