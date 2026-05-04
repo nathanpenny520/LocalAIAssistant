@@ -136,6 +136,8 @@ fi
 # Check Qt (basic check)
 echo ""
 echo "  Qt 6 检查:"
+
+# macOS/Linux: Check ~/Qt directory (official Qt installation)
 if [ -d "$HOME/Qt" ]; then
     qt_versions=$(ls -1 "$HOME/Qt" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+' | head -3)
     if [ -n "$qt_versions" ]; then
@@ -145,6 +147,7 @@ if [ -d "$HOME/Qt" ]; then
     else
         echo "  ⚠️  ~/Qt 目录存在但未找到 Qt 版本"
     fi
+# macOS/Linux: Check system package manager
 elif command -v qmake6 &> /dev/null || command -v qmake &> /dev/null; then
     echo "  ✅ Qt 已安装 (系统包管理器)"
     # Check Multimedia and WebSockets on Linux
@@ -189,6 +192,42 @@ elif command -v qmake6 &> /dev/null || command -v qmake &> /dev/null; then
             echo "  ⚠️  无法检测 Qt 模块，请手动确认 Multimedia 和 WebSockets 已安装"
         fi
     fi
+# Windows: Check Qt installation directory
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+    found_qt=false
+    qt_compilers=("mingw_64" "msvc2019_64" "msvc2022_64")
+
+    for drive in "c" "d" "e"; do
+        qt_root="/$drive/Qt"
+        if [ -d "$qt_root" ]; then
+            # Dynamically find Qt versions (directories starting with 6.)
+            for version_dir in "$qt_root"/*; do
+                if [ -d "$version_dir" ]; then
+                    version_name=$(basename "$version_dir")
+                    # Check if it's a version directory (starts with number)
+                    if [[ "$version_name" =~ ^[0-9]+\.[0-9]+ ]]; then
+                        for compiler in "${qt_compilers[@]}"; do
+                            qt_path="$version_dir/$compiler"
+                            if [ -d "$qt_path" ]; then
+                                echo "  ✅ Qt 已安装在 /$drive/Qt/"
+                                echo "     版本: $version_name"
+                                echo "     编译器: $compiler"
+                                echo "     位置: $qt_path"
+                                echo "  ⚠️  请确保在 Qt Maintenance Tool 中已勾选 Multimedia 和 WebSockets"
+                                found_qt=true
+                                break 3
+                            fi
+                        done
+                    fi
+                fi
+            done
+        fi
+    done
+
+    if [ "$found_qt" = false ]; then
+        echo "  ❌ Qt 6 未安装"
+        missing_deps+=("Qt 6 (+ Multimedia + WebSockets)")
+    fi
 else
     echo "  ❌ Qt 6 未安装"
     missing_deps+=("Qt 6 (+ Multimedia + WebSockets)")
@@ -199,6 +238,14 @@ echo ""
 echo "  Poppler (PDF支持，可选):"
 if command -v pkg-config &> /dev/null && pkg-config --exists poppler-cpp 2>/dev/null; then
     echo "  ✅ Poppler 已安装"
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+    # Windows: Check MSYS2 poppler
+    if command -v pacman &> /dev/null && pacman -Q poppler &> /dev/null 2>&1; then
+        echo "  ✅ Poppler 已安装 (MSYS2)"
+    else
+        echo "  ⚠️  Poppler 未安装，PDF功能将被禁用"
+        echo "     安装方式: MSYS2 中运行 pacman -S poppler"
+    fi
 else
     echo "  ⚠️  Poppler 未安装，PDF功能将被禁用"
 fi

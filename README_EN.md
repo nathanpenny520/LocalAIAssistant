@@ -70,6 +70,23 @@ sourcecode-ai-assistant/
 
 ---
 
+## First-time Setup
+
+After cloning the project, run the initialization script to check your environment:
+
+```bash
+./scripts/setup.sh
+```
+
+This script will:
+1. Copy `.env.example` → `.env` (iFlytek voice credential template)
+2. Check build dependencies (CMake, compiler, Qt, Poppler)
+3. Show missing dependencies and installation guides
+
+> **Tip**: Run this script to quickly verify if your environment meets build requirements.
+
+---
+
 ## Build Steps
 
 ### 1. Install Dependencies
