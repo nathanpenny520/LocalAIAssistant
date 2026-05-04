@@ -5,17 +5,14 @@
 
 GirlfriendSettings* GirlfriendSettings::instance()
 {
-    static GirlfriendSettings* s_instance = nullptr;
-    if (!s_instance) {
-        s_instance = new GirlfriendSettings();
-        s_instance->load();
-    }
-    return s_instance;
+    static GirlfriendSettings s_instance;
+    return &s_instance;
 }
 
 GirlfriendSettings::GirlfriendSettings()
     : QObject(nullptr)
 {
+    load();
 }
 
 QString GirlfriendSettings::settingsPath() const
@@ -97,8 +94,11 @@ void GirlfriendSettings::setVoiceOutputEnabled(bool enabled)
 
 void GirlfriendSettings::setCurrentSessionId(const QString &id)
 {
-    m_currentSessionId = id;
-    save();
+    if (m_currentSessionId != id) {
+        m_currentSessionId = id;
+        save();
+        emit currentSessionIdChanged(id);
+    }
 }
 
 void GirlfriendSettings::save()
@@ -112,6 +112,8 @@ void GirlfriendSettings::save()
         file.write(doc.toJson());
         file.close();
         qDebug() << "GirlfriendSettings saved to:" << path;
+    } else {
+        qWarning() << "GirlfriendSettings failed to open file for writing:" << path << file.errorString();
     }
 }
 
@@ -144,8 +146,20 @@ QJsonObject GirlfriendSettings::toJson() const
 
 void GirlfriendSettings::fromJson(const QJsonObject &json)
 {
-    m_avatarLevel = static_cast<AvatarLevel>(json["avatarLevel"].toInt(0));
-    m_moodInfluence = static_cast<MoodInfluenceLevel>(json["moodInfluence"].toInt(1));
+    int avatarLevelInt = json["avatarLevel"].toInt(0);
+    if (avatarLevelInt < 0 || avatarLevelInt > 2) {
+        qWarning() << "GirlfriendSettings: Invalid avatarLevel value" << avatarLevelInt << ", defaulting to 0";
+        avatarLevelInt = 0;
+    }
+    m_avatarLevel = static_cast<AvatarLevel>(avatarLevelInt);
+
+    int moodInfluenceInt = json["moodInfluence"].toInt(1);
+    if (moodInfluenceInt < 0 || moodInfluenceInt > 2) {
+        qWarning() << "GirlfriendSettings: Invalid moodInfluence value" << moodInfluenceInt << ", defaulting to 1";
+        moodInfluenceInt = 1;
+    }
+    m_moodInfluence = static_cast<MoodInfluenceLevel>(moodInfluenceInt);
+
     m_videoSoundEnabled = json["videoSoundEnabled"].toBool(false);
     m_voiceOutputEnabled = json["voiceOutputEnabled"].toBool(true);
     m_currentSessionId = json["currentSessionId"].toString();

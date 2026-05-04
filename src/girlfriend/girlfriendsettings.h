@@ -59,6 +59,7 @@ signals:
     void moodInfluenceChanged(MoodInfluenceLevel level);
     void videoSoundChanged(bool enabled);
     void voiceOutputChanged(bool enabled);
+    void currentSessionIdChanged(const QString &id);
 
 private:
     GirlfriendSettings();
