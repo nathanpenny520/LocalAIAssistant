@@ -1,8 +1,10 @@
-# 本地AI助手 (LocalAIAssistant)
+# 本地AI助手和AI女友
 
 **中文** | [English](README_EN.md)
 
 一个基于 Qt 6 的跨平台 AI 助手桌面应用，支持 GUI 和 CLI 双模式，内置 AI 女友语音交互模块。
+
+GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 
 ![Demo](AIGirlfriend/demo.png)
 
@@ -59,10 +61,13 @@ sourcecode-ai-assistant/
 ├── AIGirlfriend/       # 表情图片资源（11张）
 ├── scripts/            # 构建脚本
 │   ├── build.sh        # 统一跨平台构建脚本
-│   └── setup.sh        # 首次克隆初始化脚本
+│   ├── setup.sh        # 首次克隆初始化脚本
+│   └── cli-wrapper.sh  # macOS CLI 启动脚本（检测 iTerm2）
 ├── translations/       # 国际化翻译文件
 ├── resources/          # 资源文件（图标、配置）
 ├── cmake/              # CMake 配置模板
+│   ├── Info.plist.in   # GUI .app bundle 配置
+│   └── CLI-Info.plist.in # CLI .app bundle 配置
 ├── CMakeLists.txt      # CMake 主配置文件
 ├── .gitattributes      # Git 换行符配置
 ├── .gitignore          # Git 忽略规则
@@ -187,9 +192,11 @@ cd scripts
 
 | 平台 | GUI | CLI |
 |------|-----|-----|
-| macOS | `build/LocalAIAssistant.app` | `build/LocalAIAssistant-CLI` |
+| macOS | `build/LocalAIAssistant.app` | `build/LocalAIAssistant-CLI` 或 `build/LocalAIAssistant-CLI.app` |
 | Windows | `build/LocalAIAssistant.exe` | `build/LocalAIAssistant-CLI.exe` |
 | Linux | `build/LocalAIAssistant` | `build/LocalAIAssistant-CLI` |
+
+> **macOS CLI .app**：双击 `LocalAIAssistant-CLI.app` 会自动检测 iTerm2 并优先使用它打开，解决中文输入删除问题。
 
 ---
 
@@ -219,12 +226,22 @@ build\LocalAIAssistant.exe --debug
 # macOS / Linux
 ./build/LocalAIAssistant-CLI
 
+# macOS .app bundle（双击运行，自动检测 iTerm2）
+open build/LocalAIAssistant-CLI.app
+
 # Windows (Git Bash)
 ./build/LocalAIAssistant-CLI.exe
 
 # Windows (CMD/PowerShell)
 build\LocalAIAssistant-CLI.exe
 ```
+
+> **macOS 终端建议**：推荐使用 [iTerm2](https://iterm2.com) 替代 Terminal.app。
+> 原版 Terminal 对中文输入的删除处理可能存在问题（Backspace 删除中文字符不完整）。
+> CLI .app bundle 会自动检测 iTerm2 并优先使用它打开。
+
+> **readline 支持**：macOS 自带 readline 库，编译时自动启用，
+> 提供更好的输入体验（支持历史记录、多字节字符正确编辑）。
 
 **CLI 命令示例**：
 

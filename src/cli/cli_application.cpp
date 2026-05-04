@@ -7,6 +7,11 @@
 #include <QFileInfo>
 #include <iostream>
 
+#ifdef USE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -163,6 +168,9 @@ int CLIApplication::run(int argc, char *argv[])
 
     parser.process(app);
 
+    // Load sessions before any mode (shared with GUI)
+    SessionManager::instance()->loadSessionsFromFile();
+
     const QStringList args = parser.positionalArguments();
     if (args.isEmpty()) {
         // No arguments: default to interactive chat mode (for double-click launch)
@@ -172,8 +180,6 @@ int CLIApplication::run(int argc, char *argv[])
     if (parser.isSet("no-stream")) {
         m_networkManager->setStreamingEnabled(false);
     }
-
-    SessionManager::instance()->loadSessionsFromFile();
 
     QString command = args[0].toLower();
 
@@ -283,6 +289,24 @@ void CLIApplication::readInput()
     std::cout << "\nYou: ";
     std::cout.flush();
 
+#ifdef USE_READLINE
+    // Use readline for better multi-byte character handling
+    char* input = readline(nullptr);
+    if (!input) {
+        quit();
+        return;
+    }
+
+    QString qInput = QString::fromUtf8(input).trimmed();
+
+    // Add to history if not empty and not a command
+    if (!qInput.isEmpty() && !qInput.startsWith("/")) {
+        add_history(input);
+    }
+
+    free(input);
+#else
+    // Basic getline fallback
     std::string input;
     if (!std::getline(std::cin, input)) {
         quit();
@@ -290,6 +314,7 @@ void CLIApplication::readInput()
     }
 
     QString qInput = QString::fromStdString(input).trimmed();
+#endif
 
     if (qInput.isEmpty()) {
         QTimer::singleShot(0, this, &CLIApplication::readInput);

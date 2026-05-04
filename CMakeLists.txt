@@ -148,6 +148,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     GirlfriendModule
 )
 
+# CLI executable
 add_executable(${PROJECT_NAME}-CLI
     src/cli/cli_main.cpp
     src/cli/cli_application.cpp
@@ -162,6 +163,24 @@ target_include_directories(${PROJECT_NAME}-CLI PRIVATE
 target_link_libraries(${PROJECT_NAME}-CLI PRIVATE
     LocalAIAssistantCore
 )
+
+# readline/libedit support for better input handling (especially for Chinese characters)
+# macOS uses libedit (readline-compatible), Linux uses readline
+find_library(READLINE_LIBRARY readline)
+find_library(EDIT_LIBRARY edit)
+
+if(READLINE_LIBRARY)
+    target_link_libraries(${PROJECT_NAME}-CLI PRIVATE ${READLINE_LIBRARY})
+    target_compile_definitions(${PROJECT_NAME}-CLI PRIVATE USE_READLINE)
+    message(STATUS "readline found: ${READLINE_LIBRARY}")
+elseif(EDIT_LIBRARY)
+    # libedit is readline-compatible (common on macOS)
+    target_link_libraries(${PROJECT_NAME}-CLI PRIVATE ${EDIT_LIBRARY})
+    target_compile_definitions(${PROJECT_NAME}-CLI PRIVATE USE_READLINE)
+    message(STATUS "libedit found: ${EDIT_LIBRARY} (readline-compatible)")
+else()
+    message(STATUS "readline/libedit not found, using basic std::getline")
+endif()
 
 if(APPLE)
     # Copy icon to bundle Resources
@@ -252,6 +271,47 @@ if(APPLE)
     )
 
     add_dependencies(${PROJECT_NAME} app_icon soul_md)
+
+    # macOS CLI .app bundle with iTerm2 detection
+    # Create CLI wrapper script that detects iTerm2
+    set(CLI_WRAPPER_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cli-wrapper.sh)
+    set(CLI_WRAPPER_DEST ${CMAKE_CURRENT_BINARY_DIR}/cli-wrapper.sh)
+
+    add_custom_command(
+        OUTPUT ${CLI_WRAPPER_DEST}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CLI_WRAPPER_SOURCE} ${CLI_WRAPPER_DEST}
+        DEPENDS ${CLI_WRAPPER_SOURCE}
+        COMMENT "Copying CLI wrapper script"
+    )
+
+    # Create CLI Info.plist
+    set(CLI_INFO_PLIST ${CMAKE_CURRENT_BINARY_DIR}/CLI-Info.plist)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLI-Info.plist.in
+        ${CLI_INFO_PLIST}
+        COPYONLY
+    )
+
+    # Create CLI .app bundle structure
+    add_custom_target(cli_bundle ALL DEPENDS ${PROJECT_NAME}-CLI ${CLI_WRAPPER_DEST})
+
+    add_custom_command(TARGET cli_bundle POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/MacOS
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/Resources
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CLI_WRAPPER_DEST}
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/MacOS/LocalAIAssistant-CLI
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:${PROJECT_NAME}-CLI>
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/MacOS/LocalAIAssistant-CLI-bin
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CLI_INFO_PLIST}
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/Info.plist
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/Resources/app.icns
+        COMMENT "Creating CLI .app bundle with iTerm2 detection"
+    )
 endif()
 
 if(WIN32)
@@ -278,6 +338,14 @@ if(WIN32)
 
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
         target_sources(${PROJECT_NAME} PRIVATE ${APP_RC_DEST})
+
+        # Copy icon to executable directory for runtime loading
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${APP_ICON_DEST}"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/app.ico"
+            COMMENT "Copying app.ico to executable directory"
+        )
     else()
         message(WARNING "Windows icon file app.ico not found. Please create it from app.icns.")
     endif()

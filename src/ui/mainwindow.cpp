@@ -16,6 +16,9 @@
 #include <QRegularExpression>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QIcon>
+#include <QFile>
+#include <QCoreApplication>
 
 // Parse thinking content from AI response
 // Returns a map with "thinking" and "response" keys
@@ -259,6 +262,17 @@ void MainWindow::setupUI()
 
     resize(900, 600);
     setWindowTitle(tr("本地AI助手"));
+
+    // Set window icon for taskbar display
+    // On Windows, this ensures correct taskbar icon
+    // On macOS, the bundle icon is handled by Info.plist
+#ifdef Q_OS_WIN
+    // Load icon from executable's directory (copied by CMake)
+    QString iconPath = QCoreApplication::applicationDirPath() + "/app.ico";
+    if (QFile::exists(iconPath)) {
+        setWindowIcon(QIcon(iconPath));
+    }
+#endif
 
     updateSessionList();
 }

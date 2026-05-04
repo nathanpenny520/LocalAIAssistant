@@ -1,8 +1,10 @@
-# LocalAIAssistant
+# LocalAIAssistant And AI Girlfriend 
 
 [中文](README.md) | **English**
 
 A cross-platform AI assistant desktop application based on Qt 6, supporting both GUI and CLI modes, with a built-in AI Girlfriend voice interaction module.
+
+Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 
 ![Demo](AIGirlfriend/demo-en.png)
 
@@ -59,10 +61,13 @@ sourcecode-ai-assistant/
 ├── AIGirlfriend/       # Expression image resources (11 images)
 ├── scripts/            # Build scripts
 │   ├── build.sh        # Unified cross-platform build script
-│   └── setup.sh        # First-time clone initialization script
+│   ├── setup.sh        # First-time clone initialization script
+│   └── cli-wrapper.sh  # macOS CLI launcher (detects iTerm2)
 ├── translations/       # Internationalization translation files
 ├── resources/          # Resource files (icons, configs)
 ├── cmake/              # CMake configuration templates
+│   ├── Info.plist.in   # GUI .app bundle configuration
+│   └── CLI-Info.plist.in # CLI .app bundle configuration
 ├── CMakeLists.txt      # CMake main configuration file
 ├── .gitattributes      # Git line ending configuration
 ├── .gitignore          # Git ignore rules
@@ -187,9 +192,11 @@ cd scripts
 
 | Platform | GUI | CLI |
 |----------|-----|-----|
-| macOS | `build/LocalAIAssistant.app` | `build/LocalAIAssistant-CLI` |
+| macOS | `build/LocalAIAssistant.app` | `build/LocalAIAssistant-CLI` or `build/LocalAIAssistant-CLI.app` |
 | Windows | `build/LocalAIAssistant.exe` | `build/LocalAIAssistant-CLI.exe` |
 | Linux | `build/LocalAIAssistant` | `build/LocalAIAssistant-CLI` |
+
+> **macOS CLI .app**: Double-click `LocalAIAssistant-CLI.app` auto-detects iTerm2 and prefers to open with it, solving Chinese input deletion issues.
 
 ---
 
@@ -219,12 +226,22 @@ build\LocalAIAssistant.exe --debug
 # macOS / Linux
 ./build/LocalAIAssistant-CLI
 
+# macOS .app bundle (double-click to run, auto-detects iTerm2)
+open build/LocalAIAssistant-CLI.app
+
 # Windows (Git Bash)
 ./build/LocalAIAssistant-CLI.exe
 
 # Windows (CMD/PowerShell)
 build\LocalAIAssistant-CLI.exe
 ```
+
+> **macOS Terminal Recommendation**: Use [iTerm2](https://iterm2.com) instead of Terminal.app.
+> The default Terminal may have issues with Chinese character deletion (Backspace doesn't delete characters completely).
+> CLI .app bundle automatically detects iTerm2 and prefers to open with it.
+
+> **readline Support**: macOS includes readline library, auto-enabled during build,
+> providing better input experience (history support, proper multi-byte character editing).
 
 **CLI Command Examples**:
 

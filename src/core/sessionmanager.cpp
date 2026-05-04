@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
+#include <QSettings>
 
 SessionManager* SessionManager::m_instance = nullptr;
 
@@ -32,6 +33,11 @@ void SessionManager::createNewSession(const QString &title)
     ChatSession newSession(sessionTitle);
     m_sessions[newSession.id] = newSession;
     m_currentSessionId = newSession.id;
+
+    // Save last session ID for CLI/GUI sync
+    QSettings settings("LocalAIAssistant", "Settings");
+    settings.setValue("lastSessionId", m_currentSessionId);
+
     emit sessionChanged(m_currentSessionId);
 }
 
@@ -39,6 +45,11 @@ void SessionManager::switchToSession(const QString &sessionId)
 {
     if (m_sessions.contains(sessionId)) {
         m_currentSessionId = sessionId;
+
+        // Save last session ID for CLI/GUI sync
+        QSettings settings("LocalAIAssistant", "Settings");
+        settings.setValue("lastSessionId", m_currentSessionId);
+
         emit sessionChanged(m_currentSessionId);
     }
 }
@@ -208,8 +219,18 @@ void SessionManager::loadSessionsFromFile()
         m_sessions[session.id] = session;
     }
 
+    // Restore last session from settings (CLI/GUI sync)
+    QSettings settings("LocalAIAssistant", "Settings");
+    QString lastSessionId = settings.value("lastSessionId").toString();
+
     if (!m_sessions.isEmpty()) {
-        m_currentSessionId = m_sessions.constBegin().key();
+        // Prefer last session if it exists
+        if (m_sessions.contains(lastSessionId)) {
+            m_currentSessionId = lastSessionId;
+        } else {
+            // Fallback to first session
+            m_currentSessionId = m_sessions.constBegin().key();
+        }
     } else {
         createNewSession();
     }
