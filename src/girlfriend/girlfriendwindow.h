@@ -12,9 +12,12 @@
 #include <QCloseEvent>
 #include <QResizeEvent>
 #include <QMenu>
+#include <QComboBox>
 #include "avatarwidget.h"
 #include "personalityengine.h"
 #include "girlfriendsession.h"
+#include "girlfriendsessionmanager.h"
+#include "girlfriendsettings.h"
 #include "memorymanager.h"
 #include "networkmanager.h"
 #include "datamodels.h"
@@ -54,6 +57,17 @@ private slots:
     void onSpeakingFinished();
     void onVoiceStatusChanged(const QString &status);
 
+    // Settings menu slots
+    void onSessionChanged(int index);
+    void onNewSessionClicked();
+    void onDeleteSessionClicked();
+    void onAvatarLevelChanged(int level);
+    void onMoodInfluenceChanged(int level);
+    void onVideoSoundToggled();
+    void onSettingsAvatarLevelChanged(AvatarLevel level);
+    void onSettingsVideoSoundChanged(bool enabled);
+    void onSettingsVoiceOutputChanged(bool enabled);
+
 private:
     void setupUI();
     void addMessageBubble(const QString &role, const QString &content);
@@ -61,6 +75,8 @@ private:
     void clearInput();
     void setInputEnabled(bool enabled);
     void updateAvatarEmotion(const QString &text);
+    void loadSessionMessages();  // Load messages from current session
+    void clearChatUI();          // Clear all message bubbles
 
     // 流式思考过滤器
     QString filterThinkingFromChunk(const QString &chunk);
@@ -70,7 +86,6 @@ private:
 
     AvatarWidget *m_avatarWidget;
     PersonalityEngine *m_personalityEngine;
-    GirlfriendSession *m_session;
     MemoryManager *m_memoryManager;
     NetworkManager *m_networkManager;
     VoiceManager *m_voiceManager;      // 语音管理器
@@ -86,7 +101,6 @@ private:
     QMenu *m_settingsMenu;          // 设置菜单
 
     bool m_isStreaming;
-    bool m_enableVoiceOutput;       // 是否启用语音输出
     QString m_streamingContent;
     QFrame *m_streamingBubble;      // 流式消息气泡
     QLabel *m_streamingTextLabel;   // 流式消息文本标签

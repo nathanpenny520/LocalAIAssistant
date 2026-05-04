@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QCoreApplication>
+#include <QFile>
 
 AvatarWidget::AvatarWidget(QWidget *parent)
     : QWidget(parent)
@@ -11,6 +12,9 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     , m_emotionTagLabel(new QLabel(this))
     , m_moodBarWidget(new QLabel(this))
     , m_moodPercentLabel(new QLabel(this))
+    , m_videoPlayer(new QMediaPlayer(this))
+    , m_audioOutput(new QAudioOutput(this))
+    , m_videoWidget(new QVideoWidget(this))
     , m_currentEmotion("default")
     , m_isSpeaking(false)
     , m_currentLevel(GirlfriendSettings::instance()->avatarLevel())
@@ -47,6 +51,22 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     m_moodPercentLabel->setStyleSheet(
         "QLabel { background: transparent; font-size: 10px; color: #e91e63; }"
     );
+
+    // Video player for Level 3
+    m_videoPlayer->setAudioOutput(m_audioOutput);
+    m_videoPlayer->setVideoOutput(m_videoWidget);
+    m_videoWidget->setAttribute(Qt::WA_TranslucentBackground);
+    m_videoWidget->setStyleSheet("background: transparent;");
+    m_videoWidget->hide();  // Hidden by default (Level 1/2 use images)
+
+    // Connect video sound setting
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
+            this, [this](bool enabled) {
+        m_audioOutput->setMuted(!enabled);
+    });
+
+    // Initial mute setting
+    m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
 
     updateMoodDisplay();
 
@@ -181,35 +201,49 @@ void AvatarWidget::updateMoodDisplay()
 
 void AvatarWidget::updateDisplay()
 {
-    // 如果正在说话，优先显示 speaking 图片
+    // 如果正在说话，优先显示 speaking 图片/视频
     QString displayEmotion = m_isSpeaking ? "speaking" : m_currentEmotion;
 
-    if (m_avatarImages.contains(displayEmotion)) {
-        QPixmap pixmap = m_avatarImages[displayEmotion];
+    // Level 3 uses video playback
+    if (m_currentLevel == AvatarLevel::Level3_Hotter) {
+        // Hide image label, show video widget
+        m_avatarLabel->hide();
+        m_videoWidget->show();
+        m_videoWidget->setGeometry(0, 0, width(), height());
+        m_videoWidget->raise();
+        playVideo(displayEmotion);
+    } else {
+        // Level 1/2 use images
+        stopVideo();
+        m_avatarLabel->show();
 
-        // 缩放图片覆盖整个区域，保持比例裁剪
-        QSize widgetSize = this->size();
+        if (m_avatarImages.contains(displayEmotion)) {
+            QPixmap pixmap = m_avatarImages[displayEmotion];
 
-        // 计算缩放比例，选择能覆盖整个区域的缩放方式
-        QPixmap scaled = pixmap.scaled(
-            widgetSize,
-            Qt::KeepAspectRatioByExpanding,  // 覆盖整个区域，可能裁剪
-            Qt::SmoothTransformation
-        );
+            // 缩放图片覆盖整个区域，保持比例裁剪
+            QSize widgetSize = this->size();
 
-        // 如果缩放后仍比窗口大，居中裁剪
-        if (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height()) {
-            int x = (scaled.width() - widgetSize.width()) / 2;
-            int y = (scaled.height() - widgetSize.height()) / 2;
-            scaled = scaled.copy(x, y, widgetSize.width(), widgetSize.height());
+            // 计算缩放比例，选择能覆盖整个区域的缩放方式
+            QPixmap scaled = pixmap.scaled(
+                widgetSize,
+                Qt::KeepAspectRatioByExpanding,  // 覆盖整个区域，可能裁剪
+                Qt::SmoothTransformation
+            );
+
+            // 如果缩放后仍比窗口大，居中裁剪
+            if (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height()) {
+                int x = (scaled.width() - widgetSize.width()) / 2;
+                int y = (scaled.height() - widgetSize.height()) / 2;
+                scaled = scaled.copy(x, y, widgetSize.width(), widgetSize.height());
+            }
+
+            m_avatarLabel->setPixmap(scaled);
+            m_avatarLabel->resize(widgetSize);
+            m_avatarLabel->move(0, 0);
         }
-
-        m_avatarLabel->setPixmap(scaled);
-        m_avatarLabel->resize(widgetSize);
-        m_avatarLabel->move(0, 0);
     }
 
-    // 更新情绪标签 - 使用 displayEmotion 保持与图片同步
+    // 更新情绪标签 - 使用 displayEmotion 保持与图片/视频同步
     QMap<QString, QString> emotionLabels = {
         {"default", GTr::emotionDefault()},
         {"happy", GTr::emotionHappy()},
@@ -230,7 +264,7 @@ void AvatarWidget::updateDisplay()
     QString labelText = emotionLabels.value(displayEmotion, GTr::emotionDefault());
     m_emotionTagLabel->setText(labelText);
     m_emotionTagLabel->adjustSize();
-    m_emotionTagLabel->raise();  // 确保标签在图片上方
+    m_emotionTagLabel->raise();  // 确保标签在图片/视频上方
 }
 
 QString AvatarWidget::getAvatarPath(const QString &emotion) const
@@ -270,10 +304,50 @@ void AvatarWidget::resizeEvent(QResizeEvent *event)
     m_moodBarWidget->raise();
     m_moodPercentLabel->move(12 + 54, m_emotionTagLabel->height() + 14);
     m_moodPercentLabel->raise();
+
+    // Update video widget geometry if visible
+    if (m_videoWidget->isVisible()) {
+        m_videoWidget->setGeometry(0, 0, width(), height());
+    }
 }
 
 void AvatarWidget::retranslateUi()
 {
     // 更新情绪标签文字
     updateDisplay();
+}
+
+void AvatarWidget::playVideo(const QString &emotion)
+{
+    if (m_currentLevel != AvatarLevel::Level3_Hotter) {
+        return;
+    }
+
+    QString avatarDir = GirlfriendSettings::instance()->avatarLevelPath();
+    QString videoPath = avatarDir + "/" + emotion + ".mp4";
+
+    if (!QFile(videoPath).exists()) {
+        videoPath = avatarDir + "/default.mp4";
+        if (!QFile(videoPath).exists()) {
+            qDebug() << "AvatarWidget: No video found for emotion:" << emotion;
+            return;
+        }
+    }
+
+    // Only change video if emotion changed
+    if (m_currentVideoEmotion != emotion) {
+        m_currentVideoEmotion = emotion;
+        m_videoPlayer->setSource(QUrl::fromLocalFile(videoPath));
+        m_videoPlayer->setLoops(QMediaPlayer::Infinite);  // Auto-loop
+        m_videoPlayer->play();
+        qDebug() << "AvatarWidget: Playing video for emotion:" << emotion << "from" << videoPath;
+    }
+}
+
+void AvatarWidget::stopVideo()
+{
+    m_videoPlayer->stop();
+    m_videoWidget->hide();
+    m_avatarLabel->show();
+    m_currentVideoEmotion.clear();
 }

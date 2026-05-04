@@ -7,6 +7,9 @@
 #include <QMap>
 #include <QString>
 #include <QResizeEvent>
+#include <QVideoWidget>
+#include <QMediaPlayer>
+#include <QAudioOutput>
 #include "girlfriendsettings.h"
 
 class AvatarWidget : public QWidget
@@ -35,12 +38,20 @@ private:
     void updateDisplay();
     void updateMoodDisplay();
     QString getAvatarPath(const QString &emotion) const;
+    void playVideo(const QString &emotion);
+    void stopVideo();
 
     QLabel *m_avatarLabel;
     QLabel *m_emotionTagLabel;
     QLabel *m_moodBarWidget;
     QLabel *m_moodPercentLabel;
     QMap<QString, QPixmap> m_avatarImages;
+
+    // Video player for Level 3
+    QMediaPlayer *m_videoPlayer;
+    QAudioOutput *m_audioOutput;
+    QVideoWidget *m_videoWidget;
+    QString m_currentVideoEmotion;
 
     QString m_currentEmotion;
     bool m_isSpeaking;

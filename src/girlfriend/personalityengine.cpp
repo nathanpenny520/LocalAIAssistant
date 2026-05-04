@@ -100,47 +100,136 @@ QString PersonalityEngine::buildSystemPrompt()
     return prompt;
 }
 
-QString PersonalityEngine::detectEmotion(const QString &text) const
+QString PersonalityEngine::detectEmotion(const QString &text, double mood) const
 {
-    // 关键词 → 情绪映射
-    static QMap<QString, QString> emotionKeywords = {
+    // Get mood influence level from settings
+    MoodInfluenceLevel influenceLevel = GirlfriendSettings::instance()->moodInfluence();
+
+    // Strong emotion keywords → emotion mapping (这些关键词有明确的情绪倾向，不受心情影响)
+    static QMap<QString, QString> strongEmotionKeywords = {
+        // Happy
         {"哈哈", "happy"},
         {"太好了", "happy"},
         {"开心", "happy"},
         {"好棒", "happy"},
         {"嘻嘻", "happy"},
+        {"呵呵", "happy"},
+        {"耶", "happy"},
+        // Hate/Annoyed
         {"哼", "hate"},
         {"讨厌", "hate"},
+        // Shy
         {"害羞", "shy"},
         {"不好意思", "shy"},
         {" blush", "shy"},
+        {"脸红", "shy"},
+        // Love
         {"喜欢", "love"},
         {"想你", "love"},
         {"爱你", "love"},
+        {"亲亲", "love"},
+        {"抱抱", "love"},
+        {"宝贝", "love"},
+        // Worried/Caring
         {"担心", "worried"},
         {"别累着", "worried"},
         {"休息", "worried"},
         {"辛苦", "worried"},
         {"关心", "worried"},
         {"照顾", "worried"},
-        {"怎么样", "awaiting"},
-        {"呢~", "awaiting"},
-        {"呢？", "awaiting"},
+        {"注意身体", "worried"},
+        // Sad
         {"难过", "sad"},
         {"不开心", "sad"},
         {"伤心", "sad"},
+        {"呜呜", "sad"},
+        {"哭", "crying"},
+        {"流泪", "crying"},
+        {"眼泪", "crying"},
+        // Angry
         {"生气", "angry"},
         {"气死", "angry"},
+        {"火大", "angry"},
+        // Studying
         {"学习", "studying"},
         {"思考", "studying"},
         {"工作", "studying"},
         {"代码", "studying"},
-        {"编程", "studying"}
+        {"编程", "studying"},
+        // Travelling
+        {"旅行", "travelling"},
+        {"出门", "travelling"},
+        {"旅游", "travelling"},
+        {"出去玩", "travelling"}
     };
 
-    for (const QString &keyword : emotionKeywords.keys()) {
+    // Check for strong emotion keywords first (high priority)
+    for (const QString &keyword : strongEmotionKeywords.keys()) {
         if (text.contains(keyword)) {
-            return emotionKeywords[keyword];
+            return strongEmotionKeywords[keyword];
+        }
+    }
+
+    // Neutral keywords - affected by mood (受心情影响的中性词)
+    static QMap<QString, QString> neutralKeywords = {
+        {"还好", "neutral"},
+        {"没事", "neutral"},
+        {"好吧", "neutral"},
+        {"行吧", "neutral"},
+        {"嗯", "neutral"},
+        {"好的", "neutral"},
+        {"行", "neutral"},
+        {"可以", "neutral"},
+        {"哦", "neutral"},
+        {"啊", "neutral"}
+    };
+
+    // Check for neutral keywords and apply mood influence
+    for (const QString &keyword : neutralKeywords.keys()) {
+        if (text.contains(keyword)) {
+            // Apply mood influence based on level
+            if (influenceLevel == MoodInfluenceLevel::Low) {
+                // Low influence: keyword matching only, no mood effect
+                return "default";
+            } else if (influenceLevel == MoodInfluenceLevel::High) {
+                // High influence: mood dominates, determines emotion
+                if (mood < 0.4) {
+                    return "sad";
+                } else if (mood > 0.7) {
+                    return "happy";
+                }
+                return "default";
+            } else {
+                // Medium influence (default): mood affects neutral words
+                if (mood < 0.4) {
+                    // Low mood: neutral words → negative emotions
+                    return "sad";
+                } else if (mood > 0.7) {
+                    // High mood: neutral words → positive emotions
+                    return "happy";
+                }
+                return "default";
+            }
+        }
+    }
+
+    // Awaiting keywords (questions, expecting response)
+    static QStringList awaitingKeywords = {
+        "怎么样", "呢~", "呢？", "在吗", "在不在", "吗？", "呢"
+    };
+
+    for (const QString &keyword : awaitingKeywords) {
+        if (text.contains(keyword)) {
+            return "awaiting";
+        }
+    }
+
+    // No keywords matched - apply mood-based default for High influence
+    if (influenceLevel == MoodInfluenceLevel::High) {
+        if (mood < 0.4) {
+            return "sad";
+        } else if (mood > 0.7) {
+            return "happy";
         }
     }
 
@@ -161,7 +250,9 @@ QString PersonalityEngine::emotionToDisplayName(const QString &emotion) const
         {"worried", "关心"},
         {"awaiting", "期待"},
         {"speaking", "说话中"},
-        {"studying", "思考"}
+        {"studying", "思考"},
+        {"crying", "哭泣"},
+        {"travelling", "旅行"}
     };
 
     return displayNames.value(emotion, "默认");
@@ -231,6 +322,8 @@ static QMap<QString, QString> chineseToEnglishEmotion() {
         {"难过", "sad"},
         {"嫌弃", "hate"},
         {"思考", "studying"},
+        {"哭泣", "crying"},
+        {"旅行", "travelling"},
         {"默认", "default"}
     };
     return map;
@@ -261,8 +354,8 @@ PersonalityEngine::EmotionResult PersonalityEngine::parseEmotionFromResponse(con
         result.cleanText.remove(fullTag);
         result.cleanText = result.cleanText.trimmed();
     } else {
-        // 如果没有情绪标记，fallback到关键词检测
-        result.emotion = detectEmotion(text);
+        // 如果没有情绪标记，fallback到关键词检测，传入当前心情值
+        result.emotion = detectEmotion(text, m_mood);
     }
 
     return result;

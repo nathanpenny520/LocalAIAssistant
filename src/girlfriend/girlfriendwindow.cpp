@@ -10,6 +10,8 @@
 #include <QEvent>
 #include <QShortcut>
 #include <QKeySequence>
+#include <QWidgetAction>
+#include <QComboBox>
 
 // 流式思考过滤器 - 逐字符处理
 // 支持三种思考标签格式: <thinking>, <reasoning>, <think>
@@ -106,7 +108,6 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     : QWidget(nullptr)  // 不传入 parent，使其成为独立窗口
     , m_avatarWidget(new AvatarWidget(this))
     , m_personalityEngine(new PersonalityEngine(this))
-    , m_session(new GirlfriendSession())
     , m_memoryManager(new MemoryManager(this))
     , m_networkManager(new NetworkManager(this))
     , m_voiceManager(new VoiceManager(this))
@@ -119,7 +120,6 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     , m_settingsButton(new QPushButton(GTr::settingsButton(), this))
     , m_settingsMenu(nullptr)
     , m_isStreaming(false)
-    , m_enableVoiceOutput(true)
     , m_inThinkBlock(false)
     , m_currentThinkTag("")
     , m_thinkFilterBuffer("")
@@ -131,13 +131,11 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
 
     setupUI();
 
-    // 加载会话历史
-    m_session->loadFromFile();
+    // Load all sessions
+    GirlfriendSessionManager::instance()->loadAll();
 
-    // 显示历史消息
-    for (const GirlfriendMessage &msg : m_session->messages()) {
-        addMessageBubble(msg.role, msg.content);
-    }
+    // Display history messages from current session
+    loadSessionMessages();
 
     // 连接信号
     connect(m_sendButton, &QPushButton::clicked, this, &GirlfriendWindow::onSendClicked);
@@ -161,6 +159,19 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this, [this]() {
         retranslateUi();
     });
+
+    // 连接心情变化信号
+    connect(m_personalityEngine, &PersonalityEngine::moodChanged,
+            m_avatarWidget, &AvatarWidget::setMood);
+    m_avatarWidget->setMood(m_personalityEngine->mood());
+
+    // 连接设置变化信号
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
+            this, &GirlfriendWindow::onSettingsAvatarLevelChanged);
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
+            this, &GirlfriendWindow::onSettingsVideoSoundChanged);
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::voiceOutputChanged,
+            this, &GirlfriendWindow::onSettingsVoiceOutputChanged);
 
     // 添加 Ctrl+G 快捷键关闭窗口（与 MainWindow 打开快捷键一致）
     QShortcut *closeShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this);
@@ -186,12 +197,12 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
 
 GirlfriendWindow::~GirlfriendWindow()
 {
-    m_session->saveToFile();
+    GirlfriendSessionManager::instance()->saveAll();
 }
 
 void GirlfriendWindow::closeEvent(QCloseEvent *event)
 {
-    m_session->saveToFile();
+    GirlfriendSessionManager::instance()->saveAll();
     event->accept();
 }
 
@@ -432,13 +443,21 @@ void GirlfriendWindow::updateAvatarEmotion(const QString &text)
 {
     QString emotion = m_personalityEngine->detectEmotion(text);
     m_avatarWidget->setEmotion(emotion);
-    m_session->setCurrentEmotion(emotion);
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    if (session) {
+        session->setCurrentEmotion(emotion);
+    }
 }
 
 void GirlfriendWindow::onSendClicked()
 {
     QString userInput = m_inputLine->text().trimmed();
     if (userInput.isEmpty()) {
+        return;
+    }
+
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    if (!session) {
         return;
     }
 
@@ -451,7 +470,7 @@ void GirlfriendWindow::onSendClicked()
 
     // 显示用户消息
     addMessageBubble("user", userInput);
-    m_session->addMessage("user", userInput, "default");
+    session->addMessage("user", userInput, "default");
 
     clearInput();
     setInputEnabled(false);
@@ -460,7 +479,7 @@ void GirlfriendWindow::onSendClicked()
     QVector<ChatMessage> messages;
 
     // 添加历史消息
-    for (const GirlfriendMessage &gfMsg : m_session->messages()) {
+    for (const GirlfriendMessage &gfMsg : session->messages()) {
         QString role = (gfMsg.role == "user") ? "user" : "assistant";
         messages.append(ChatMessage(role, gfMsg.content));
     }
@@ -506,31 +525,166 @@ void GirlfriendWindow::onVoiceClicked()
 
 void GirlfriendWindow::onSettingsClicked()
 {
-    // 更新菜单项状态
+    // Clear menu
     m_settingsMenu->clear();
 
-    // 语音输出开关 - 显示当前状态，点击后切换
-    QAction *voiceOutputAction = m_settingsMenu->addAction(
-        m_enableVoiceOutput ? GTr::voiceOutputEnabled() : GTr::voiceOutputDisabled()
+    // === Sessions Section ===
+    // Sessions label (disabled action for visual separation)
+    QAction *sessionsLabelAction = m_settingsMenu->addAction(GTr::sessionsLabel());
+    sessionsLabelAction->setEnabled(false);
+    QFont labelFont = sessionsLabelAction->font();
+    labelFont.setBold(true);
+    sessionsLabelAction->setFont(labelFont);
+
+    // Session dropdown using QWidgetAction
+    QWidgetAction *sessionComboAction = new QWidgetAction(m_settingsMenu);
+    QComboBox *sessionComboBox = new QComboBox(m_settingsMenu);
+    sessionComboBox->setStyleSheet(
+        "QComboBox { background: white; color: black; border: 1px solid #ccc; "
+        "padding: 4px 8px; border-radius: 4px; min-width: 150px; }"
+        "QComboBox::drop-down { border: none; }"
+        "QComboBox::down-arrow { image: none; border-left: 4px solid transparent; "
+        "border-right: 4px solid transparent; border-top: 6px solid #666; margin-right: 8px; }"
+        "QComboBox QAbstractItemView { background: white; color: black; selection-background-color: #e91e63; }"
     );
+
+    // Populate session dropdown
+    QVector<SessionMetadata> sessions = GirlfriendSessionManager::instance()->sessions();
+    QString currentSessionId = GirlfriendSessionManager::instance()->currentSessionId();
+    int currentIndex = 0;
+    for (int i = 0; i < sessions.size(); ++i) {
+        QString displayName = sessions[i].name;
+        if (sessions[i].id == currentSessionId) {
+            displayName += " (" + GTr::currentSessionLabel() + ")";
+            currentIndex = i;
+        }
+        sessionComboBox->addItem(displayName, sessions[i].id);
+    }
+    sessionComboBox->setCurrentIndex(currentIndex);
+    connect(sessionComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &GirlfriendWindow::onSessionChanged);
+    sessionComboAction->setDefaultWidget(sessionComboBox);
+    m_settingsMenu->addAction(sessionComboAction);
+
+    // New Session action
+    QAction *newSessionAction = m_settingsMenu->addAction("+ " + GTr::newSession());
+    connect(newSessionAction, &QAction::triggered, this, &GirlfriendWindow::onNewSessionClicked);
+
+    // Delete session button (only if more than 1 session)
+    if (GirlfriendSessionManager::instance()->sessionCount() > 1) {
+        QWidgetAction *deleteAction = new QWidgetAction(m_settingsMenu);
+        QPushButton *deleteBtn = new QPushButton(GTr::deleteSession(), m_settingsMenu);
+        deleteBtn->setStyleSheet(
+            "QPushButton { background: #ff5252; color: white; padding: 4px 8px; "
+            "border-radius: 4px; font-size: 11px; border: none; }"
+            "QPushButton:hover { background: #d32f2f; }"
+        );
+        connect(deleteBtn, &QPushButton::clicked, this, &GirlfriendWindow::onDeleteSessionClicked);
+        deleteAction->setDefaultWidget(deleteBtn);
+        m_settingsMenu->addAction(deleteAction);
+    }
+
+    m_settingsMenu->addSeparator();
+
+    // === Avatar Level Section ===
+    QAction *avatarLevelLabel = m_settingsMenu->addAction(GTr::avatarLevelLabel());
+    avatarLevelLabel->setEnabled(false);
+    avatarLevelLabel->setFont(labelFont);
+
+    // Avatar level buttons using QWidgetAction
+    QWidgetAction *avatarLevelAction = new QWidgetAction(m_settingsMenu);
+    QWidget *avatarLevelWidget = new QWidget(m_settingsMenu);
+    QHBoxLayout *avatarLevelLayout = new QHBoxLayout(avatarLevelWidget);
+    avatarLevelLayout->setContentsMargins(8, 4, 8, 4);
+    avatarLevelLayout->setSpacing(4);
+
+    AvatarLevel currentLevel = GirlfriendSettings::instance()->avatarLevel();
+    for (int i = 1; i <= 3; ++i) {
+        QPushButton *levelBtn = new QPushButton(QString::number(i), avatarLevelWidget);
+        levelBtn->setCheckable(true);
+        levelBtn->setChecked(static_cast<int>(currentLevel) == i - 1);
+        levelBtn->setFixedSize(40, 28);
+        levelBtn->setStyleSheet(
+            "QPushButton { background: white; color: black; border: 1px solid #ccc; border-radius: 4px; }"
+            "QPushButton:checked { background: #e91e63; color: white; border: 1px solid #e91e63; }"
+            "QPushButton:hover { background: #f8bbd9; }"
+        );
+        connect(levelBtn, &QPushButton::clicked, this, [this, i]() { onAvatarLevelChanged(i); });
+        avatarLevelLayout->addWidget(levelBtn);
+    }
+    avatarLevelLayout->addStretch();
+    avatarLevelAction->setDefaultWidget(avatarLevelWidget);
+    m_settingsMenu->addAction(avatarLevelAction);
+
+    m_settingsMenu->addSeparator();
+
+    // === Mood Influence Section ===
+    QAction *moodInfluenceLabel = m_settingsMenu->addAction(GTr::moodInfluenceLabel());
+    moodInfluenceLabel->setEnabled(false);
+    moodInfluenceLabel->setFont(labelFont);
+
+    // Mood influence buttons using QWidgetAction
+    QWidgetAction *moodInfluenceAction = new QWidgetAction(m_settingsMenu);
+    QWidget *moodInfluenceWidget = new QWidget(m_settingsMenu);
+    QHBoxLayout *moodInfluenceLayout = new QHBoxLayout(moodInfluenceWidget);
+    moodInfluenceLayout->setContentsMargins(8, 4, 8, 4);
+    moodInfluenceLayout->setSpacing(4);
+
+    MoodInfluenceLevel currentMood = GirlfriendSettings::instance()->moodInfluence();
+    QStringList moodLabels = {GTr::moodLow(), GTr::moodMedium(), GTr::moodHigh()};
+    for (int i = 0; i < 3; ++i) {
+        QPushButton *moodBtn = new QPushButton(moodLabels[i], moodInfluenceWidget);
+        moodBtn->setCheckable(true);
+        moodBtn->setChecked(static_cast<int>(currentMood) == i);
+        moodBtn->setFixedSize(50, 28);
+        moodBtn->setStyleSheet(
+            "QPushButton { background: white; color: black; border: 1px solid #ccc; border-radius: 4px; }"
+            "QPushButton:checked { background: #e91e63; color: white; border: 1px solid #e91e63; }"
+            "QPushButton:hover { background: #f8bbd9; }"
+        );
+        connect(moodBtn, &QPushButton::clicked, this, [this, i]() { onMoodInfluenceChanged(i); });
+        moodInfluenceLayout->addWidget(moodBtn);
+    }
+    moodInfluenceLayout->addStretch();
+    moodInfluenceAction->setDefaultWidget(moodInfluenceWidget);
+    m_settingsMenu->addAction(moodInfluenceAction);
+
+    m_settingsMenu->addSeparator();
+
+    // === Video Sound Toggle (only for Level 3) ===
+    if (GirlfriendSettings::instance()->avatarLevel() == AvatarLevel::Level3_Hotter) {
+        QString videoSoundText = GTr::videoSoundLabel() + ": " +
+            (GirlfriendSettings::instance()->videoSoundEnabled() ? GTr::videoSoundOn() : GTr::videoSoundOff());
+        QAction *videoSoundAction = m_settingsMenu->addAction(videoSoundText);
+        connect(videoSoundAction, &QAction::triggered, this, &GirlfriendWindow::onVideoSoundToggled);
+
+        m_settingsMenu->addSeparator();
+    }
+
+    // === Voice Output Toggle ===
+    QString voiceOutputText = (GirlfriendSettings::instance()->voiceOutputEnabled() ?
+        GTr::voiceOutputEnabled() : GTr::voiceOutputDisabled());
+    QAction *voiceOutputAction = m_settingsMenu->addAction(voiceOutputText);
     connect(voiceOutputAction, &QAction::triggered, this, &GirlfriendWindow::onToggleVoiceOutput);
 
-    // 清空历史
     m_settingsMenu->addSeparator();
+
+    // === Clear History ===
     QAction *clearAction = m_settingsMenu->addAction(GTr::clearHistory());
     connect(clearAction, &QAction::triggered, this, &GirlfriendWindow::onClearClicked);
 
-    // 显示菜单
+    // Show menu
     m_settingsMenu->exec(m_settingsButton->mapToGlobal(QPoint(0, m_settingsButton->height())));
 }
 
 void GirlfriendWindow::onToggleVoiceOutput()
 {
-    m_enableVoiceOutput = !m_enableVoiceOutput;
-    qDebug() << "GirlfriendWindow: Voice output toggled to" << m_enableVoiceOutput;
+    bool enabled = !GirlfriendSettings::instance()->voiceOutputEnabled();
+    GirlfriendSettings::instance()->setVoiceOutputEnabled(enabled);
+    qDebug() << "GirlfriendWindow: Voice output toggled to" << enabled;
 
     // 如果正在播放语音，立即停止
-    if (!m_enableVoiceOutput && m_voiceManager->isSpeaking()) {
+    if (!enabled && m_voiceManager->isSpeaking()) {
         m_voiceManager->stopSpeaking();
     }
 }
@@ -546,19 +700,15 @@ void GirlfriendWindow::onClearClicked()
     );
 
     if (reply == QMessageBox::Yes) {
-        // 清空会话历史
-        m_session->clearMessages();
-        m_session->saveToFile();
+        GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+        if (session) {
+            // 清空会话历史
+            session->clearMessages();
+            GirlfriendSessionManager::instance()->saveAll();
+        }
 
         // 清空界面上的消息气泡
-        // 删除 m_chatContainer 中的所有子控件
-        while (m_chatLayout->count() > 0) {
-            QWidget *widget = m_chatLayout->itemAt(0)->widget();
-            if (widget) {
-                widget->deleteLater();
-            }
-            m_chatLayout->removeItem(m_chatLayout->itemAt(0));
-        }
+        clearChatUI();
 
         // 重置状态
         m_avatarWidget->setEmotion("default");
@@ -590,6 +740,14 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
         return;
     }
 
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    if (!session) {
+        m_isStreaming = false;
+        m_avatarWidget->setSpeaking(false);
+        setInputEnabled(true);
+        return;
+    }
+
     m_isStreaming = false;
 
     // 过滤思考过程
@@ -617,7 +775,7 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
 
     // 显示女友回复
     addMessageBubble("girlfriend", displayText);
-    m_session->addMessage("girlfriend", displayText, emotionResult.emotion);
+    session->addMessage("girlfriend", displayText, emotionResult.emotion);
 
     // 保存回复文本用于TTS
     m_lastReplyText = displayText;
@@ -633,10 +791,10 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
     m_avatarWidget->setSpeaking(false);
 
     setInputEnabled(true);
-    m_session->saveToFile();
+    GirlfriendSessionManager::instance()->saveAll();
 
     // 如果启用语音输出，播报回复
-    if (m_enableVoiceOutput && m_voiceManager->isConfigured() && !displayText.isEmpty()) {
+    if (GirlfriendSettings::instance()->voiceOutputEnabled() && m_voiceManager->isConfigured() && !displayText.isEmpty()) {
         // 清理文本：移除所有特殊标记，只保留纯净文本给TTS
         QString ttsText = displayText;
 
@@ -775,7 +933,8 @@ void GirlfriendWindow::onSpeakingFinished()
     m_avatarWidget->setSpeaking(false);
 
     // 恢复到上次识别的情绪或默认
-    QString lastEmotion = m_session->currentEmotion();
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    QString lastEmotion = session ? session->currentEmotion() : QString();
     if (lastEmotion.isEmpty() || lastEmotion == "speaking") {
         lastEmotion = "default";
     }
@@ -785,4 +944,153 @@ void GirlfriendWindow::onSpeakingFinished()
 void GirlfriendWindow::onVoiceStatusChanged(const QString &status)
 {
     // 状态变化，不做UI显示
+}
+
+// ==================== Settings Menu Slots ====================
+
+void GirlfriendWindow::onSessionChanged(int index)
+{
+    QComboBox *comboBox = qobject_cast<QComboBox*>(sender());
+    if (!comboBox) return;
+
+    QString sessionId = comboBox->itemData(index).toString();
+    QString currentId = GirlfriendSessionManager::instance()->currentSessionId();
+
+    if (sessionId != currentId) {
+        // Save current session before switching
+        GirlfriendSessionManager::instance()->saveAll();
+
+        // Switch to new session
+        if (GirlfriendSessionManager::instance()->switchSession(sessionId)) {
+            // Clear chat UI and load new session messages
+            clearChatUI();
+            loadSessionMessages();
+
+            // Update avatar emotion
+            GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+            if (session) {
+                m_avatarWidget->setEmotion(session->currentEmotion());
+            }
+
+            qDebug() << "GirlfriendWindow: Switched to session" << sessionId;
+        }
+    }
+}
+
+void GirlfriendWindow::onNewSessionClicked()
+{
+    // Create new session
+    QString newSessionId = GirlfriendSessionManager::instance()->createNewSession();
+
+    // Save current session and switch to new one
+    GirlfriendSessionManager::instance()->saveAll();
+    GirlfriendSessionManager::instance()->switchSession(newSessionId);
+
+    // Clear chat UI and reset emotion
+    clearChatUI();
+    m_avatarWidget->setEmotion("default");
+
+    qDebug() << "GirlfriendWindow: Created and switched to new session" << newSessionId;
+}
+
+void GirlfriendWindow::onDeleteSessionClicked()
+{
+    QVector<SessionMetadata> sessions = GirlfriendSessionManager::instance()->sessions();
+    QString currentId = GirlfriendSessionManager::instance()->currentSessionId();
+
+    // Find first non-current session to delete
+    QString toDeleteId;
+    QString toDeleteName;
+    for (const SessionMetadata &meta : sessions) {
+        if (meta.id != currentId) {
+            toDeleteId = meta.id;
+            toDeleteName = meta.name;
+            break;
+        }
+    }
+
+    if (toDeleteId.isEmpty()) {
+        return;  // No session to delete
+    }
+
+    // Show confirmation dialog
+    QMessageBox::StandardButton reply = QMessageBox::question(
+        this,
+        GTr::deleteSessionConfirmTitle(),
+        GTr::deleteSessionConfirmMessage(toDeleteName),
+        QMessageBox::Yes | QMessageBox::No
+    );
+
+    if (reply == QMessageBox::Yes) {
+        GirlfriendSessionManager::instance()->deleteSession(toDeleteId);
+        qDebug() << "Deleted session:" << toDeleteName;
+    }
+}
+
+void GirlfriendWindow::onAvatarLevelChanged(int level)
+{
+    GirlfriendSettings::instance()->setAvatarLevel(static_cast<AvatarLevel>(level - 1));
+    m_avatarWidget->setAvatarLevel(static_cast<AvatarLevel>(level - 1));
+    qDebug() << "GirlfriendWindow: Avatar level changed to" << level;
+}
+
+void GirlfriendWindow::onMoodInfluenceChanged(int level)
+{
+    GirlfriendSettings::instance()->setMoodInfluence(static_cast<MoodInfluenceLevel>(level));
+    qDebug() << "GirlfriendWindow: Mood influence changed to" << level;
+}
+
+void GirlfriendWindow::onVideoSoundToggled()
+{
+    bool enabled = !GirlfriendSettings::instance()->videoSoundEnabled();
+    GirlfriendSettings::instance()->setVideoSoundEnabled(enabled);
+    qDebug() << "GirlfriendWindow: Video sound toggled to" << enabled;
+}
+
+void GirlfriendWindow::onSettingsAvatarLevelChanged(AvatarLevel level)
+{
+    m_avatarWidget->setAvatarLevel(level);
+}
+
+void GirlfriendWindow::onSettingsVideoSoundChanged(bool enabled)
+{
+    Q_UNUSED(enabled)
+    // Video sound setting changed - could update video player here if needed
+}
+
+void GirlfriendWindow::onSettingsVoiceOutputChanged(bool enabled)
+{
+    Q_UNUSED(enabled)
+    // Voice output setting changed - no immediate action needed
+}
+
+// ==================== Helper Methods ====================
+
+void GirlfriendWindow::loadSessionMessages()
+{
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    if (!session) return;
+
+    for (const GirlfriendMessage &msg : session->messages()) {
+        addMessageBubble(msg.role, msg.content);
+    }
+
+    // Set avatar emotion from session
+    m_avatarWidget->setEmotion(session->currentEmotion());
+}
+
+void GirlfriendWindow::clearChatUI()
+{
+    // Delete all message bubbles
+    while (m_chatLayout->count() > 0) {
+        QWidget *widget = m_chatLayout->itemAt(0)->widget();
+        if (widget) {
+            widget->deleteLater();
+        }
+        m_chatLayout->removeItem(m_chatLayout->itemAt(0));
+    }
+
+    // Clear streaming bubble reference
+    m_streamingBubble = nullptr;
+    m_streamingTextLabel = nullptr;
 }

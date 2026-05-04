@@ -337,5 +337,77 @@
         <source>Clear History</source>
         <translation>清空历史</translation>
     </message>
+    <message>
+        <source>Sessions</source>
+        <translation>会话</translation>
+    </message>
+    <message>
+        <source>New Session</source>
+        <translation>新建会话</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>删除</translation>
+    </message>
+    <message>
+        <source>Delete Session</source>
+        <translation>删除会话</translation>
+    </message>
+    <message>
+        <source>Delete "%1"? This cannot be undone.</source>
+        <translation>删除"%1"？此操作无法撤销。</translation>
+    </message>
+    <message>
+        <source>current</source>
+        <translation>当前</translation>
+    </message>
+    <message>
+        <source>Session %1</source>
+        <translation>会话 %1</translation>
+    </message>
+    <message>
+        <source>Avatar Level</source>
+        <translation>头像等级</translation>
+    </message>
+    <message>
+        <source>Mood Influence</source>
+        <translation>心情影响</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>Med</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Video Sound</source>
+        <translation>视频声音</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>开</translation>
+    </message>
+    <message>
+        <source>Off</source>
+        <translation>关</translation>
+    </message>
+    <message>
+        <source>Mood</source>
+        <translation>心情</translation>
+    </message>
+    <message>
+        <source>😢 Crying</source>
+        <translation>😢 哭泣</translation>
+    </message>
+    <message>
+        <source>✈️ Travelling</source>
+        <translation>✈️ 旅行</translation>
+    </message>
 </context>
 </TS>

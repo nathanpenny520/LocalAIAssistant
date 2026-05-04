@@ -341,5 +341,77 @@
         <source>Clear History</source>
         <translation>Clear History</translation>
     </message>
+    <message>
+        <source>Sessions</source>
+        <translation>Sessions</translation>
+    </message>
+    <message>
+        <source>New Session</source>
+        <translation>New Session</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Delete Session</source>
+        <translation>Delete Session</translation>
+    </message>
+    <message>
+        <source>Delete "%1"? This cannot be undone.</source>
+        <translation>Delete "%1"? This cannot be undone.</translation>
+    </message>
+    <message>
+        <source>current</source>
+        <translation>current</translation>
+    </message>
+    <message>
+        <source>Session %1</source>
+        <translation>Session %1</translation>
+    </message>
+    <message>
+        <source>Avatar Level</source>
+        <translation>Avatar Level</translation>
+    </message>
+    <message>
+        <source>Mood Influence</source>
+        <translation>Mood Influence</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>Low</translation>
+    </message>
+    <message>
+        <source>Med</source>
+        <translation>Med</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>High</translation>
+    </message>
+    <message>
+        <source>Video Sound</source>
+        <translation>Video Sound</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>On</translation>
+    </message>
+    <message>
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message>
+        <source>Mood</source>
+        <translation>Mood</translation>
+    </message>
+    <message>
+        <source>😢 Crying</source>
+        <translation>😢 Crying</translation>
+    </message>
+    <message>
+        <source>✈️ Travelling</source>
+        <translation>✈️ Travelling</translation>
+    </message>
 </context>
 </TS>

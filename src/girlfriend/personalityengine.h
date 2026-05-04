@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include "girlfriendsettings.h"
 
 class PersonalityEngine : public QObject
 {
@@ -16,7 +17,7 @@ public:
     QString loadPersonalityPrompt();
     QString buildSystemPrompt();
 
-    QString detectEmotion(const QString &text) const;
+    QString detectEmotion(const QString &text, double mood = 0.6) const;
     QString emotionToDisplayName(const QString &emotion) const;
 
     // 解析回复中的情绪标记，返回 (情绪, 清理后的文本)
