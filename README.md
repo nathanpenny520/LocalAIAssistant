@@ -55,7 +55,7 @@ sourcecode-ai-assistant/
 │       ├── voicemanager.cpp       # 语音管理（讯飞 ASR/TTS）
 │       ├── memorymanager.cpp      # 长期记忆管理
 │       ├── personality.md         # 人设 Prompt（可自定义）
-│       └── voice_config.json      # 语音配置模板
+│       └── memory.md              # 用户记忆档案
 ├── AIGirlfriend/       # 表情图片资源（11张）
 ├── scripts/            # 构建脚本
 │   ├── build.sh        # 统一跨平台构建脚本
@@ -63,9 +63,13 @@ sourcecode-ai-assistant/
 ├── translations/       # 国际化翻译文件
 ├── resources/          # 资源文件（图标、配置）
 ├── cmake/              # CMake 配置模板
+├── CMakeLists.txt      # CMake 主配置文件
 ├── .gitattributes      # Git 换行符配置
+├── .gitignore          # Git 忽略规则
 ├── .env.example        # 讯飞语音凭证模板
-└── README.md           # 项目说明文档
+├── LICENSE             # MIT 许可证
+├── README.md           # 中文说明文档
+└── README_EN.md        # 英文说明文档
 ```
 
 ---

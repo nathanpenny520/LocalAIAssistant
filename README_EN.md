@@ -55,7 +55,7 @@ sourcecode-ai-assistant/
 │       ├── voicemanager.cpp       # Voice management (iFlytek ASR/TTS)
 │       ├── memorymanager.cpp      # Long-term memory management
 │       ├── personality.md         # Personality Prompt (customizable)
-│       └── voice_config.json      # Voice configuration template
+│       └── memory.md              # User memory archive
 ├── AIGirlfriend/       # Expression image resources (11 images)
 ├── scripts/            # Build scripts
 │   ├── build.sh        # Unified cross-platform build script
@@ -63,9 +63,13 @@ sourcecode-ai-assistant/
 ├── translations/       # Internationalization translation files
 ├── resources/          # Resource files (icons, configs)
 ├── cmake/              # CMake configuration templates
+├── CMakeLists.txt      # CMake main configuration file
 ├── .gitattributes      # Git line ending configuration
+├── .gitignore          # Git ignore rules
 ├── .env.example        # iFlytek voice credential template
-└── README.md           # Project documentation
+├── LICENSE             # MIT License
+├── README.md           # Chinese documentation
+└── README_EN.md        # English documentation
 ```
 
 ---

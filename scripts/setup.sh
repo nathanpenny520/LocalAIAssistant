@@ -236,18 +236,21 @@ fi
 # Check Poppler (optional)
 echo ""
 echo "  Poppler (PDF支持，可选):"
+poppler_installed=false
 if command -v pkg-config &> /dev/null && pkg-config --exists poppler-cpp 2>/dev/null; then
     echo "  ✅ Poppler 已安装"
+    poppler_installed=true
 elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
     # Windows: Check MSYS2 poppler
     if command -v pacman &> /dev/null && pacman -Q poppler &> /dev/null 2>&1; then
         echo "  ✅ Poppler 已安装 (MSYS2)"
-    else
-        echo "  ⚠️  Poppler 未安装，PDF功能将被禁用"
-        echo "     安装方式: MSYS2 中运行 pacman -S poppler"
+        poppler_installed=true
     fi
-else
+fi
+
+if [ "$poppler_installed" = false ]; then
     echo "  ⚠️  Poppler 未安装，PDF功能将被禁用"
+    echo "     说明: Poppler 是可选依赖，不安装不影响其他功能"
 fi
 
 # ------------------------------------------------------------
@@ -263,36 +266,131 @@ if [ ${#missing_deps[@]} -gt 0 ]; then
         echo "     - $dep"
     done
     echo ""
-    echo "  安装指南:"
+    echo "  ================================================"
+    echo "  安装指南 (当前系统: $OSTYPE)"
+    echo "  ================================================"
     echo ""
     case "$OSTYPE" in
         darwin*)
-            echo "     macOS:"
-            echo "       xcode-select --install"
-            echo "       brew install cmake qt@6 poppler"
-            echo "       # Homebrew 的 qt@6 已包含 Multimedia 和 WebSockets"
+            echo "  【macOS】"
+            echo ""
+            echo "  1. 安装 Xcode 命令行工具（编译器）"
+            echo "     命令: xcode-select --install"
+            echo ""
+            echo "  2. 安装 Homebrew（包管理器）"
+            echo "     网址: https://brew.sh"
+            echo "     命令: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            echo ""
+            echo "  3. 安装依赖"
+            echo "     命令: brew install cmake qt@6 poppler"
+            echo "     说明: Homebrew 的 qt@6 已包含 Multimedia 和 WebSockets"
+            echo ""
+            echo "  【备选方案: 官网安装 Qt】"
+            echo "     网址: https://www.qt.io/download"
+            echo "     安装后运行 Maintenance Tool 勾选 Multimedia 和 WebSockets"
             ;;
         linux*)
-            echo "     Linux:"
-            echo "       Ubuntu/Debian:"
-            echo "         sudo apt install build-essential cmake qt6-base-dev qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev"
-            echo "       Fedora/RHEL:"
-            echo "         sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel poppler-cpp-devel"
-            echo "       Arch Linux:"
-            echo "         sudo pacman -S base-devel cmake qt6-base qt6-multimedia qt6-websockets poppler"
+            echo "  【Linux】"
+            echo ""
+            if command -v apt &> /dev/null; then
+                echo "  Ubuntu/Debian:"
+                echo "     sudo apt update"
+                echo "     sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev"
+            elif command -v dnf &> /dev/null; then
+                echo "  Fedora/RHEL:"
+                echo "     sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel poppler-cpp-devel"
+            elif command -v pacman &> /dev/null; then
+                echo "  Arch Linux:"
+                echo "     sudo pacman -S base-devel cmake qt6-base qt6-multimedia qt6-websockets poppler"
+            else
+                echo "  请使用您的包管理器安装以下依赖:"
+                echo "     - C++ 编译器 (GCC 9+ 或 Clang 10+)"
+                echo "     - CMake 3.16+"
+                echo "     - Qt 6 (base + multimedia + websockets)"
+                echo "     - Poppler (可选，PDF 支持)"
+            fi
+            echo ""
+            echo "  【备选方案: 官网安装 Qt】"
+            echo "     网址: https://www.qt.io/download"
+            echo "     安装后运行 Maintenance Tool 勾选 Multimedia 和 WebSockets"
             ;;
         msys*|cygwin*|win32*)
-            echo "     Windows:"
-            echo "       1. 安装 Git for Windows: https://git-scm.com/download/win"
-            echo "       2. 安装 CMake: https://cmake.org/download/"
-            echo "       3. 安装 Qt 6: https://www.qt.io/download"
-            echo "       4. ⚠️ 在 Qt Maintenance Tool 中勾选 Multimedia 和 WebSockets 模块"
+            echo "  【Windows】"
+            echo ""
+            echo "  方式一: MinGW（推荐，无需 Visual Studio）"
+            echo "  ─────────────────────────────────────────────"
+            echo ""
+            echo "  1. Git for Windows（包含 Git Bash）"
+            echo "     网址: https://git-scm.com/download/win"
+            echo ""
+            echo "  2. CMake"
+            echo "     网址: https://cmake.org/download/"
+            echo "     选择: cmake-x.x.x-windows-x86_64.msi"
+            echo "     安装时勾选 'Add CMake to system PATH'"
+            echo ""
+            echo "  3. Qt 6"
+            echo "     网址: https://www.qt.io/download"
+            echo "     选择: Qt 6.x.x for MinGW 11.2 64-bit"
+            echo "     ⚠️ 重要: 在 Maintenance Tool 中勾选:"
+            echo "        - Qt Multimedia（语音功能必需）"
+            echo "        - Qt WebSockets（语音功能必需）"
+            echo ""
+            echo "  4. Poppler（可选，PDF 支持）"
+            echo "     网址: https://www.msys2.org"
+            echo "     安装 MSYS2 后运行: pacman -S poppler"
+            echo "     说明: 不安装不影响其他功能，仅 PDF 上传不可用"
+            echo ""
+            echo "  方式二: MSVC（需 Visual Studio）"
+            echo "  ─────────────────────────────────────────────"
+            echo ""
+            echo "  1. Visual Studio 2019+"
+            echo "     网址: https://visualstudio.microsoft.com/downloads"
+            echo "     选择: Visual Studio Community（免费）"
+            echo "     安装时勾选 'Desktop development with C++'"
+            echo ""
+            echo "  2. CMake"
+            echo "     网址: https://cmake.org/download/"
+            echo ""
+            echo "  3. Qt 6"
+            echo "     网址: https://www.qt.io/download"
+            echo "     选择: Qt 6.x.x for MSVC 2019 64-bit"
+            echo "     ⚠️ 重要: 在 Maintenance Tool 中勾选 Multimedia 和 WebSockets"
+            echo ""
+            echo "  4. Poppler（可选）"
+            echo "     同上，通过 MSYS2 安装"
             ;;
     esac
     echo ""
-    echo "  安装依赖后重新运行此脚本"
+    echo "  ================================================"
+    echo "  安装依赖后重新运行此脚本验证"
+    echo "  ================================================"
 else
     echo "  ✅ 所有必需依赖已安装"
+    if [ "$poppler_installed" = false ]; then
+        echo ""
+        echo "  ================================================"
+        echo "  Poppler 安装指南（可选，PDF 支持）"
+        echo "  ================================================"
+        case "$OSTYPE" in
+            darwin*)
+                echo "  macOS: brew install poppler"
+                ;;
+            linux*)
+                if command -v apt &> /dev/null; then
+                    echo "  Ubuntu/Debian: sudo apt install libpoppler-cpp-dev"
+                elif command -v dnf &> /dev/null; then
+                    echo "  Fedora/RHEL: sudo dnf install poppler-cpp-devel"
+                elif command -v pacman &> /dev/null; then
+                    echo "  Arch Linux: sudo pacman -S poppler"
+                fi
+                ;;
+            msys*|cygwin*|win32*)
+                echo "  Windows: 安装 MSYS2 后运行 pacman -S poppler"
+                echo "  网址: https://www.msys2.org"
+                ;;
+        esac
+        echo "  说明: Poppler 是可选依赖，不安装不影响其他功能"
+    fi
 fi
 
 echo "==================================="
