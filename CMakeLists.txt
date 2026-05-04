@@ -346,6 +346,17 @@ if(WIN32)
                 "$<TARGET_FILE_DIR:${PROJECT_NAME}>/app.ico"
             COMMENT "Copying app.ico to executable directory"
         )
+
+        # CLI executable icon (uses same app.ico)
+        target_sources(${PROJECT_NAME}-CLI PRIVATE ${APP_RC_DEST})
+
+        # Copy icon to CLI executable directory for runtime loading
+        add_custom_command(TARGET ${PROJECT_NAME}-CLI POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${APP_ICON_DEST}"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}-CLI>/app.ico"
+            COMMENT "Copying app.ico to CLI executable directory"
+        )
     else()
         message(WARNING "Windows icon file app.ico not found. Please create it from app.icns.")
     endif()
