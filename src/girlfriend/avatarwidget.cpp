@@ -9,12 +9,12 @@
 AvatarWidget::AvatarWidget(QWidget *parent)
     : QWidget(parent)
     , m_avatarLabel(new QLabel(this))
-    , m_emotionTagLabel(new QLabel(this))
-    , m_moodBarWidget(new QLabel(this))
-    , m_moodPercentLabel(new QLabel(this))
     , m_videoPlayer(new QMediaPlayer(this))
     , m_audioOutput(new QAudioOutput(this))
     , m_videoWidget(new QVideoWidget(this))
+    , m_emotionTagLabel(new QLabel(this))
+    , m_moodBarWidget(new QLabel(this))
+    , m_moodPercentLabel(new QLabel(this))
     , m_currentEmotion("default")
     , m_isSpeaking(false)
     , m_currentLevel(GirlfriendSettings::instance()->avatarLevel())
@@ -22,6 +22,15 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     // 设置背景透明
     setAttribute(Qt::WA_TranslucentBackground);
     setAutoFillBackground(false);
+
+    // Video player for Level 3 - 先创建，确保在底层
+    m_videoPlayer->setAudioOutput(m_audioOutput);
+    m_videoPlayer->setVideoOutput(m_videoWidget);
+    m_videoWidget->setAttribute(Qt::WA_TranslucentBackground);
+    m_videoWidget->setAttribute(Qt::WA_ShowWithoutActivating);
+    m_videoWidget->setStyleSheet("background: transparent;");
+    m_videoWidget->setAspectRatioMode(Qt::IgnoreAspectRatio);
+    m_videoWidget->hide();
 
     loadAvatarImages();
 
@@ -31,34 +40,26 @@ AvatarWidget::AvatarWidget(QWidget *parent)
 
     // 图片覆盖整个区域，保持比例裁剪
     m_avatarLabel->setAlignment(Qt::AlignCenter);
-    m_avatarLabel->setScaledContents(true);  // 允许缩放填充
+    m_avatarLabel->setScaledContents(true);
 
-    // 情绪标签样式 - 完全透明背景
+    // 情绪标签样式 - 粉红色背景白色文字
     m_emotionTagLabel->setStyleSheet(
-        "QLabel { background: transparent; "
-        "padding: 4px 12px; font-size: 12px; }"
+        "QLabel { background: rgba(233, 30, 99, 0.85); color: white; "
+        "padding: 4px 12px; font-size: 12px; border-radius: 6px; }"
     );
     m_emotionTagLabel->setText(GTr::emotionDefault());
     m_emotionTagLabel->move(12, 12);
-    m_emotionTagLabel->raise();  // 确保标签在图片上方
+    m_emotionTagLabel->raise();
 
-    // Mood bar widget - transparent background
+    // Mood bar widget - 粉红色风格
     m_moodBarWidget->setStyleSheet("QLabel { background: transparent; }");
     m_moodBarWidget->setFixedHeight(6);
     m_moodBarWidget->setFixedWidth(50);
 
-    // Mood percentage label
+    // Mood percentage label - 白色文字
     m_moodPercentLabel->setStyleSheet(
-        "QLabel { background: transparent; font-size: 10px; color: #e91e63; }"
+        "QLabel { background: transparent; font-size: 10px; color: white; }"
     );
-
-    // Video player for Level 3
-    m_videoPlayer->setAudioOutput(m_audioOutput);
-    m_videoPlayer->setVideoOutput(m_videoWidget);
-    m_videoWidget->setAttribute(Qt::WA_TranslucentBackground);
-    m_videoWidget->setStyleSheet("background: transparent;");
-    m_videoWidget->setAspectRatioMode(Qt::IgnoreAspectRatio);  // 填充整个区域
-    m_videoWidget->hide();  // Hidden by default (Level 1/2 use images)
 
     // Connect video sound setting
     connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
@@ -69,8 +70,13 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     // Initial mute setting
     m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
 
-    updateMoodDisplay();
+    // 确保层级：视频在底层，标签在上层
+    m_videoWidget->stackUnder(m_avatarLabel);
+    m_avatarLabel->stackUnder(m_emotionTagLabel);
+    m_emotionTagLabel->stackUnder(m_moodBarWidget);
+    m_moodBarWidget->stackUnder(m_moodPercentLabel);
 
+    updateMoodDisplay();
     updateDisplay();
 }
 

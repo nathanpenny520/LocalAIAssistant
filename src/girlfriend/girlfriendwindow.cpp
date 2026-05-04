@@ -220,20 +220,23 @@ void GirlfriendWindow::resizeEvent(QResizeEvent *event)
     // 更新 AvatarWidget 覆盖整个窗口
     m_avatarWidget->setGeometry(0, 0, width(), height());
 
-    // 确保AvatarWidget在底层
+    // 关键：确保AvatarWidget在所有overlay之下
     m_avatarWidget->lower();
 
-    // 更新设置按钮位置（右上角）
+    // 更新设置按钮位置（右上角）- 确保在最上层
     m_settingsButton->move(width() - 40, 12);
     m_settingsButton->raise();
 
-    // 更新底部聊天区域的位置
+    // 更新底部聊天区域的位置 - 确保在最上层
     QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
     if (bottomOverlay) {
         int overlayHeight = 200;
         bottomOverlay->setGeometry(0, height() - overlayHeight, width(), overlayHeight);
         bottomOverlay->raise();
     }
+
+    // 强制刷新窗口层级
+    update();
 }
 
 void GirlfriendWindow::changeEvent(QEvent *event)
@@ -1037,18 +1040,24 @@ void GirlfriendWindow::onDeleteSessionClicked()
     QDialog *dialog = new QDialog(this);
     dialog->setWindowTitle(GTr::deleteSessionConfirmTitle());
     dialog->setMinimumWidth(250);
+    dialog->setStyleSheet(
+        "QDialog { background: #e91e63; }"
+        "QLabel { color: white; }"
+    );
 
     QVBoxLayout *layout = new QVBoxLayout(dialog);
 
     QLabel *label = new QLabel(tr("Select session to delete:"), dialog);
+    label->setStyleSheet("QLabel { color: white; font-size: 14px; padding: 8px; }");
     layout->addWidget(label);
 
-    // 创建会话列表（排除当前会话）
+    // 创建会话列表（排除当前会话）- 粉红色背景白色文字
     QListWidget *sessionList = new QListWidget(dialog);
     sessionList->setStyleSheet(
-        "QListWidget { background: white; border: 1px solid #ccc; }"
-        "QListWidget::item { padding: 8px; }"
-        "QListWidget::item:selected { background: #fce4ec; color: #e91e63; }"
+        "QListWidget { background: #f8bbd9; border: 1px solid #e91e63; color: white; }"
+        "QListWidget::item { padding: 10px; color: white; font-size: 13px; }"
+        "QListWidget::item:selected { background: #c2185b; color: white; }"  // 深红色选中
+        "QListWidget::item:hover { background: #f48fb1; }"
     );
 
     QString firstNonCurrentId;
@@ -1063,17 +1072,21 @@ void GirlfriendWindow::onDeleteSessionClicked()
     sessionList->setCurrentRow(0);
     layout->addWidget(sessionList);
 
-    // 确认和取消按钮
+    // 确认和取消按钮 - 白色文字
     QHBoxLayout *btnLayout = new QHBoxLayout();
     QPushButton *cancelBtn = new QPushButton(tr("Cancel"), dialog);
     cancelBtn->setStyleSheet(
-        "QPushButton { background: #f0f0f0; padding: 8px 16px; border-radius: 4px; }"
+        "QPushButton { background: #f8bbd9; color: white; padding: 10px 20px; "
+        "border-radius: 6px; font-size: 13px; border: none; }"
+        "QPushButton:hover { background: #f48fb1; }"
     );
     connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
 
     QPushButton *deleteBtn = new QPushButton(GTr::deleteSession(), dialog);
     deleteBtn->setStyleSheet(
-        "QPushButton { background: #ff5252; color: white; padding: 8px 16px; border-radius: 4px; }"
+        "QPushButton { background: #c2185b; color: white; padding: 10px 20px; "
+        "border-radius: 6px; font-size: 13px; border: none; }"  // 深红色
+        "QPushButton:hover { background: #b71c1c; }"
     );
     connect(deleteBtn, &QPushButton::clicked, dialog, &QDialog::accept);
 
