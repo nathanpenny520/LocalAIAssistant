@@ -1,5 +1,6 @@
 #include "avatarwidget.h"
 #include "girlfriend_translations.h"
+#include "girlfriendsettings.h"
 #include <QDebug>
 #include <QDir>
 #include <QCoreApplication>
@@ -12,12 +13,17 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     , m_moodPercentLabel(new QLabel(this))
     , m_currentEmotion("default")
     , m_isSpeaking(false)
+    , m_currentLevel(GirlfriendSettings::instance()->avatarLevel())
 {
     // 设置背景透明
     setAttribute(Qt::WA_TranslucentBackground);
     setAutoFillBackground(false);
 
     loadAvatarImages();
+
+    // Connect to settings changes
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
+            this, &AvatarWidget::setAvatarLevel);
 
     // 图片覆盖整个区域，保持比例裁剪
     m_avatarLabel->setAlignment(Qt::AlignCenter);
@@ -49,65 +55,55 @@ AvatarWidget::AvatarWidget(QWidget *parent)
 
 void AvatarWidget::loadAvatarImages()
 {
-    // 尝试多个可能的路径
-    QStringList possiblePaths;
-
-    QString appDir = QCoreApplication::applicationDirPath();
-
-#ifdef Q_OS_MACOS
-    // macOS app bundle 结构
-    possiblePaths << QDir::cleanPath(appDir + "/../Resources/AIGirlfriend");
-#elif defined(Q_OS_WIN)
-    // Windows: 资源在可执行文件同级目录
-    possiblePaths << QDir::cleanPath(appDir + "/AIGirlfriend");
-#else
-    // Linux
-    possiblePaths << QDir::cleanPath(appDir + "/AIGirlfriend");
-#endif
-
-    // 通用备用路径
-    possiblePaths << "AIGirlfriend";
-    possiblePaths << "sourcecode-ai-assistant/AIGirlfriend";
-
-    QString avatarDir;
-    for (const QString &path : possiblePaths) {
-        QDir dir(path);
-        if (dir.exists()) {
-            avatarDir = path;
-            break;
-        }
-    }
+    // Get avatar path from GirlfriendSettings
+    QString avatarDir = GirlfriendSettings::instance()->avatarLevelPath();
 
     if (avatarDir.isEmpty()) {
-        qDebug() << "AvatarWidget: AIGirlfriend directory not found";
+        qDebug() << "AvatarWidget: Avatar level path not found";
+        return;
+    }
+
+    QDir dir(avatarDir);
+    if (!dir.exists()) {
+        qDebug() << "AvatarWidget: Avatar directory does not exist:" << avatarDir;
         return;
     }
 
     qDebug() << "AvatarWidget: Loading avatars from:" << avatarDir;
 
-    // 加载所有表情图片
-    QStringList emotions = {
-        "default", "happy", "shy", "love", "hate",
-        "sad", "angry", "afraid", "awaiting", "speaking", "studying", "worried"
-    };
+    // Store current level from settings
+    m_currentLevel = GirlfriendSettings::instance()->avatarLevel();
 
+    // Clear existing images
+    m_avatarImages.clear();
+
+    // Define emotion to filename mapping
     QMap<QString, QString> fileNames = {
-        {"default", "picture-original.png"},
+        {"default", "default.png"},
         {"happy", "happy.png"},
         {"shy", "shy.png"},
         {"love", "love.png"},
         {"hate", "hate.png"},
         {"sad", "sad.png"},
         {"angry", "angry.png"},
-        {"afraid", "afraid.png"},   
+        {"afraid", "afraid.png"},
         {"awaiting", "awaiting.png"},
         {"speaking", "speaking.png"},
         {"studying", "studying.png"},
-        {"worried", "worried.png"}   // 新增 worried 情绪
+        {"worried", "worried.png"},
+        {"crying", "crying.png"},
+        {"travelling", "travelling.png"}
     };
 
+    // Level 1 special case: uses "picture-original.png" for default
+    if (m_currentLevel == AvatarLevel::Level1_Belle) {
+        fileNames["default"] = "picture-original.png";
+    }
+
+    // Load all emotion images
+    QStringList emotions = fileNames.keys();
     for (const QString &emotion : emotions) {
-        QString fileName = fileNames.value(emotion, emotion + ".png");
+        QString fileName = fileNames.value(emotion);
         QString fullPath = avatarDir + "/" + fileName;
         QPixmap pixmap(fullPath);
         if (!pixmap.isNull()) {
@@ -138,6 +134,15 @@ void AvatarWidget::setMood(double mood)
 {
     m_currentMood = mood;
     updateMoodDisplay();
+}
+
+void AvatarWidget::setAvatarLevel(AvatarLevel level)
+{
+    if (m_currentLevel != level) {
+        m_currentLevel = level;
+        loadAvatarImages();
+        updateDisplay();
+    }
 }
 
 void AvatarWidget::updateMoodDisplay()
@@ -217,7 +222,9 @@ void AvatarWidget::updateDisplay()
         {"awaiting", GTr::emotionAwaiting()},
         {"speaking", GTr::emotionSpeaking()},
         {"studying", GTr::emotionStudying()},
-        {"worried", GTr::emotionWorried()}
+        {"worried", GTr::emotionWorried()},
+        {"crying", GTr::emotionCrying()},
+        {"travelling", GTr::emotionTravelling()}
     };
 
     QString labelText = emotionLabels.value(displayEmotion, GTr::emotionDefault());
@@ -229,7 +236,7 @@ void AvatarWidget::updateDisplay()
 QString AvatarWidget::getAvatarPath(const QString &emotion) const
 {
     QMap<QString, QString> fileNames = {
-        {"default", "picture-original.png"},
+        {"default", "default.png"},
         {"happy", "happy.png"},
         {"shy", "shy.png"},
         {"love", "love.png"},
@@ -240,11 +247,18 @@ QString AvatarWidget::getAvatarPath(const QString &emotion) const
         {"awaiting", "awaiting.png"},
         {"speaking", "speaking.png"},
         {"studying", "studying.png"},
-        {"worried", "worried.png"}
+        {"worried", "worried.png"},
+        {"crying", "crying.png"},
+        {"travelling", "travelling.png"}
     };
 
+    // Level 1 special case: uses "picture-original.png" for default
+    if (m_currentLevel == AvatarLevel::Level1_Belle && emotion == "default") {
+        return GirlfriendSettings::instance()->avatarLevelPath() + "/picture-original.png";
+    }
+
     QString fileName = fileNames.value(emotion, emotion + ".png");
-    return "AIGirlfriend/" + fileName;
+    return GirlfriendSettings::instance()->avatarLevelPath() + "/" + fileName;
 }
 
 void AvatarWidget::resizeEvent(QResizeEvent *event)

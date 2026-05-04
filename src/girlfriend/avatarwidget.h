@@ -7,6 +7,7 @@
 #include <QMap>
 #include <QString>
 #include <QResizeEvent>
+#include "girlfriendsettings.h"
 
 class AvatarWidget : public QWidget
 {
@@ -21,6 +22,7 @@ public:
     QString currentEmotion() const { return m_currentEmotion; }
     double currentMood() const { return m_currentMood; }
     void retranslateUi();  // 更新情绪标签文字
+    void setAvatarLevel(AvatarLevel level);
 
 signals:
     void emotionChanged(const QString &emotion);
@@ -43,6 +45,7 @@ private:
     QString m_currentEmotion;
     bool m_isSpeaking;
     double m_currentMood = 0.6;
+    AvatarLevel m_currentLevel;
 };
 
 #endif // AVATARWIDGET_H
