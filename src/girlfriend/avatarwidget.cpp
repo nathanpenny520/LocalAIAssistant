@@ -57,6 +57,7 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     m_videoPlayer->setVideoOutput(m_videoWidget);
     m_videoWidget->setAttribute(Qt::WA_TranslucentBackground);
     m_videoWidget->setStyleSheet("background: transparent;");
+    m_videoWidget->setAspectRatioMode(Qt::IgnoreAspectRatio);  // 填充整个区域
     m_videoWidget->hide();  // Hidden by default (Level 1/2 use images)
 
     // Connect video sound setting
@@ -191,11 +192,15 @@ void AvatarWidget::updateMoodDisplay()
     m_moodPercentLabel->setText(QString("%1%").arg(percent));
     m_moodPercentLabel->adjustSize();
 
-    // Position below emotion tag
-    m_moodBarWidget->move(12, m_emotionTagLabel->height() + 16);
+    // 先确保情绪标签已调整大小
+    m_emotionTagLabel->adjustSize();
+
+    // Position below emotion tag - aligned with emotion label left edge
+    int emotionLabelHeight = m_emotionTagLabel->sizeHint().height();
+    m_moodBarWidget->move(12, 12 + emotionLabelHeight + 4);
     m_moodBarWidget->raise();
 
-    m_moodPercentLabel->move(12 + 54, m_emotionTagLabel->height() + 14);
+    m_moodPercentLabel->move(12 + 54, 12 + emotionLabelHeight + 2);
     m_moodPercentLabel->raise();
 }
 
@@ -210,7 +215,6 @@ void AvatarWidget::updateDisplay()
         m_avatarLabel->hide();
         m_videoWidget->show();
         m_videoWidget->setGeometry(0, 0, width(), height());
-        m_videoWidget->raise();
         playVideo(displayEmotion);
     } else {
         // Level 1/2 use images
@@ -265,6 +269,10 @@ void AvatarWidget::updateDisplay()
     m_emotionTagLabel->setText(labelText);
     m_emotionTagLabel->adjustSize();
     m_emotionTagLabel->raise();  // 确保标签在图片/视频上方
+
+    // 确保mood bar也在最上层（特别是视频模式下）
+    m_moodBarWidget->raise();
+    m_moodPercentLabel->raise();
 }
 
 QString AvatarWidget::getAvatarPath(const QString &emotion) const
@@ -300,10 +308,17 @@ void AvatarWidget::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
     updateDisplay();
     m_emotionTagLabel->move(12, 12);
-    m_moodBarWidget->move(12, m_emotionTagLabel->height() + 16);
+    m_emotionTagLabel->adjustSize();
+
+    // 重新定位mood bar
+    int emotionLabelHeight = m_emotionTagLabel->sizeHint().height();
+    m_moodBarWidget->move(12, 12 + emotionLabelHeight + 4);
     m_moodBarWidget->raise();
-    m_moodPercentLabel->move(12 + 54, m_emotionTagLabel->height() + 14);
+    m_moodPercentLabel->move(12 + 54, 12 + emotionLabelHeight + 2);
     m_moodPercentLabel->raise();
+
+    // 确保情绪标签在最上层
+    m_emotionTagLabel->raise();
 
     // Update video widget geometry if visible
     if (m_videoWidget->isVisible()) {

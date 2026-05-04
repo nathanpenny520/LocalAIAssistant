@@ -12,6 +12,7 @@
 #include <QKeySequence>
 #include <QWidgetAction>
 #include <QComboBox>
+#include <QButtonGroup>
 
 // 流式思考过滤器 - 逐字符处理
 // 支持三种思考标签格式: <thinking>, <reasoning>, <think>
@@ -591,12 +592,16 @@ void GirlfriendWindow::onSettingsClicked()
     avatarLevelLabel->setEnabled(false);
     avatarLevelLabel->setFont(labelFont);
 
-    // Avatar level buttons using QWidgetAction
+    // Avatar level buttons using QWidgetAction with exclusive selection
     QWidgetAction *avatarLevelAction = new QWidgetAction(m_settingsMenu);
     QWidget *avatarLevelWidget = new QWidget(m_settingsMenu);
     QHBoxLayout *avatarLevelLayout = new QHBoxLayout(avatarLevelWidget);
     avatarLevelLayout->setContentsMargins(8, 4, 8, 4);
     avatarLevelLayout->setSpacing(4);
+
+    // Use QButtonGroup for exclusive selection
+    QButtonGroup *avatarLevelGroup = new QButtonGroup(avatarLevelWidget);
+    avatarLevelGroup->setExclusive(true);
 
     AvatarLevel currentLevel = GirlfriendSettings::instance()->avatarLevel();
     for (int i = 1; i <= 3; ++i) {
@@ -609,7 +614,12 @@ void GirlfriendWindow::onSettingsClicked()
             "QPushButton:checked { background: #e91e63; color: white; border: 1px solid #e91e63; }"
             "QPushButton:hover { background: #f8bbd9; }"
         );
-        connect(levelBtn, &QPushButton::clicked, this, [this, i]() { onAvatarLevelChanged(i); });
+        avatarLevelGroup->addButton(levelBtn, i);
+        connect(levelBtn, &QPushButton::clicked, this, [this, i, levelBtn]() {
+            levelBtn->setChecked(true);  // Ensure this button is checked
+            onAvatarLevelChanged(i);
+            m_settingsMenu->close();  // Close menu to prevent multi-select
+        });
         avatarLevelLayout->addWidget(levelBtn);
     }
     avatarLevelLayout->addStretch();
@@ -623,12 +633,16 @@ void GirlfriendWindow::onSettingsClicked()
     moodInfluenceLabel->setEnabled(false);
     moodInfluenceLabel->setFont(labelFont);
 
-    // Mood influence buttons using QWidgetAction
+    // Mood influence buttons using QWidgetAction with exclusive selection
     QWidgetAction *moodInfluenceAction = new QWidgetAction(m_settingsMenu);
     QWidget *moodInfluenceWidget = new QWidget(m_settingsMenu);
     QHBoxLayout *moodInfluenceLayout = new QHBoxLayout(moodInfluenceWidget);
     moodInfluenceLayout->setContentsMargins(8, 4, 8, 4);
     moodInfluenceLayout->setSpacing(4);
+
+    // Use QButtonGroup for exclusive selection
+    QButtonGroup *moodInfluenceGroup = new QButtonGroup(moodInfluenceWidget);
+    moodInfluenceGroup->setExclusive(true);
 
     MoodInfluenceLevel currentMood = GirlfriendSettings::instance()->moodInfluence();
     QStringList moodLabels = {GTr::moodLow(), GTr::moodMedium(), GTr::moodHigh()};
@@ -642,7 +656,12 @@ void GirlfriendWindow::onSettingsClicked()
             "QPushButton:checked { background: #e91e63; color: white; border: 1px solid #e91e63; }"
             "QPushButton:hover { background: #f8bbd9; }"
         );
-        connect(moodBtn, &QPushButton::clicked, this, [this, i]() { onMoodInfluenceChanged(i); });
+        moodInfluenceGroup->addButton(moodBtn, i);
+        connect(moodBtn, &QPushButton::clicked, this, [this, i, moodBtn]() {
+            moodBtn->setChecked(true);  // Ensure this button is checked
+            onMoodInfluenceChanged(i);
+            m_settingsMenu->close();  // Close menu to prevent multi-select
+        });
         moodInfluenceLayout->addWidget(moodBtn);
     }
     moodInfluenceLayout->addStretch();
