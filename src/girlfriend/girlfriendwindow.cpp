@@ -13,6 +13,11 @@
 #include <QWidgetAction>
 #include <QComboBox>
 #include <QButtonGroup>
+#include <QDialog>
+#include <QListWidget>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
 
 // 流式思考过滤器 - 逐字符处理
 // 支持三种思考标签格式: <thinking>, <reasoning>, <think>
@@ -193,7 +198,8 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
 
     // 设置窗口属性
     setWindowTitle(GTr::windowTitle());
-    resize(400, 600);
+    // 设置9:16比例，适合Level 2图片完整显示
+    resize(360, 640);  // 9:16比例
 }
 
 GirlfriendWindow::~GirlfriendWindow()
@@ -213,6 +219,9 @@ void GirlfriendWindow::resizeEvent(QResizeEvent *event)
 
     // 更新 AvatarWidget 覆盖整个窗口
     m_avatarWidget->setGeometry(0, 0, width(), height());
+
+    // 确保AvatarWidget在底层
+    m_avatarWidget->lower();
 
     // 更新设置按钮位置（右上角）
     m_settingsButton->move(width() - 40, 12);
@@ -1017,33 +1026,98 @@ void GirlfriendWindow::onDeleteSessionClicked()
     QVector<SessionMetadata> sessions = GirlfriendSessionManager::instance()->sessions();
     QString currentId = GirlfriendSessionManager::instance()->currentSessionId();
 
-    // Find first non-current session to delete
-    QString toDeleteId;
-    QString toDeleteName;
+    // 只有一个会话时不能删除
+    if (sessions.size() <= 1) {
+        QMessageBox::information(this, GTr::deleteSessionConfirmTitle(),
+            tr("Cannot delete the only session."));
+        return;
+    }
+
+    // 创建选择对话框
+    QDialog *dialog = new QDialog(this);
+    dialog->setWindowTitle(GTr::deleteSessionConfirmTitle());
+    dialog->setMinimumWidth(250);
+
+    QVBoxLayout *layout = new QVBoxLayout(dialog);
+
+    QLabel *label = new QLabel(tr("Select session to delete:"), dialog);
+    layout->addWidget(label);
+
+    // 创建会话列表（排除当前会话）
+    QListWidget *sessionList = new QListWidget(dialog);
+    sessionList->setStyleSheet(
+        "QListWidget { background: white; border: 1px solid #ccc; }"
+        "QListWidget::item { padding: 8px; }"
+        "QListWidget::item:selected { background: #fce4ec; color: #e91e63; }"
+    );
+
+    QString firstNonCurrentId;
     for (const SessionMetadata &meta : sessions) {
         if (meta.id != currentId) {
-            toDeleteId = meta.id;
-            toDeleteName = meta.name;
-            break;
+            sessionList->addItem(meta.name);
+            if (firstNonCurrentId.isEmpty()) {
+                firstNonCurrentId = meta.id;
+            }
+        }
+    }
+    sessionList->setCurrentRow(0);
+    layout->addWidget(sessionList);
+
+    // 确认和取消按钮
+    QHBoxLayout *btnLayout = new QHBoxLayout();
+    QPushButton *cancelBtn = new QPushButton(tr("Cancel"), dialog);
+    cancelBtn->setStyleSheet(
+        "QPushButton { background: #f0f0f0; padding: 8px 16px; border-radius: 4px; }"
+    );
+    connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
+
+    QPushButton *deleteBtn = new QPushButton(GTr::deleteSession(), dialog);
+    deleteBtn->setStyleSheet(
+        "QPushButton { background: #ff5252; color: white; padding: 8px 16px; border-radius: 4px; }"
+    );
+    connect(deleteBtn, &QPushButton::clicked, dialog, &QDialog::accept);
+
+    btnLayout->addWidget(cancelBtn);
+    btnLayout->addWidget(deleteBtn);
+    layout->addLayout(btnLayout);
+
+    // 显示对话框
+    if (dialog->exec() == QDialog::Accepted) {
+        int selectedRow = sessionList->currentRow();
+        if (selectedRow >= 0) {
+            // 找到对应的会话ID（需要重新映射，因为列表只有非当前会话）
+            int nonCurrentIndex = 0;
+            QString toDeleteId;
+            QString toDeleteName;
+            for (const SessionMetadata &meta : sessions) {
+                if (meta.id != currentId) {
+                    if (nonCurrentIndex == selectedRow) {
+                        toDeleteId = meta.id;
+                        toDeleteName = meta.name;
+                        break;
+                    }
+                    nonCurrentIndex++;
+                }
+            }
+
+            if (!toDeleteId.isEmpty()) {
+                // 最终确认
+                QMessageBox::StandardButton finalConfirm = QMessageBox::question(
+                    this,
+                    GTr::deleteSessionConfirmTitle(),
+                    GTr::deleteSessionConfirmMessage(toDeleteName),
+                    QMessageBox::Yes | QMessageBox::No
+                );
+
+                if (finalConfirm == QMessageBox::Yes) {
+                    GirlfriendSessionManager::instance()->deleteSession(toDeleteId);
+                    qDebug() << "Deleted session:" << toDeleteName;
+                }
+            }
         }
     }
 
-    if (toDeleteId.isEmpty()) {
-        return;  // No session to delete
-    }
-
-    // Show confirmation dialog
-    QMessageBox::StandardButton reply = QMessageBox::question(
-        this,
-        GTr::deleteSessionConfirmTitle(),
-        GTr::deleteSessionConfirmMessage(toDeleteName),
-        QMessageBox::Yes | QMessageBox::No
-    );
-
-    if (reply == QMessageBox::Yes) {
-        GirlfriendSessionManager::instance()->deleteSession(toDeleteId);
-        qDebug() << "Deleted session:" << toDeleteName;
-    }
+    dialog->deleteLater();
 }
 
 void GirlfriendWindow::onAvatarLevelChanged(int level)

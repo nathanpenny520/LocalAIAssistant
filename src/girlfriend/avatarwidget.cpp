@@ -216,6 +216,11 @@ void AvatarWidget::updateDisplay()
         m_videoWidget->show();
         m_videoWidget->setGeometry(0, 0, width(), height());
         playVideo(displayEmotion);
+
+        // 视频模式下，确保情绪标签和mood bar在视频之上
+        m_emotionTagLabel->raise();
+        m_moodBarWidget->raise();
+        m_moodPercentLabel->raise();
     } else {
         // Level 1/2 use images
         stopVideo();
@@ -224,18 +229,24 @@ void AvatarWidget::updateDisplay()
         if (m_avatarImages.contains(displayEmotion)) {
             QPixmap pixmap = m_avatarImages[displayEmotion];
 
-            // 缩放图片覆盖整个区域，保持比例裁剪
+            // Level 2: 使用KeepAspectRatio完整显示图片（窗口已设为9:16比例）
             QSize widgetSize = this->size();
 
-            // 计算缩放比例，选择能覆盖整个区域的缩放方式
+            Qt::AspectRatioMode aspectMode = Qt::KeepAspectRatioByExpanding;  // 默认填充
+            if (m_currentLevel == AvatarLevel::Level2_Hot) {
+                // Level 2: 保持比例完整显示，窗口已是9:16比例
+                aspectMode = Qt::KeepAspectRatio;
+            }
+
             QPixmap scaled = pixmap.scaled(
                 widgetSize,
-                Qt::KeepAspectRatioByExpanding,  // 覆盖整个区域，可能裁剪
+                aspectMode,
                 Qt::SmoothTransformation
             );
 
-            // 如果缩放后仍比窗口大，居中裁剪
-            if (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height()) {
+            // 如果使用KeepAspectRatioByExpanding且缩放后比窗口大，居中裁剪
+            if (aspectMode == Qt::KeepAspectRatioByExpanding &&
+                (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height())) {
                 int x = (scaled.width() - widgetSize.width()) / 2;
                 int y = (scaled.height() - widgetSize.height()) / 2;
                 scaled = scaled.copy(x, y, widgetSize.width(), widgetSize.height());
@@ -244,6 +255,14 @@ void AvatarWidget::updateDisplay()
             m_avatarLabel->setPixmap(scaled);
             m_avatarLabel->resize(widgetSize);
             m_avatarLabel->move(0, 0);
+
+            // 居中显示（对于KeepAspectRatio可能不会填满）
+            if (scaled.width() < widgetSize.width() || scaled.height() < widgetSize.height()) {
+                int x = (widgetSize.width() - scaled.width()) / 2;
+                int y = (widgetSize.height() - scaled.height()) / 2;
+                m_avatarLabel->move(x, y);
+                m_avatarLabel->resize(scaled.size());
+            }
         }
     }
 
