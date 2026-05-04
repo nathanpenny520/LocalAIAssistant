@@ -205,6 +205,70 @@ public:
         return tr("Clear History");
     }
 
+    // Session management
+    static QString sessionsLabel() {
+        return tr("Sessions");
+    }
+    static QString newSession() {
+        return tr("New Session");
+    }
+    static QString deleteSession() {
+        return tr("Delete");
+    }
+    static QString deleteSessionConfirmTitle() {
+        return tr("Delete Session");
+    }
+    static QString deleteSessionConfirmMessage(const QString &name) {
+        return tr("Delete \"%1\"? This cannot be undone.").arg(name);
+    }
+    static QString currentSessionLabel() {
+        return tr("current");
+    }
+    static QString sessionDefaultName(int n) {
+        return tr("Session %1").arg(n);
+    }
+
+    // Level & Mood
+    static QString avatarLevelLabel() {
+        return tr("Avatar Level");
+    }
+    static QString moodInfluenceLabel() {
+        return tr("Mood Influence");
+    }
+    static QString moodLow() {
+        return tr("Low");
+    }
+    static QString moodMedium() {
+        return tr("Med");
+    }
+    static QString moodHigh() {
+        return tr("High");
+    }
+
+    // Video
+    static QString videoSoundLabel() {
+        return tr("Video Sound");
+    }
+    static QString videoSoundOn() {
+        return tr("On");
+    }
+    static QString videoSoundOff() {
+        return tr("Off");
+    }
+
+    // Mood display
+    static QString moodLabel() {
+        return tr("Mood");
+    }
+
+    // New emotions
+    static QString emotionCrying() {
+        return tr("😢 Crying");
+    }
+    static QString emotionTravelling() {
+        return tr("✈️ Travelling");
+    }
+
 private:
     static QString tr(const char *text) {
         return QCoreApplication::translate("GirlfriendModule", text);
