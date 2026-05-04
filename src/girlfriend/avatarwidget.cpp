@@ -8,6 +8,8 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     : QWidget(parent)
     , m_avatarLabel(new QLabel(this))
     , m_emotionTagLabel(new QLabel(this))
+    , m_moodBarWidget(new QLabel(this))
+    , m_moodPercentLabel(new QLabel(this))
     , m_currentEmotion("default")
     , m_isSpeaking(false)
 {
@@ -29,6 +31,18 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     m_emotionTagLabel->setText(GTr::emotionDefault());
     m_emotionTagLabel->move(12, 12);
     m_emotionTagLabel->raise();  // 确保标签在图片上方
+
+    // Mood bar widget - transparent background
+    m_moodBarWidget->setStyleSheet("QLabel { background: transparent; }");
+    m_moodBarWidget->setFixedHeight(6);
+    m_moodBarWidget->setFixedWidth(50);
+
+    // Mood percentage label
+    m_moodPercentLabel->setStyleSheet(
+        "QLabel { background: transparent; font-size: 10px; color: #e91e63; }"
+    );
+
+    updateMoodDisplay();
 
     updateDisplay();
 }
@@ -120,6 +134,46 @@ void AvatarWidget::setSpeaking(bool speaking)
     updateDisplay();
 }
 
+void AvatarWidget::setMood(double mood)
+{
+    m_currentMood = mood;
+    updateMoodDisplay();
+}
+
+void AvatarWidget::updateMoodDisplay()
+{
+    int percent = static_cast<int>(m_currentMood * 100);
+
+    QString barColor;
+    if (m_currentMood > 0.7) {
+        barColor = "linear-gradient(90deg, #e91e63, #ff4081)";
+    } else if (m_currentMood >= 0.4) {
+        barColor = "#e91e63";
+    } else {
+        barColor = "#9e9e9e";
+    }
+
+    // Mood bar using HTML
+    QString barHtml = QString(
+        "<div style='background: #e0e0e0; border-radius: 3px; width: 50px; height: 6px;'>"
+        "<div style='background: %1; border-radius: 3px; width: %2px; height: 6px;'>"
+        "</div></div>"
+    ).arg(barColor).arg(static_cast<int>(m_currentMood * 50));
+
+    m_moodBarWidget->setText(barHtml);
+    m_moodBarWidget->setTextFormat(Qt::RichText);
+
+    m_moodPercentLabel->setText(QString("%1%").arg(percent));
+    m_moodPercentLabel->adjustSize();
+
+    // Position below emotion tag
+    m_moodBarWidget->move(12, m_emotionTagLabel->height() + 16);
+    m_moodBarWidget->raise();
+
+    m_moodPercentLabel->move(12 + 54, m_emotionTagLabel->height() + 14);
+    m_moodPercentLabel->raise();
+}
+
 void AvatarWidget::updateDisplay()
 {
     // 如果正在说话，优先显示 speaking 图片
@@ -198,6 +252,10 @@ void AvatarWidget::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
     updateDisplay();
     m_emotionTagLabel->move(12, 12);
+    m_moodBarWidget->move(12, m_emotionTagLabel->height() + 16);
+    m_moodBarWidget->raise();
+    m_moodPercentLabel->move(12 + 54, m_emotionTagLabel->height() + 14);
+    m_moodPercentLabel->raise();
 }
 
 void AvatarWidget::retranslateUi()
