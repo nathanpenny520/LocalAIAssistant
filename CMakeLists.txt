@@ -127,6 +127,8 @@ add_library(GirlfriendModule
     src/girlfriend/memorymanager.h
     src/girlfriend/voicemanager.cpp
     src/girlfriend/voicemanager.h
+    src/girlfriend/girlfriendsettings.cpp
+    src/girlfriend/girlfriendsettings.h
 )
 
 target_include_directories(GirlfriendModule PUBLIC
