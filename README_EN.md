@@ -6,13 +6,15 @@ A cross-platform AI assistant desktop application based on Qt 6, supporting both
 
 Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 
-![Demo](AIGirlfriend/demo-en.png)
+![Demo](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-1-belle/demo-en.png)
+
+![](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-2-hot/demo-hot.png)
 
 ## Features
 
-### Core Features
+### LocalAIAssistant Core Features
 - **Dual Mode Support** — GUI interface + CLI command line
-- **File Upload** — Support for text, image, and PDF file attachments
+- **File Upload** — Support for text, image(multi-model necessary), and PDF file attachments
 - **Streaming Output** — SSE real-time display, AI responses appear character by character
 - **Session Management** — Multi-session switching, history persistence
 - **Multi-language** — Simplified Chinese / English switching
@@ -23,8 +25,8 @@ Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 - **Independent Window** — Immersive full-screen avatar background, 9:16 window ratio
 - **Avatar Level System** — Three levels available:
   - Level 1 (Belle): PNG static images, classic style
-  - Level 2 (Hot): PNG static images, full display
-  - Level 3 (Hotter): MP4 dynamic video, loop playback
+  - Level 2 (Hot): PNG static images, hotter than you can imagine
+  - Level 3 (Hotter): MP4 dynamic video, dancing before your eyes
 - **Emotion System** — 14 expressions real-time switching (happy, shy, loving, playful, crying, travelling, etc.)
 - **Mood Display** — Real-time mood progress bar and percentage at top-left corner
 - **Mood Influence Level** — Configurable mood influence on emotion detection (Low/Med/High)

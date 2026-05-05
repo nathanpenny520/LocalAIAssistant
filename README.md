@@ -6,13 +6,15 @@
 
 GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 
-![Demo](AIGirlfriend/demo.png)
+![Demo](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-1-belle/demo.png)
+
+![](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-2-hot/demo-hot.png)
 
 ## 功能特点
 
-### 核心功能
+### 本地AI助手核心功能
 - **双模式支持** — GUI 图形界面 + CLI 命令行
-- **文件上传** — 支持文本、图片、PDF 文件附件
+- **文件上传** — 支持文本、图片（需要模型是识图模型）、PDF 文件附件
 - **流式输出** — SSE 实时显示，AI 回复逐字呈现
 - **会话管理** — 多会话切换、历史持久化
 - **多语言** — 简体中文 / English 切换
@@ -23,8 +25,8 @@ GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 - **独立窗口** — 沉浸式全屏头像背景，9:16 窗口比例
 - **头像等级系统** — 三种等级可选：
   - Level 1 (Belle): PNG 静态图片，经典风格
-  - Level 2 (Hot): PNG 静态图片，完整显示
-  - Level 3 (Hotter): MP4 动态视频，循环播放
+  - Level 2 (Hot): PNG 静态图片，更加火辣
+  - Level 3 (Hotter): MP4 动态视频，跃然屏上
 - **情绪系统** — 14种表情实时切换（开心、害羞、爱意、撒娇、哭泣、旅行等）
 - **心情值显示** — 左上角实时显示心情进度条和百分比
 - **心情影响等级** — 可设置情绪检测的心情影响程度（低/中/高）
