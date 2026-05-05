@@ -6,6 +6,7 @@
 
 GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
+
 ![Level 1 Demo](AIGirlfriend/level-1-belle/demo-belle.png)
 
 ![Level 2 Demo](AIGirlfriend/level-2-hot/demo-hot.png)
