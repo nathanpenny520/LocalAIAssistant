@@ -275,9 +275,13 @@ void PersonalityEngine::updateMood(const QString &userInput)
         "爱你", "抱抱", "乖", "喜欢你", "想你", "亲亲", "宝贝", "谢谢"
     };
 
+    bool hasNegativeInput = false;
+    bool hasPositiveInput = false;
+
     for (const QString &word : negativeWords) {
         if (userInput.contains(word)) {
             m_mood -= 0.3;
+            hasNegativeInput = true;
             break;
         }
     }
@@ -285,12 +289,16 @@ void PersonalityEngine::updateMood(const QString &userInput)
     for (const QString &word : positiveWords) {
         if (userInput.contains(word)) {
             m_mood += 0.2;
+            hasPositiveInput = true;
             break;
         }
     }
 
-    // 应用衰减
-    m_mood -= m_moodDecay;
+    // 只有在没有正面输入时才应用衰减（自然衰减）
+    // 正面输入会提升心情，不应该同时衰减
+    if (!hasPositiveInput) {
+        m_mood -= m_moodDecay;
+    }
 
     // 限制范围 [0, 1]
     m_mood = qBound(0.0, m_mood, 1.0);
@@ -318,12 +326,16 @@ static QMap<QString, QString> chineseToEnglishEmotion() {
         {"害羞", "shy"},
         {"爱意", "love"},
         {"关心", "worried"},
+        {"担心", "worried"},
         {"期待", "awaiting"},
         {"难过", "sad"},
         {"嫌弃", "hate"},
+        {"生气", "angry"},
+        {"害怕", "afraid"},
         {"思考", "studying"},
         {"哭泣", "crying"},
         {"旅行", "travelling"},
+        {"说话中", "speaking"},
         {"默认", "default"}
     };
     return map;

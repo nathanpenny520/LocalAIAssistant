@@ -13,6 +13,7 @@
 #include <QResizeEvent>
 #include <QMenu>
 #include <QComboBox>
+#include <QTimer>
 #include "avatarwidget.h"
 #include "personalityengine.h"
 #include "girlfriendsession.h"
@@ -35,6 +36,7 @@ protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void showEvent(QShowEvent *event) override;  // 窗口显示时更新UI状态
 
 private:
     void retranslateUi();  // 更新界面文字
@@ -70,6 +72,7 @@ private slots:
     void onSettingsVoiceOutputChanged(bool enabled);
     void onAvatarEmotionChanged(const QString &emotion);  // 情绪变化时更新overlay标签
     void onAvatarMoodChanged(double mood);  // mood变化时更新overlay标签
+    void onVideoOverlayTimerTick();  // 视频模式下定期刷新overlay层级
 
 private:
     void setupUI();
@@ -116,6 +119,8 @@ private:
     QFrame *m_streamingBubble;      // 流式消息气泡
     QLabel *m_streamingTextLabel;   // 流式消息文本标签
     QString m_lastReplyText;        // 最后一条回复文本（用于TTS）
+
+    QTimer *m_videoOverlayTimer;    // 视频模式下定期刷新overlay层级
 };
 
 #endif // GIRLFRIENDWINDOW_H

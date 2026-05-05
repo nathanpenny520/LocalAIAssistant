@@ -28,10 +28,12 @@ public:
 
     QString id() const { return m_id; }
     QString currentEmotion() const { return m_currentEmotion; }
+    double mood() const { return m_mood; }  // 获取心情值
     QVector<GirlfriendMessage> messages() const { return m_messages; }
 
     void addMessage(const QString &role, const QString &content, const QString &emotion = "default");
     void setCurrentEmotion(const QString &emotion);
+    void setMood(double mood);  // 设置心情值
     void clearMessages();
 
     // 持久化
@@ -44,6 +46,7 @@ public:
 private:
     QString m_id;
     QString m_currentEmotion;
+    double m_mood = 0.6;  // 心情值 (0.0-1.0)，默认0.6
     QVector<GirlfriendMessage> m_messages;
 
     QJsonObject toJson() const;

@@ -984,21 +984,55 @@ void VoiceManager::speak(const QString &text)
 void VoiceManager::stopSpeaking()
 {
     if (!m_isSpeaking) {
+        // 即使不在 speaking 状态，也要清理可能的残留资源
+        if (m_mediaPlayer) {
+            m_mediaPlayer->stop();
+            m_mediaPlayer->setSource(QUrl());  // 清空源，释放缓冲区
+        }
+        // 清理临时文件
+        if (m_ttsTempFile) {
+            m_ttsTempFile->remove();
+            m_ttsTempFile->deleteLater();
+            m_ttsTempFile = nullptr;
+        }
+        // 清空音频缓冲区
+        m_ttsAudioBuffer.clear();
         return;
     }
 
     m_isSpeaking = false;
 
+    // 立刻停止播放器
     if (m_mediaPlayer) {
         m_mediaPlayer->stop();
+        // 等待播放器停止完成（阻塞主线程一小段时间）
+        QCoreApplication::processEvents();
+        // 清空源，释放缓冲区
+        m_mediaPlayer->setSource(QUrl());
     }
 
+    // 关闭 WebSocket
     if (m_ttsWebSocket && m_ttsConnected) {
         m_ttsWebSocket->close();
     }
 
+    // 清理临时文件
+    if (m_ttsTempFile) {
+        m_ttsTempFile->remove();
+        m_ttsTempFile->deleteLater();
+        m_ttsTempFile = nullptr;
+    }
+
+    // 清空音频缓冲区
+    m_ttsAudioBuffer.clear();
+
+    // 处理事件队列，确保清理完成
+    QCoreApplication::processEvents();
+
     emit speakingFinished();
     emit statusChanged(GTr::voiceStopped());
+
+    qDebug() << "VoiceManager: Audio completely cleared and resources released";
 }
 
 void VoiceManager::onTtsConnected()

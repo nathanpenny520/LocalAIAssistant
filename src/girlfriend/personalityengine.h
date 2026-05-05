@@ -32,8 +32,9 @@ public:
 
     // 情绪值系统 (0.0 = 很差, 1.0 = 很好)
     double mood() const { return m_mood; }
+    void setMood(double mood) { m_mood = qBound(0.0, mood, 1.0); emit moodChanged(m_mood); }
     void updateMood(const QString &userInput);
-    void resetMood() { m_mood = 0.6; }
+    void resetMood() { m_mood = 0.6; emit moodChanged(m_mood); }  // 触发信号更新UI
 
 signals:
     void emotionDetected(const QString &emotion);

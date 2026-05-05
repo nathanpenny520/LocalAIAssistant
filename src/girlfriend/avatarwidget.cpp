@@ -144,6 +144,13 @@ void AvatarWidget::loadAvatarImages()
 
 void AvatarWidget::setEmotion(const QString &emotion)
 {
+    // 状态锁检查：如果锁定，暂存情绪但不立即切换
+    if (m_stateLocked) {
+        m_pendingEmotion = emotion;
+        qDebug() << "AvatarWidget: State locked, pending emotion:" << emotion;
+        return;
+    }
+
     if (m_currentEmotion != emotion) {
         m_currentEmotion = emotion;
         updateDisplay();
@@ -151,10 +158,21 @@ void AvatarWidget::setEmotion(const QString &emotion)
     }
 }
 
+QString AvatarWidget::currentDisplayEmotion() const
+{
+    // 返回当前实际显示的情绪（考虑 speaking 状态）
+    return m_isSpeaking ? "speaking" : m_currentEmotion;
+}
+
 void AvatarWidget::setSpeaking(bool speaking)
 {
     m_isSpeaking = speaking;
     updateDisplay();
+
+    // 当 speaking 状态改变时，触发情绪变化信号（让 overlay 更新）
+    // 使用 displayEmotion（实际显示的情绪），而不是 m_currentEmotion
+    QString displayEmotion = m_isSpeaking ? "speaking" : m_currentEmotion;
+    emit emotionChanged(displayEmotion);
 }
 
 void AvatarWidget::setMood(double mood)
@@ -166,9 +184,29 @@ void AvatarWidget::setMood(double mood)
 void AvatarWidget::setAvatarLevel(AvatarLevel level)
 {
     if (m_currentLevel != level) {
+        // 停止当前视频播放（任何等级切换都要停止）
+        stopVideo();
+
+        // 切换等级时重置 speaking 状态（如果没有在播放 TTS）
+        // 如果正在播放 TTS，GirlfriendWindow 会处理状态
+
         m_currentLevel = level;
         loadAvatarImages();
+
+        // 切换到 Level 3 时，确保视频音频输出正确设置
+        if (level == AvatarLevel::Level3_Hotter) {
+            // 重新设置音频输出（不使用 msleep，避免阻塞）
+            m_videoPlayer->setAudioOutput(m_audioOutput);
+            // 应用当前的视频声音设置
+            m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
+            qDebug() << "AvatarWidget: Level 3 audio output set, muted:"
+                     << !GirlfriendSettings::instance()->videoSoundEnabled();
+        }
+
         updateDisplay();
+
+        qDebug() << "AvatarWidget: Avatar level changed to" << static_cast<int>(level)
+                 << ", pending emotion preserved:" << m_pendingEmotion;
     }
 }
 
@@ -381,13 +419,19 @@ void AvatarWidget::playVideo(const QString &emotion)
         }
     }
 
+    // 每次播放时确保音频输出正确
+    m_videoPlayer->setAudioOutput(m_audioOutput);
+    m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
+
     // Only change video if emotion changed
     if (m_currentVideoEmotion != emotion) {
         m_currentVideoEmotion = emotion;
         m_videoPlayer->setSource(QUrl::fromLocalFile(videoPath));
         m_videoPlayer->setLoops(QMediaPlayer::Infinite);  // Auto-loop
         m_videoPlayer->play();
-        qDebug() << "AvatarWidget: Playing video for emotion:" << emotion << "from" << videoPath;
+        qDebug() << "AvatarWidget: Playing video for emotion:" << emotion
+                 << "from" << videoPath
+                 << "audio muted:" << m_audioOutput->isMuted();
     }
 }
 
@@ -397,4 +441,33 @@ void AvatarWidget::stopVideo()
     m_videoWidget->hide();
     m_avatarLabel->show();
     m_currentVideoEmotion.clear();
+}
+
+void AvatarWidget::lockState()
+{
+    m_stateLocked = true;
+    m_pendingEmotion.clear();
+    qDebug() << "AvatarWidget: State locked";
+}
+
+void AvatarWidget::unlockState()
+{
+    m_stateLocked = false;
+    qDebug() << "AvatarWidget: State unlocked";
+
+    // 应用暂存的情绪
+    if (!m_pendingEmotion.isEmpty()) {
+        QString emotion = m_pendingEmotion;
+        m_pendingEmotion.clear();
+        // 直接设置，不再检查锁
+        if (m_currentEmotion != emotion) {
+            m_currentEmotion = emotion;
+            updateDisplay();
+            emit emotionChanged(emotion);
+        }
+        qDebug() << "AvatarWidget: Applied pending emotion:" << emotion;
+    } else {
+        // 没有暂存情绪时，触发当前情绪的信号（可能是 speaking 后恢复）
+        emit emotionChanged(m_currentEmotion);
+    }
 }

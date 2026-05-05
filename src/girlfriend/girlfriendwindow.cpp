@@ -18,6 +18,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QCoreApplication>
 
 // 流式思考过滤器 - 逐字符处理
 // 支持三种思考标签格式: <thinking>, <reasoning>, <think>
@@ -136,6 +137,7 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     , m_overlayMoodPercentLabel(nullptr)
     , m_currentOverlayEmotion("default")
     , m_currentOverlayMood(0.6)
+    , m_videoOverlayTimer(new QTimer(this))
 {
     // 设置为独立顶层窗口，有标题栏和关闭按钮
     setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinMaxButtonsHint);
@@ -145,10 +147,60 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     // Load all sessions
     GirlfriendSessionManager::instance()->loadAll();
 
+    // === 先连接信号，再加载会话数据 ===
+
+    // 连接情绪变化信号 - overlay标签（必须在 loadSessionMessages 之前）
+    connect(m_avatarWidget, &AvatarWidget::emotionChanged,
+            this, &GirlfriendWindow::onAvatarEmotionChanged);
+
+    // 连接心情变化信号
+    connect(m_personalityEngine, &PersonalityEngine::moodChanged,
+            m_avatarWidget, &AvatarWidget::setMood);
+    connect(m_personalityEngine, &PersonalityEngine::moodChanged,
+            this, &GirlfriendWindow::onAvatarMoodChanged);
+
+    // 心情变化时保存到会话
+    connect(m_personalityEngine, &PersonalityEngine::moodChanged, this, [this](double mood) {
+        GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+        if (session) {
+            session->setMood(mood);
+        }
+    });
+
+    // 连接设置变化信号
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
+            this, &GirlfriendWindow::onSettingsAvatarLevelChanged);
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
+            this, &GirlfriendWindow::onSettingsVideoSoundChanged);
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::voiceOutputChanged,
+            this, &GirlfriendWindow::onSettingsVoiceOutputChanged);
+
+    // === 加载会话数据（信号已连接，会自动触发 overlay 更新）===
+
     // Display history messages from current session
     loadSessionMessages();
 
-    // 连接信号
+    // 从会话加载心情值，同步到 PersonalityEngine
+    GirlfriendSession* initialSession = GirlfriendSessionManager::instance()->currentSessionData();
+    if (initialSession) {
+        // 设置心情值（会触发 moodChanged 信号更新 overlay）
+        double sessionMood = initialSession->mood();
+        m_currentOverlayMood = sessionMood;  // 立即设置 overlay 值
+        m_personalityEngine->setMood(sessionMood);
+
+        // 设置情绪值（loadSessionMessages 已经设置了，这里确保 overlay 同步）
+        QString sessionEmotion = initialSession->currentEmotion();
+        m_currentOverlayEmotion = sessionEmotion;
+
+        // 初始化时调用 updateOverlayLabels 确保 UI 正确
+        updateOverlayLabels();
+
+        qDebug() << "GirlfriendWindow: Loaded from session - mood:" << sessionMood
+                 << ", emotion:" << sessionEmotion;
+    }
+
+    // === 连接其他信号 ===
+
     connect(m_sendButton, &QPushButton::clicked, this, &GirlfriendWindow::onSendClicked);
     connect(m_voiceButton, &QPushButton::clicked, this, &GirlfriendWindow::onVoiceClicked);
     connect(m_settingsButton, &QPushButton::clicked, this, &GirlfriendWindow::onSettingsClicked);
@@ -171,27 +223,6 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
         retranslateUi();
     });
 
-    // 连接心情变化信号
-    connect(m_personalityEngine, &PersonalityEngine::moodChanged,
-            m_avatarWidget, &AvatarWidget::setMood);
-    connect(m_personalityEngine, &PersonalityEngine::moodChanged,
-            this, &GirlfriendWindow::onAvatarMoodChanged);
-    m_avatarWidget->setMood(m_personalityEngine->mood());
-    m_currentOverlayMood = m_personalityEngine->mood();
-
-    // 连接情绪变化信号 - overlay标签
-    connect(m_avatarWidget, &AvatarWidget::emotionChanged,
-            this, &GirlfriendWindow::onAvatarEmotionChanged);
-    m_currentOverlayEmotion = m_avatarWidget->currentEmotion();
-
-    // 连接设置变化信号
-    connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
-            this, &GirlfriendWindow::onSettingsAvatarLevelChanged);
-    connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
-            this, &GirlfriendWindow::onSettingsVideoSoundChanged);
-    connect(GirlfriendSettings::instance(), &GirlfriendSettings::voiceOutputChanged,
-            this, &GirlfriendWindow::onSettingsVoiceOutputChanged);
-
     // 添加 Ctrl+G 快捷键关闭窗口（与 MainWindow 打开快捷键一致）
     QShortcut *closeShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this);
     closeShortcut->setContext(Qt::WindowShortcut);  // 窗口激活时生效
@@ -213,15 +244,30 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     setWindowTitle(GTr::windowTitle());
     // 设置9:16比例，适合Level 2图片完整显示
     resize(360, 640);  // 9:16比例
+
+    // 视频模式下定期刷新 overlay 层级的 timer
+    connect(m_videoOverlayTimer, &QTimer::timeout, this, &GirlfriendWindow::onVideoOverlayTimerTick);
+    // 如果初始就是视频模式，启动 timer
+    if (GirlfriendSettings::instance()->avatarLevel() == AvatarLevel::Level3_Hotter) {
+        m_videoOverlayTimer->start(200);  // 每200ms刷新一次
+    }
 }
 
 GirlfriendWindow::~GirlfriendWindow()
 {
+    // 停止 timer
+    if (m_videoOverlayTimer) {
+        m_videoOverlayTimer->stop();
+    }
     GirlfriendSessionManager::instance()->saveAll();
 }
 
 void GirlfriendWindow::closeEvent(QCloseEvent *event)
 {
+    // 停止 timer
+    if (m_videoOverlayTimer) {
+        m_videoOverlayTimer->stop();
+    }
     GirlfriendSessionManager::instance()->saveAll();
     event->accept();
 }
@@ -274,6 +320,42 @@ void GirlfriendWindow::changeEvent(QEvent *event)
         retranslateUi();
     }
     QWidget::changeEvent(event);
+}
+
+void GirlfriendWindow::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+
+    // 窗口每次显示时更新 overlay 状态
+    updateOverlayVisibility();
+
+    // 确保所有 overlay widgets 都在最上层并可见
+    if (m_overlayEmotionLabel) {
+        m_overlayEmotionLabel->raise();
+    }
+    if (m_overlayMoodBarLabel) {
+        m_overlayMoodBarLabel->raise();
+    }
+    if (m_overlayMoodPercentLabel) {
+        m_overlayMoodPercentLabel->raise();
+    }
+    if (m_settingsButton) {
+        m_settingsButton->raise();
+    }
+    QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
+    if (bottomOverlay) {
+        bottomOverlay->raise();
+    }
+
+    // 更新情绪和心情标签显示（从会话恢复）
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    if (session) {
+        m_currentOverlayEmotion = session->currentEmotion();
+        m_currentOverlayMood = session->mood();
+        updateOverlayLabels();
+    }
+
+    qDebug() << "GirlfriendWindow: Show event - overlay visibility updated";
 }
 
 void GirlfriendWindow::retranslateUi()
@@ -568,7 +650,11 @@ void GirlfriendWindow::onSendClicked()
     m_thinkFilterBuffer.clear();  // 重置过滤器缓冲区
     m_streamingBubble = nullptr;  // 清除旧的流式气泡
     m_streamingTextLabel = nullptr;
-    m_avatarWidget->setSpeaking(true);  // 开始说话动画
+
+    // 锁定状态并设置 speaking 模式 - 从发送到 TTS 播放完成全程保持
+    m_avatarWidget->lockState();
+    m_avatarWidget->setSpeaking(true);
+    m_avatarWidget->setEmotion("speaking");  // 立即显示 speaking 表情
 
     // 发送请求
     m_networkManager->sendChatRequestWithContext(messages);
@@ -778,9 +864,11 @@ void GirlfriendWindow::onToggleVoiceOutput()
     GirlfriendSettings::instance()->setVoiceOutputEnabled(enabled);
     qDebug() << "GirlfriendWindow: Voice output toggled to" << enabled;
 
-    // 如果正在播放语音，立即停止
+    // 如果关闭语音输出且正在播放，立即停止并解锁状态
     if (!enabled && m_voiceManager->isSpeaking()) {
         m_voiceManager->stopSpeaking();
+        m_avatarWidget->unlockState();
+        qDebug() << "GirlfriendWindow: Stopped voice and unlocked state";
     }
 }
 
@@ -795,18 +883,37 @@ void GirlfriendWindow::onClearClicked()
     );
 
     if (reply == QMessageBox::Yes) {
+        // 清空历史前停止语音并解锁状态
+        if (m_voiceManager->isSpeaking()) {
+            m_voiceManager->stopSpeaking();
+        }
+        if (m_isStreaming) {
+            m_isStreaming = false;
+        }
+        m_avatarWidget->unlockState();
+
         GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
         if (session) {
             // 清空会话历史
             session->clearMessages();
+            // 重置心情值为默认值 60%
+            session->setMood(0.6);
+            session->setCurrentEmotion("default");
             GirlfriendSessionManager::instance()->saveAll();
         }
 
         // 清空界面上的消息气泡
         clearChatUI();
 
-        // 重置状态
+        // 重置情绪和心情状态
         m_avatarWidget->setEmotion("default");
+        m_personalityEngine->setMood(0.6);
+        m_avatarWidget->setMood(0.6);
+        m_currentOverlayEmotion = "default";
+        m_currentOverlayMood = 0.6;
+        updateOverlayLabels();
+
+        qDebug() << "GirlfriendWindow: History cleared, emotion and mood reset to default";
     }
 }
 
@@ -881,9 +988,9 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
         qDebug() << "GirlfriendWindow: Applied memory updates via fallback (regex)";
     }
 
-    // 更新表情
+    // 更新表情（暂存，等 TTS 结束后应用）
     m_avatarWidget->setEmotion(emotionResult.emotion);
-    m_avatarWidget->setSpeaking(false);
+    m_avatarWidget->setSpeaking(false);  // 流式输出结束，但 TTS 可能还在播放
 
     setInputEnabled(true);
     GirlfriendSessionManager::instance()->saveAll();
@@ -955,8 +1062,17 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
         qDebug() << "GirlfriendWindow: TTS clean text:" << cleanText;
 
         if (!cleanText.isEmpty()) {
+            // TTS 播放期间保持 speaking 状态
+            m_avatarWidget->setSpeaking(true);
+            m_avatarWidget->setEmotion("speaking");
             m_voiceManager->speak(cleanText);
+        } else {
+            // 无 TTS 内容，直接解锁并恢复
+            m_avatarWidget->unlockState();
         }
+    } else {
+        // 语音输出未启用，直接解锁并恢复
+        m_avatarWidget->unlockState();
     }
 }
 
@@ -964,6 +1080,7 @@ void GirlfriendWindow::onNetworkError(const QString &error)
 {
     m_isStreaming = false;
     m_avatarWidget->setSpeaking(false);
+    m_avatarWidget->unlockState();  // 解锁状态
 
     // 移除流式气泡
     if (m_streamingBubble) {
@@ -1017,23 +1134,41 @@ void GirlfriendWindow::onAsrError(const QString &error)
 
 void GirlfriendWindow::onSpeakingStarted()
 {
-    // TTS开始播放，切换到speaking表情
-    m_avatarWidget->setEmotion("speaking");
+    // TTS 开始播放 - 状态已锁定，speaking 已设置
+    // 这里只需要确保 speaking 状态（防止意外解除）
     m_avatarWidget->setSpeaking(true);
+    qDebug() << "GirlfriendWindow: TTS speaking started";
 }
 
 void GirlfriendWindow::onSpeakingFinished()
 {
-    // TTS播放结束，恢复表情
+    // TTS播放结束，解除 speaking 状态
     m_avatarWidget->setSpeaking(false);
 
-    // 恢复到上次识别的情绪或默认
-    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
-    QString lastEmotion = session ? session->currentEmotion() : QString();
-    if (lastEmotion.isEmpty() || lastEmotion == "speaking") {
-        lastEmotion = "default";
+    // 只有在当前等级下才解锁并恢复情绪
+    // 如果等级已经切换，情绪已在 onAvatarLevelChanged 中恢复
+    AvatarLevel currentSettingsLevel = GirlfriendSettings::instance()->avatarLevel();
+    AvatarLevel currentWidgetLevel = m_avatarWidget->currentLevel();
+
+    if (currentSettingsLevel == currentWidgetLevel) {
+        // 等级未切换，正常解锁并恢复情绪
+        m_avatarWidget->unlockState();
+
+        // 获取会话中保存的情绪并恢复
+        GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+        if (session) {
+            QString sessionEmotion = session->currentEmotion();
+            if (!sessionEmotion.isEmpty() && sessionEmotion != "speaking") {
+                // 设置回会话中保存的情绪（如果不同于当前）
+                m_avatarWidget->setEmotion(sessionEmotion);
+                qDebug() << "GirlfriendWindow: TTS finished, emotion restored to:" << sessionEmotion;
+            }
+        }
+    } else {
+        // 等级已切换，情绪已在切换时恢复，只解锁
+        m_avatarWidget->unlockState();
+        qDebug() << "GirlfriendWindow: TTS finished after level change, state unlocked";
     }
-    m_avatarWidget->setEmotion(lastEmotion);
 }
 
 void GirlfriendWindow::onVoiceStatusChanged(const QString &status)
@@ -1052,6 +1187,15 @@ void GirlfriendWindow::onSessionChanged(int index)
     QString currentId = GirlfriendSessionManager::instance()->currentSessionId();
 
     if (sessionId != currentId) {
+        // 切换会话前停止语音并解锁状态
+        if (m_voiceManager->isSpeaking()) {
+            m_voiceManager->stopSpeaking();
+        }
+        if (m_isStreaming) {
+            m_isStreaming = false;
+        }
+        m_avatarWidget->unlockState();
+
         // Save current session before switching
         GirlfriendSessionManager::instance()->saveAll();
 
@@ -1061,10 +1205,16 @@ void GirlfriendWindow::onSessionChanged(int index)
             clearChatUI();
             loadSessionMessages();
 
-            // Update avatar emotion
+            // Update avatar emotion and mood from new session
             GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
             if (session) {
                 m_avatarWidget->setEmotion(session->currentEmotion());
+                // 加载新会话的心情值
+                double sessionMood = session->mood();
+                m_personalityEngine->setMood(sessionMood);
+                m_avatarWidget->setMood(sessionMood);
+                m_currentOverlayMood = sessionMood;
+                qDebug() << "GirlfriendWindow: Loaded mood from new session:" << sessionMood;
             }
 
             qDebug() << "GirlfriendWindow: Switched to session" << sessionId;
@@ -1074,6 +1224,15 @@ void GirlfriendWindow::onSessionChanged(int index)
 
 void GirlfriendWindow::onNewSessionClicked()
 {
+    // 创建新会话前停止语音并解锁状态
+    if (m_voiceManager->isSpeaking()) {
+        m_voiceManager->stopSpeaking();
+    }
+    if (m_isStreaming) {
+        m_isStreaming = false;
+    }
+    m_avatarWidget->unlockState();
+
     // Create new session
     QString newSessionId = GirlfriendSessionManager::instance()->createNewSession();
 
@@ -1081,9 +1240,13 @@ void GirlfriendWindow::onNewSessionClicked()
     GirlfriendSessionManager::instance()->saveAll();
     GirlfriendSessionManager::instance()->switchSession(newSessionId);
 
-    // Clear chat UI and reset emotion
+    // Clear chat UI and reset emotion and mood
     clearChatUI();
     m_avatarWidget->setEmotion("default");
+    m_currentOverlayEmotion = "default";
+    // 新会话使用默认心情值（resetMood 会触发 moodChanged 信号更新 UI）
+    m_personalityEngine->resetMood();
+    updateOverlayLabels();
 
     qDebug() << "GirlfriendWindow: Created and switched to new session" << newSessionId;
 }
@@ -1199,10 +1362,100 @@ void GirlfriendWindow::onDeleteSessionClicked()
 
 void GirlfriendWindow::onAvatarLevelChanged(int level)
 {
-    GirlfriendSettings::instance()->setAvatarLevel(static_cast<AvatarLevel>(level - 1));
-    m_avatarWidget->setAvatarLevel(static_cast<AvatarLevel>(level - 1));
-    updateOverlayVisibility();  // 根据等级更新overlay可见性
-    qDebug() << "GirlfriendWindow: Avatar level changed to" << level;
+    AvatarLevel newLevel = static_cast<AvatarLevel>(level - 1);
+    AvatarLevel oldLevel = GirlfriendSettings::instance()->avatarLevel();
+
+    bool wasSpeaking = m_voiceManager->isSpeaking();
+    bool wasStreaming = m_isStreaming;
+
+    // 保存当前情绪，用于切换后恢复或播放
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    QString currentEmotion = session ? session->currentEmotion() : "default";
+    if (currentEmotion.isEmpty() || currentEmotion == "speaking") {
+        currentEmotion = "default";
+    }
+
+    // === 根据切换方向处理不同的逻辑 ===
+
+    // 切换到视频模式 (Level 3): 立刻停止 TTS，播放视频音频
+    if (newLevel == AvatarLevel::Level3_Hotter) {
+        // 立刻停止 TTS 并清理音频缓冲
+        if (wasSpeaking) {
+            m_voiceManager->stopSpeaking();
+            // 解锁状态，让视频可以播放
+            m_avatarWidget->unlockState();
+
+            // 等待音频清理完成（处理事件队列）
+            QCoreApplication::processEvents();
+
+            qDebug() << "GirlfriendWindow: TTS stopped and audio cleared before video mode";
+        } else {
+            m_avatarWidget->unlockState();
+        }
+
+        // 如果正在流式输出，取消请求
+        if (wasStreaming) {
+            m_isStreaming = false;
+            m_networkManager->abortCurrentRequest();
+            if (m_streamingBubble) {
+                m_chatLayout->removeWidget(m_streamingBubble);
+                m_streamingBubble->deleteLater();
+                m_streamingBubble = nullptr;
+                m_streamingTextLabel = nullptr;
+            }
+            setInputEnabled(true);
+        }
+
+        // 切换到视频模式
+        GirlfriendSettings::instance()->setAvatarLevel(newLevel);
+        m_avatarWidget->setAvatarLevel(newLevel);
+
+        // 设置当前情绪（视频会播放对应的情绪视频）
+        m_avatarWidget->setEmotion(currentEmotion);
+
+        // 启动 timer 定期刷新 overlay 层级
+        m_videoOverlayTimer->start(200);
+    }
+    // 切换到图片模式 (Level 1/2): 继续播放 TTS 直至完成
+    else {
+        // 切换到图片模式时，不停止 TTS，让它继续播放直至完成
+        // TTS 播放期间保持 speaking 状态
+        // TTS 完成后 onSpeakingFinished 会解锁状态并切换情绪
+
+        // 如果正在流式输出，取消请求
+        if (wasStreaming) {
+            m_isStreaming = false;
+            m_networkManager->abortCurrentRequest();
+            if (m_streamingBubble) {
+                m_chatLayout->removeWidget(m_streamingBubble);
+                m_streamingBubble->deleteLater();
+                m_streamingBubble = nullptr;
+                m_streamingTextLabel = nullptr;
+            }
+            setInputEnabled(true);
+        }
+
+        // 停止视频（如果是从 Level 3 切换过来）
+        GirlfriendSettings::instance()->setAvatarLevel(newLevel);
+        m_avatarWidget->setAvatarLevel(newLevel);
+
+        // 如果没有在播放 TTS，立即解锁并恢复情绪
+        if (!wasSpeaking) {
+            m_avatarWidget->unlockState();
+            m_avatarWidget->setEmotion(currentEmotion);
+        }
+        // 如果正在播放 TTS，不解锁，等 onSpeakingFinished 处理
+
+        // 停止 timer
+        m_videoOverlayTimer->stop();
+    }
+
+    updateOverlayVisibility();
+
+    qDebug() << "GirlfriendWindow: Avatar level changed to" << level
+             << "from" << static_cast<int>(oldLevel) + 1
+             << ", emotion:" << currentEmotion
+             << ", wasSpeaking:" << wasSpeaking;
 }
 
 void GirlfriendWindow::onMoodInfluenceChanged(int level)
@@ -1240,13 +1493,17 @@ void GirlfriendWindow::onSettingsVoiceOutputChanged(bool enabled)
 
 void GirlfriendWindow::onAvatarEmotionChanged(const QString &emotion)
 {
-    m_currentOverlayEmotion = emotion;
+    // 直接从 AvatarWidget 获取当前实际显示的情绪（确保严格同步）
+    // 信号传递的值可能因为状态锁等原因不准确
+    m_currentOverlayEmotion = m_avatarWidget->currentDisplayEmotion();
     updateOverlayLabels();
 }
 
 void GirlfriendWindow::onAvatarMoodChanged(double mood)
 {
+    // 直接使用信号传递的 mood 值（最准确）
     m_currentOverlayMood = mood;
+    qDebug() << "GirlfriendWindow: Mood changed to" << mood << "percent:" << static_cast<int>(mood * 100);
     updateOverlayLabels();
 }
 
@@ -1259,8 +1516,19 @@ void GirlfriendWindow::updateOverlayLabels()
     // 首先更新可见性
     updateOverlayVisibility();
 
-    // 如果标签被隐藏，不需要更新内容
-    if (!m_overlayEmotionLabel->isVisible()) {
+    AvatarLevel currentLevel = GirlfriendSettings::instance()->avatarLevel();
+
+    // 在图片模式下（Level 1/2），必须确保进度条正确显示
+    // 即使 isVisible() 返回 false（异常情况），也要强制显示
+    if (currentLevel != AvatarLevel::Level3_Hotter) {
+        // 强制确保标签可见
+        m_overlayEmotionLabel->show();
+        m_overlayMoodBarLabel->show();
+        m_overlayMoodPercentLabel->show();
+    }
+
+    // 如果是视频模式且标签被隐藏，不需要更新内容
+    if (currentLevel == AvatarLevel::Level3_Hotter && !m_overlayEmotionLabel->isVisible()) {
         return;
     }
 
@@ -1287,30 +1555,34 @@ void GirlfriendWindow::updateOverlayLabels()
     m_overlayEmotionLabel->adjustSize();
     m_overlayEmotionLabel->raise();
 
-    // 更新mood bar
+    // 更新mood bar - 使用固定px值确保正确渲染
     int percent = static_cast<int>(m_currentOverlayMood * 100);
+    int barWidth = static_cast<int>(m_currentOverlayMood * 50);  // 50px总宽度
+    if (barWidth < 2) barWidth = 2;  // 最小宽度2px确保可见
 
-    QString barColor;
-    if (m_currentOverlayMood > 0.7) {
-        barColor = "linear-gradient(90deg, #e91e63, #ff4081)";
-    } else if (m_currentOverlayMood >= 0.4) {
-        barColor = "#e91e63";
-    } else {
-        barColor = "#9e9e9e";
-    }
+    // 进度条部分：粉红色，空白部分：白色
+    QString barColor = "#e91e63";  // 粉红色（进度条部分）
+    QString bgColor = "#ffffff";   // 白色（空白部分）
 
+    // 使用固定px值，避免百分比渲染问题
+    // 使用table结构确保渲染正确
     QString barHtml = QString(
-        "<div style='background: #e0e0e0; border-radius: 3px; width: 50px; height: 6px;'>"
-        "<div style='background: %1; border-radius: 3px; width: %2px; height: 6px;'>"
-        "</div></div>"
-    ).arg(barColor).arg(static_cast<int>(m_currentOverlayMood * 50));
+        "<table border='0' cellpadding='0' cellspacing='0' width='50'>"
+        "<tr><td width='%1' bgcolor='%2' style='border-radius:3px;height:6px;'></td>"
+        "<td width='%3' bgcolor='%4' style='border-radius:3px;height:6px;'></td></tr>"
+        "</table>"
+    ).arg(barWidth).arg(barColor).arg(50 - barWidth).arg(bgColor);
 
     m_overlayMoodBarLabel->setText(barHtml);
     m_overlayMoodBarLabel->setTextFormat(Qt::RichText);
-    m_overlayMoodBarLabel->adjustSize();
+    m_overlayMoodBarLabel->setFixedWidth(50);  // 固定宽度50px
+    m_overlayMoodBarLabel->setFixedHeight(8);  // 设置固定高度确保可见
 
     m_overlayMoodPercentLabel->setText(QString("%1%").arg(percent));
     m_overlayMoodPercentLabel->adjustSize();
+
+    qDebug() << "updateOverlayLabels: mood=" << m_currentOverlayMood
+             << "percent=" << percent << "barWidth=" << barWidth;
 
     // 重新定位mood bar - 在情绪标签下方
     int emotionLabelHeight = m_overlayEmotionLabel->sizeHint().height();
@@ -1322,10 +1594,18 @@ void GirlfriendWindow::updateOverlayLabels()
 
 void GirlfriendWindow::updateOverlayVisibility()
 {
+    // 设置按钮始终可见（所有等级）
+    if (m_settingsButton) {
+        m_settingsButton->show();
+        m_settingsButton->raise();
+        m_settingsButton->move(width() - 40, 12);
+        m_settingsButton->repaint();
+    }
+
     AvatarLevel currentLevel = GirlfriendSettings::instance()->avatarLevel();
 
-    // Level 3 (视频模式): 只保留设置按钮，隐藏情绪标签、心情条和底部聊天区域
-    // 因为 QVideoWidget 使用原生窗口渲染，QWidget 无法覆盖
+    // Level 3 (视频模式): 隐藏情绪标签、心情条和底部聊天区域
+    // 设置按钮保持可见
     if (currentLevel == AvatarLevel::Level3_Hotter) {
         // 隐藏情绪标签和心情条
         if (m_overlayEmotionLabel) {
@@ -1337,18 +1617,13 @@ void GirlfriendWindow::updateOverlayVisibility()
         if (m_overlayMoodPercentLabel) {
             m_overlayMoodPercentLabel->hide();
         }
-        // 设置按钮保持可见（使用原生窗口属性）
-        if (m_settingsButton) {
-            m_settingsButton->show();
-            m_settingsButton->raise();
-        }
         // 隐藏底部聊天区域
         QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
         if (bottomOverlay) {
             bottomOverlay->hide();
         }
     } else {
-        // Level 1/2 (图片模式): 显示所有UI元素
+        // Level 1/2 (图片模式): 显示情绪标签、心情条和底部聊天区域
         if (m_overlayEmotionLabel) {
             m_overlayEmotionLabel->show();
         }
@@ -1357,10 +1632,6 @@ void GirlfriendWindow::updateOverlayVisibility()
         }
         if (m_overlayMoodPercentLabel) {
             m_overlayMoodPercentLabel->show();
-        }
-        if (m_settingsButton) {
-            m_settingsButton->show();
-            m_settingsButton->raise();
         }
         // 显示底部聊天区域
         QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
@@ -1400,4 +1671,16 @@ void GirlfriendWindow::clearChatUI()
     // Clear streaming bubble reference
     m_streamingBubble = nullptr;
     m_streamingTextLabel = nullptr;
+}
+
+void GirlfriendWindow::onVideoOverlayTimerTick()
+{
+    // 视频模式下定期刷新 overlay widgets 的层级，确保它们在视频之上可见
+    if (GirlfriendSettings::instance()->avatarLevel() == AvatarLevel::Level3_Hotter) {
+        // 设置按钮始终可见（视频模式下需要定期 raise）
+        if (m_settingsButton) {
+            m_settingsButton->raise();
+            m_settingsButton->repaint();
+        }
+    }
 }
