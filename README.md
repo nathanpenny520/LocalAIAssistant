@@ -6,9 +6,9 @@
 
 GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 
-![Demo](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-1-belle/demo.png)
+![Level 1 Demo](AIGirlfriend/level-1-belle/demo.png)
 
-![](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-2-hot/demo-hot.png)
+![Level 2 Demo](AIGirlfriend/level-2-hot/demo-hot.png)
 
 ## 功能特点
 

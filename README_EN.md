@@ -6,9 +6,9 @@ A cross-platform AI assistant desktop application based on Qt 6, supporting both
 
 Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 
-![Demo](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-1-belle/demo-en.png)
+![Level 1 Demo](AIGirlfriend/level-1-belle/demo-en.png)
 
-![](/Users/nathanpenny/Projects/locai/sourcecode-ai-assistant/AIGirlfriend/level-2-hot/demo-hot.png)
+![Level 2 Demo](AIGirlfriend/level-2-hot/demo-hot.png)
 
 ## Features
 
