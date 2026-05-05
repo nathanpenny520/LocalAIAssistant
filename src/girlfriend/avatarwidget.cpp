@@ -29,7 +29,7 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     m_videoWidget->setAttribute(Qt::WA_TranslucentBackground);
     m_videoWidget->setAttribute(Qt::WA_ShowWithoutActivating);
     m_videoWidget->setStyleSheet("background: transparent;");
-    m_videoWidget->setAspectRatioMode(Qt::IgnoreAspectRatio);
+    m_videoWidget->setAspectRatioMode(Qt::KeepAspectRatioByExpanding);
     m_videoWidget->hide();
 
     loadAvatarImages();
@@ -283,11 +283,7 @@ void AvatarWidget::updateDisplay()
             // Level 2: 使用KeepAspectRatio完整显示图片（窗口已设为9:16比例）
             QSize widgetSize = this->size();
 
-            Qt::AspectRatioMode aspectMode = Qt::KeepAspectRatioByExpanding;  // 默认填充
-            if (m_currentLevel == AvatarLevel::Level2_Hot) {
-                // Level 2: 保持比例完整显示，窗口已是9:16比例
-                aspectMode = Qt::KeepAspectRatio;
-            }
+            Qt::AspectRatioMode aspectMode = Qt::KeepAspectRatioByExpanding;  // 默认填充，居中裁剪
 
             QPixmap scaled = pixmap.scaled(
                 widgetSize,
