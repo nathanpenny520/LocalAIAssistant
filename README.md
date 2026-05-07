@@ -20,7 +20,7 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **会话管理** — 多会话切换、历史持久化
 - **多语言** — 简体中文 / English 切换
 - **主题切换** — 亮色 / 暗色 / 跟随系统
-- **跨平台** — macOS / Windows / Linux（暂未进行测试，可能不可用）
+- **跨平台** — macOS / Windows / Linux
 
 ### AI 女友模块 🎀
 - **独立窗口** — 沉浸式全屏头像背景，9:16 窗口比例
@@ -39,19 +39,36 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **视频声音开关** — Level 3 视频模式下可开启/关闭背景声音
 - **快捷键** — Command/Ctrl+G 快速打开/关闭女友窗口
 
+### 知识库模块 📚
+- **文档导入** — 支持 TXT/MD/PDF/DOCX 文件导入，自动切分和向量化
+- **语义检索** — 基于向量相似度的智能搜索
+- **嵌入模型** — 支持 ONNX Runtime 本地推理，无需联网
+- **HNSW 索引** — 高性能近似最近邻搜索
+- **异步导入** — 后台线程处理，不阻塞 UI 操作
+- **记忆增强** — 跨会话记忆提取、语义检索、上下文注入
+
+### 任务执行模块 🔧
+- **文件操作** — AI 可执行文件创建、修改等操作
+- **安全检查** — 操作前自动校验危险路径（系统目录保护）
+- **操作撤销** — 支持撤销已执行的文件操作
+- **用户确认** — 高风险操作需用户确认后执行
+
 > ⚠️ **平台兼容性说明**：
 > - **macOS**: 语音输入/输出完整支持 ✅
 > - **Windows**: 语音输出（TTS）正常，语音输入（ASR）暂不支持 ⚠️
-> - **Linux**: 作者没有Linux笔记本，暂未测试具体实现情况
+> - **Linux**: 语音输出（TTS）正常，语音输入（ASR）依赖系统音频设备，暂未充分测试
 
 ## 技术栈
 
 | 项目 | 技术 |
 |------|------|
 | 语言 | C++17 |
-| 框架 | [Qt 6.x](https://www.qt.io) (Widgets, Network, Multimedia, WebSockets) |
+| 框架 | [Qt 6.x](https://www.qt.io) (Widgets, Network, Multimedia, WebSockets, Sql, Concurrent) |
 | 构建 | [CMake](https://cmake.org) 3.16+ |
-| PDF解析 | [Poppler](https://poppler.freedesktop.org) 26.x（不安装则上传文件时不支持PDF解析） |
+| PDF解析 | [Poppler](https://poppler.freedesktop.org) 26.x（不安装则不支持PDF解析） |
+| DOCX解析 | [libzip](https://libzip.org) + [pugixml](https://pugixml.org)（不安装则不支持DOCX解析） |
+| 嵌入模型 | [ONNX Runtime](https://onnxruntime.ai) ≥1.16（可选，不安装使用占位向量） |
+| 向量检索 | [hnswlib](https://github.com/nmslib/hnswlib)（header-only，自动包含） |
 | 语音服务 | [讯飞开放平台](https://www.xfyun.cn) (WebSocket API) |
 
 ## 项目结构
@@ -63,6 +80,19 @@ sourcecode-ai-assistant/
 │   │   └── datamodels.h    # 数据模型定义
 │   ├── ui/             # GUI 界面（主窗口、设置对话框）
 │   ├── cli/            # CLI 命令行界面
+│   ├── tasks/          # 任务执行模块（文件操作、安全检查、撤销）
+│   │   ├── taskengine.cpp/h       # 任务执行引擎
+│   │   ├── fileoperations.cpp/h   # 文件操作执行器
+│   │   ├── safetychecker.cpp/h    # 安全检查器
+│   │   ├── operationplan.cpp/h    # 操作计划定义
+│   │   └── operationundo.cpp/h    # 操作撤销
+│   ├── knowledge/      # 知识管理模块（文本切分、向量化、检索、文档导入、记忆增强）
+│   │   ├── textchunker.cpp/h      # 文本切分器
+│   │   ├── embedder.cpp/h         # 文本转向量
+│   │   ├── vectordb.cpp/h         # 向量数据库
+│   │   ├── docimporter.cpp/h      # 文档导入器（TXT/MD/PDF/DOCX）
+│   │   ├── knowledgebase.cpp/h    # 知识库管理
+│   │   └── memoryenhancer.cpp/h   # 对话记忆增强器
 │   └── girlfriend/     # AI 女友模块
 │       ├── girlfriendwindow.cpp   # 女友窗口
 │       ├── girlfriendwindow.h     # 女友窗口头文件
@@ -92,7 +122,12 @@ sourcecode-ai-assistant/
 │   ├── setup.sh        # 首次克隆初始化脚本
 │   └── cli-wrapper.sh  # macOS CLI 启动脚本（检测 iTerm2）
 ├── translations/       # 国际化翻译文件
-├── resources/          # 资源文件（图标、配置）
+├── resources/          # 资源文件
+│   ├── icons/          # 应用图标（icns, ico, png）
+│   ├── models/         # ONNX 嵌入模型文件
+│   └── *.lproj/        # macOS 本地化字符串
+├── third_party/        # 第三方库
+│   └── hnswlib/        # 高性能向量检索库（header-only）
 ├── cmake/              # CMake 配置模板
 │   ├── Info.plist.in   # GUI .app bundle 配置
 │   └── CLI-Info.plist.in # CLI .app bundle 配置
@@ -117,7 +152,7 @@ sourcecode-ai-assistant/
 
 该脚本会：
 1. 自动复制 `.env.example` → `.env`（讯飞语音凭证模板）
-2. 检测构建依赖（CMake、编译器、Qt、Poppler）
+2. 检测构建依赖（CMake、编译器、Qt、Poppler、Readline、ONNX Runtime）
 3. 提示缺少的依赖及安装指南
 
 > **提示**：运行此脚本可快速了解当前环境是否满足编译要求。
@@ -135,9 +170,14 @@ sourcecode-ai-assistant/
 | Qt Multimedia | ⚠️ 需额外勾选 | Homebrew 自动安装 | Qt Maintenance Tool 勾选 | `qt6-multimedia-dev` |
 | Qt WebSockets | ⚠️ 需额外勾选 | Homebrew 自动安装 | Qt Maintenance Tool 勾选 | `qt6-websockets-dev` |
 | CMake | 3.16+ | `brew install cmake` | [官网下载](https://cmake.org/download/) | `sudo apt install cmake` |
-| Poppler | 26.x | `brew install poppler` | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io) | `sudo apt install poppler` |
+| Readline | — | 系统自带 | 不适用 | `sudo apt install libreadline-dev` |
+| Poppler | 26.x | `brew install poppler` | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io) | `sudo apt install libpoppler-cpp-dev` |
+| libzip | ≥1.5 (可选) | `brew install libzip` | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io) | `sudo apt install libzip-dev` |
+| pugixml | ≥1.11 (可选) | `brew install pugixml` | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io) | `sudo apt install libpugixml-dev` |
+| ONNX Runtime | ≥1.16 (可选) | `brew install onnxruntime` | [GitHub Release](https://github.com/microsoft/onnxruntime/releases) | `sudo apt install libonnxruntime-dev` |
 
 > **Qt 模块说明**：Multimedia 和 WebSockets 需在 Qt Maintenance Tool 中额外勾选（语音功能必需）
+> **可选依赖**：Readline（CLI 输入增强）、Poppler（PDF 解析）、libzip+pugixml（DOCX 解析）、ONNX Runtime（知识库嵌入模型），不安装不影响核心功能
 
 #### macOS 快速安装
 
@@ -149,7 +189,10 @@ xcode-select --install
 # 参考: https://brew.sh
 
 # 安装依赖（qt@6 已包含 Multimedia 和 WebSockets）
-brew install cmake qt@6 poppler
+brew install cmake qt@6 poppler libzip pugixml
+
+# 可选：安装 ONNX Runtime 启用真实嵌入推理
+brew install onnxruntime
 
 # 注：官网安装 Qt 时需在 Maintenance Tool 中额外勾选 Multimedia 和 WebSockets
 ```
@@ -158,7 +201,8 @@ brew install cmake qt@6 poppler
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev
+sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev libreadline-dev
+# 可选：sudo apt install libonnxruntime-dev
 ```
 
 #### Windows 快速安装
@@ -170,7 +214,7 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multi
 3. 安装 **[Qt 6](https://www.qt.io/download)**：
    - 选择 `Qt 6.x.x for MinGW 11.2 64-bit`（Qt 自带编译器，无需额外安装其他编译器如visual studio）
    - ⚠️ **重要**：在 Qt Maintenance Tool 中额外勾选 **Qt Multimedia** 和 **Qt WebSockets**（语音功能必需）
-4. 安装 **Poppler**：通过 [MSYS2](https://www.msys2.org) (`pacman -S poppler`) 或 [vcpkg](https://vcpkg.io)
+4. 安装 **Poppler / libzip / pugixml**（可选，用于 PDF/DOCX 解析）：通过 [MSYS2](https://www.msys2.org) (`pacman -S mingw-w64-x86_64-poppler mingw-w64-x86_64-libzip mingw-w64-x86_64-pugixml`) 或 [vcpkg](https://vcpkg.io)
 
 **方式二：MSVC（需 Visual Studio）**
 
@@ -179,7 +223,7 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multi
 3. 安装 **[Qt 6](https://www.qt.io/download)**：
    - 选择 `Qt 6.x.x for MSVC 2019 64-bit`
    - ⚠️ **重要**：在 Qt Maintenance Tool 中额外勾选 **Qt Multimedia** 和 **Qt WebSockets**（语音功能必需）
-4. 安装 **Poppler**：通过 [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)
+4. 安装 **Poppler / libzip / pugixml**（可选）：通过 [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)
 
 > **提示**：MinGW 版本更轻量，Qt 安装包自带编译器；MSVC 版本调试体验更好。
 
@@ -203,6 +247,12 @@ cd scripts
 # 编译 Debug 版本
 ./build.sh -d
 
+# 编译并打包为可分发的安装包
+./build.sh build -p
+
+# 单独打包已有构建产物
+./build.sh package
+
 # 指定 Qt 路径
 ./build.sh -q /path/to/qt
 
@@ -225,6 +275,28 @@ cd scripts
 | Linux | `build/LocalAIAssistant` | `build/LocalAIAssistant-CLI` |
 
 > **macOS CLI .app**：双击 `LocalAIAssistant-CLI.app` 会自动检测 iTerm2 并优先使用它打开，解决中文输入删除问题。
+
+### 打包分发
+
+使用 `package` 命令生成用户可直接安装的发行包：
+
+```bash
+# 构建 + 打包一步完成
+./build.sh build -p
+
+# 或单独打包已有构建产物
+./build.sh package
+```
+
+| 平台 | 格式 | 产出路径 |
+|------|------|----------|
+| macOS | **DMG**（拖入 Applications 即用） | `release/LocalAIAssistant-x.x.x-macOS.dmg` |
+| Windows | **ZIP**（解压即用） | `release/LocalAIAssistant-x.x.x-Windows.zip` |
+| Linux | **tar.gz**（含 install.sh） | `release/LocalAIAssistant-x.x.x-Linux.tar.gz` |
+
+> **注意**：当前为免费软件，未进行代码签名。macOS 用户首次打开需右键点击 App →「打开」来绕过 Gatekeeper。Windows 用户运行时 SmartScreen 会警告，点击「更多信息」→「仍要运行」即可。
+> 
+> Release 包**不包含**开发者的 `.env` 凭证文件，用户可通过 AI 女友窗口的设置菜单直接配置讯飞语音凭证，或参考 `.env.example` 模板创建自己的 `.env` 文件。
 
 ---
 
@@ -334,6 +406,14 @@ build\LocalAIAssistant-CLI.exe
 
 AI 女友模块提供语音交互体验，需要配置讯飞语音服务。
 
+### 方式一：应用内配置（推荐）
+
+打开 AI 女友窗口，点击右上角 ⚙️ 按钮，选择「配置语音...」，在弹出的对话框中填入讯飞凭证即可。配置自动保存，无需编辑文件。
+
+### 方式二：.env 文件配置（高级用户）
+
+在项目根目录或用户数据目录创建 `.env` 文件，应用会自动读取。
+
 ### 第一步：注册[讯飞开放平台](https://www.xfyun.cn)账号
 
 1. 访问讯飞开放平台：https://www.xfyun.cn
@@ -361,7 +441,9 @@ API Secret - API密钥密文
 
 ### 第四步：配置凭证
 
-在项目根目录创建 `.env` 文件：
+**推荐：应用内配置** — 在 AI 女友窗口的 ⚙️ 设置菜单中点击「配置语音...」，直接在界面填写凭证并保存。
+
+**备选：.env 文件** — 在项目根目录创建 `.env` 文件：
 
 ```bash
 # 复制模板
@@ -377,7 +459,7 @@ XFYUN_API_KEY=你的APIKey
 XFYUN_API_SECRET=你的APISecret
 ```
 
-> **安全提示**：`.env` 文件已在 `.gitignore` 中，不会被提交到 Git。
+> **安全提示**：`.env` 文件已在 `.gitignore` 中，不会被提交到 Git。Release 包中已移除开发者 `.env`，仅包含 `.env.example` 模板。
 
 ### TTS 音色选择
 
@@ -385,7 +467,8 @@ XFYUN_API_SECRET=你的APISecret
 
 | 音色参数 | 名称 | 特点 |
 |----------|------|------|
-| `x6_wumeinv_pro` | 妩媚姐姐 | 自然逼真、情感丰富 ⭐推荐，但需要自己添加 |
+| `x6_lingxiaoxuan_pro` | 凌小璇 | 超拟人女声 ⭐默认 |
+| `x6_wumeinv_pro` | 妩媚姐姐 | 自然逼真、情感丰富，但需要自己添加 |
 | `x6_lingfeiyi_pro` | 聆飞逸  | 青春温暖，男声 ⭐推荐，开通后自带 |
 
 ---
@@ -455,7 +538,7 @@ sudo pacman -S qt6-multimedia qt6-websockets
 
 ### Qt 版本要求
 
-- 最低版本：Qt 6.10.3
+- 最低版本：Qt 6.x
 - 推荐版本：Qt 6.10.3
 
 ### 编译器要求
@@ -469,15 +552,15 @@ sudo pacman -S qt6-multimedia qt6-websockets
 
 ## 数据存储位置
 
-AI 女友数据文件存储在用户数据目录的 `girlfriend/` 子目录中：
+所有数据文件存储在用户数据目录下：
 
-| 平台 | 数据目录完整路径 |
-|------|------------------|
-| macOS | `~/Library/Application Support/LocalAIAssistant/girlfriend/` |
-| Windows | `%APPDATA%\LocalAIAssistant\girlfriend\` |
-| Linux | `~/.local/share/LocalAIAssistant/girlfriend/` |
+| 平台 | 数据目录路径 |
+|------|-------------|
+| macOS | `~/Library/Application Support/LocalAIAssistant/` |
+| Windows | `%APPDATA%\LocalAIAssistant\` |
+| Linux | `~/.local/share/LocalAIAssistant/` |
 
-子目录中的文件：
+### AI 女友数据（`girlfriend/` 子目录）
 
 | 文件 | 内容 |
 |------|------|
@@ -485,6 +568,14 @@ AI 女友数据文件存储在用户数据目录的 `girlfriend/` 子目录中�
 | `sessions.json` | 会话元数据列表（ID、名称、创建时间） |
 | `session_<id>.json` | 单个会话数据（对话历史、情绪状态） |
 | `memory.md` | 用户记忆档案（基本信息、喜好、事件） |
+
+### 知识库数据（`knowledge/` 子目录）
+
+| 文件 | 内容 |
+|------|------|
+| `chunks.db` | SQLite 数据库，存储文档文本块和元数据 |
+| `vectors.bin` | 二进制向量索引文件 |
+| `memories.json` | 跨会话记忆条目（MemoryEnhancer 持久化） |
 
 ---
 
@@ -495,10 +586,10 @@ AI 女友数据文件存储在用户数据目录的 `girlfriend/` 子目录中�
 **问题**：点击语音按钮提示「语音未配置」
 
 **解决**：
-1. 检查 `.env` 文件是否存在且凭证正确
-2. 确认已在讯飞控制台开通「语音听写」和「超拟人语音合成」服务
-3. 确认 Qt Multimedia 和 WebSockets 模块已安装
-4. 重新编译应用
+1. 在 AI 女友窗口点击 ⚙️ →「配置语音...」填写讯飞凭证（推荐）
+2. 或检查 `.env` 文件是否存在且凭证正确
+3. 确认已在讯飞控制台开通「语音听写」和「超拟人语音合成」服务
+4. 确认 Qt Multimedia 和 WebSockets 模块已安装
 
 **Windows 语音输入问题**：
 

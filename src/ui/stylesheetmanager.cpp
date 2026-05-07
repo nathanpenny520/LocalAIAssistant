@@ -133,6 +133,21 @@ QString StyleSheetManager::lightStyleSheet()
             background-color: #f0f0f0;
             color: #999999;
         }
+        QPlainTextEdit {
+            padding: 10px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            background-color: #f9f9f9;
+            font-size: 14px;
+        }
+        QPlainTextEdit:focus {
+            border-color: #007aff;
+            background-color: #ffffff;
+        }
+        QPlainTextEdit[readOnly="true"] {
+            background-color: #f0f0f0;
+            color: #999999;
+        }
         QPushButton {
             padding: 8px 20px;
             border: none;
@@ -361,6 +376,22 @@ QString StyleSheetManager::darkStyleSheet()
             background-color: #333333;
         }
         QLineEdit:disabled {
+            background-color: #252525;
+            color: #666666;
+        }
+        QPlainTextEdit {
+            padding: 10px 16px;
+            border: 2px solid #3d3d3d;
+            border-radius: 20px;
+            background-color: #2d2d2d;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        QPlainTextEdit:focus {
+            border-color: #0a84ff;
+            background-color: #333333;
+        }
+        QPlainTextEdit[readOnly="true"] {
             background-color: #252525;
             color: #666666;
         }

@@ -1,11 +1,16 @@
+#pragma once
+
 #ifndef CLI_APPLICATION_H
 #define CLI_APPLICATION_H
 
 #include <QObject>
 #include <QCommandLineParser>
+#include "operationplan.h"
+#include "commandexecutor.h"
 
 class NetworkManager;
-class FileManager;  // 新增
+class FileManager;
+class TaskEngine;
 
 class CLIApplication : public QObject
 {
@@ -29,12 +34,18 @@ private:
     int handleConfigCommand(const QCommandLineParser &parser);
     void quit();
 
-    // 文件相关命令
-    void handleFileCommand(const QString &command);   // 新增
-    void listFiles();                                  // 新增
+    // Task execution
+    bool extractAndHandleTaskPlan(const QString &response);
+    void showPlanPreview(const OperationPlan &plan);
+    void executeConfirmedPlan();
+    QString formatCommandResult(int index, const CommandResult &result) const;
 
-    // 搜索相关命令
-    void searchMessages(const QString &keyword);       // 新增
+    // File commands
+    void handleFileCommand(const QString &command);
+    void listFiles();
+
+    // Search
+    void searchMessages(const QString &keyword);
 
 private slots:
     void onResponseReceived(const QString &response);
@@ -44,11 +55,16 @@ private slots:
 
 private:
     NetworkManager *m_networkManager;
-    FileManager *m_fileManager;  // 新增
+    FileManager *m_fileManager;
+    TaskEngine *m_taskEngine;
     bool m_running;
     bool m_interactiveMode;
     bool m_isStreaming;
     QString m_streamingContent;
+
+    // Pending task plan (awaiting confirmation)
+    OperationPlan m_pendingPlan;
+    bool m_hasPendingPlan = false;
 };
 
 #endif

@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef DATAMODELS_H
 #define DATAMODELS_H
 
@@ -32,6 +34,8 @@ struct ChatSession
     QString id;
     QString title;
     QVector<ChatMessage> messages;
+    bool pinned = false;
+    bool autoNamed = false;
 
     ChatSession() : id(QUuid::createUuid().toString(QUuid::WithoutBraces)) {}
     explicit ChatSession(const QString &sessionTitle) : id(QUuid::createUuid().toString(QUuid::WithoutBraces)), title(sessionTitle) {}

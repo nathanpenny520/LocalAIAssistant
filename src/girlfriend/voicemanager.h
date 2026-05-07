@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef VOICEMANAGER_H
 #define VOICEMANAGER_H
 
@@ -142,7 +144,7 @@ private:
     QString m_ttsUrl;
 
     // 语音设置
-    QString m_voiceType;          // 超拟人默认发音人 x6_wumeinv_pro
+    QString m_voiceType;          // 超拟人默认发音人 x6_lingxiaoxuan_pro
     bool m_enableVoiceOutput;     // 是否自动播放TTS
 
     // ASR WebSocket

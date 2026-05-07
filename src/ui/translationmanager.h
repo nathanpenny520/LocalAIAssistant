@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef TRANSLATIONMANAGER_H
 #define TRANSLATIONMANAGER_H
 

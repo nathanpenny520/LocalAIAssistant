@@ -1,3 +1,5 @@
+#pragma once
+
 /*
  * Simple Markdown to HTML Renderer
  * Supports: headers, bold, italic, lists, code blocks, blockquotes, tables

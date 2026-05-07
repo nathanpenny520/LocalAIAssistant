@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef GIRLFRIENDSESSION_H
 #define GIRLFRIENDSESSION_H
 

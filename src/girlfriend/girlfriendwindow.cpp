@@ -19,6 +19,10 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QCoreApplication>
+#include <QFormLayout>
+#include <QInputDialog>
+#include <QApplication>
+#include "../ui/stylesheetmanager.h"
 
 // 流式思考过滤器 - 逐字符处理
 // 支持三种思考标签格式: <thinking>, <reasoning>, <think>
@@ -137,7 +141,6 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     , m_overlayMoodPercentLabel(nullptr)
     , m_currentOverlayEmotion("default")
     , m_currentOverlayMood(0.6)
-    , m_videoOverlayTimer(new QTimer(this))
 {
     // 设置为独立顶层窗口，有标题栏和关闭按钮
     setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowMinMaxButtonsHint);
@@ -218,6 +221,11 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     connect(m_voiceManager, &VoiceManager::speakingFinished, this, &GirlfriendWindow::onSpeakingFinished);
     connect(m_voiceManager, &VoiceManager::statusChanged, this, &GirlfriendWindow::onVoiceStatusChanged);
 
+    // 连接主题变化信号
+    connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this, [this](StyleSheetManager::Theme) {
+        applyTheme();
+    });
+
     // 连接语言变化信号
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this, [this]() {
         retranslateUi();
@@ -245,29 +253,17 @@ GirlfriendWindow::GirlfriendWindow(QWidget *parent)
     // 设置9:16比例，适合Level 2图片完整显示
     resize(360, 640);  // 9:16比例
 
-    // 视频模式下定期刷新 overlay 层级的 timer
-    connect(m_videoOverlayTimer, &QTimer::timeout, this, &GirlfriendWindow::onVideoOverlayTimerTick);
-    // 如果初始就是视频模式，启动 timer
-    if (GirlfriendSettings::instance()->avatarLevel() == AvatarLevel::Level3_Hotter) {
-        m_videoOverlayTimer->start(200);  // 每200ms刷新一次
-    }
+    // 初始化主题
+    applyTheme();
 }
 
 GirlfriendWindow::~GirlfriendWindow()
 {
-    // 停止 timer
-    if (m_videoOverlayTimer) {
-        m_videoOverlayTimer->stop();
-    }
     GirlfriendSessionManager::instance()->saveAll();
 }
 
 void GirlfriendWindow::closeEvent(QCloseEvent *event)
 {
-    // 停止 timer
-    if (m_videoOverlayTimer) {
-        m_videoOverlayTimer->stop();
-    }
     GirlfriendSessionManager::instance()->saveAll();
     event->accept();
 }
@@ -314,10 +310,101 @@ void GirlfriendWindow::resizeEvent(QResizeEvent *event)
     update();
 }
 
+void GirlfriendWindow::applyTheme()
+{
+    // Detect theme from StyleSheetManager
+    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+    bool isDark = (theme == StyleSheetManager::DarkTheme);
+    // Also check system theme
+    if (theme == StyleSheetManager::SystemTheme) {
+        QPalette palette = QApplication::palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+        isDark = brightness < 128;
+    }
+    m_isDarkTheme = isDark;
+
+    // Derive theme colors
+    QString bg         = isDark ? QStringLiteral("#1e1e1e") : QStringLiteral("#ffffff");
+    QString surface    = isDark ? QStringLiteral("#2d2d2d") : QStringLiteral("#f5f5f5");
+    QString text       = isDark ? QStringLiteral("#e0e0e0") : QStringLiteral("#333333");
+    QString textInv    = isDark ? QStringLiteral("#333333") : QStringLiteral("#ffffff");
+    QString secondary  = isDark ? QStringLiteral("#999999") : QStringLiteral("#666666");
+    QString hintColor  = isDark ? QStringLiteral("#888888") : QStringLiteral("#999999");
+    QString border     = isDark ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc");
+    QString hoverBg    = isDark ? QStringLiteral("#3d3d3d") : QStringLiteral("#f0f0f0");
+    QString inputBg    = isDark ? QStringLiteral("rgba(233, 30, 99, 0.12)") : QStringLiteral("rgba(255, 182, 193, 0.5)");
+    QString userBubble = isDark ? QStringLiteral("rgba(255, 255, 255, 0.06)") : QStringLiteral("rgba(100, 100, 100, 0.1)");
+    QString gfBubble   = isDark ? QStringLiteral("rgba(233, 30, 99, 0.12)") : QStringLiteral("rgba(233, 30, 99, 0.15)");
+    QString pink       = QStringLiteral("#e91e63");
+    QString pinkHover  = QStringLiteral("#c2185b");
+    QString pinkDarker = QStringLiteral("#d81b60");
+    QString red        = QStringLiteral("#f44336");
+    QString redHover   = QStringLiteral("#d32f2f");
+    QString grayBg     = QStringLiteral("#9e9e9e");
+    QString cancelBg   = isDark ? QStringLiteral("#555555") : QStringLiteral("#555555");
+    QString cancelHov  = isDark ? QStringLiteral("#777777") : QStringLiteral("#777777");
+
+    // Base stylesheet for the window
+    setStyleSheet(QString());
+
+    // Re-apply stylesheets to all child widgets
+    // Settings button (top-right)
+    if (m_settingsButton) {
+        m_settingsButton->setStyleSheet(
+            QStringLiteral("QPushButton { background: %1; color: %2; border: none; "
+                           "font-size: 14px; border-radius: 14px; }"
+                           "QPushButton:hover { background: %3; }")
+                .arg(surface, text, hoverBg));
+    }
+
+    // Settings menu
+    if (m_settingsMenu) {
+        m_settingsMenu->setStyleSheet(
+            QStringLiteral("QMenu { background: %1; color: %2; border: 1px solid %3; border-radius: 8px; }"
+                           "QMenu::item { padding: 8px 20px; color: %2; }"
+                           "QMenu::item:selected { background: %4; color: white; }")
+                .arg(surface, text, border, pink));
+    }
+
+    // Voice button (normal state)
+    // Only reset voice button style if in normal state (🎤), not recording (🔴) or waiting (⏳)
+    if (m_voiceButton && m_voiceButton->text() == QStringLiteral("🎤")) {
+        if (m_voiceButton) {
+            m_voiceButton->setStyleSheet(
+                QStringLiteral("QPushButton { background: %1; color: white; border: none; "
+                               "padding: 10px 18px; border-radius: 10px; font-size: 13px; min-width: 70px; }"
+                               "QPushButton:hover { background: %2; }")
+                    .arg(pink, pinkHover));
+        }
+    }
+
+    // Input line
+    if (m_inputLine) {
+        m_inputLine->setStyleSheet(
+            QStringLiteral("QLineEdit { background: %1; border: none; color: %2; "
+                           "padding: 10px 14px; border-radius: 10px; font-size: 13px; }")
+                .arg(inputBg, text));
+    }
+
+    // Send button
+    if (m_sendButton) {
+        m_sendButton->setStyleSheet(
+            QStringLiteral("QPushButton { background: %1; color: white; border: none; "
+                           "padding: 10px 18px; border-radius: 10px; font-size: 13px; min-width: 70px; }"
+                           "QPushButton:hover { background: %2; }")
+                .arg(pink, pinkHover));
+    }
+
+    qDebug() << "GirlfriendWindow: Theme applied -" << (isDark ? "dark" : "light");
+}
+
 void GirlfriendWindow::changeEvent(QEvent *event)
 {
     if (event->type() == QEvent::LanguageChange) {
         retranslateUi();
+    } else if (event->type() == QEvent::StyleChange || event->type() == QEvent::PaletteChange) {
+        applyTheme();
     }
     QWidget::changeEvent(event);
 }
@@ -325,6 +412,9 @@ void GirlfriendWindow::changeEvent(QEvent *event)
 void GirlfriendWindow::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
+
+    // 窗口每次显示时重新应用主题
+    applyTheme();
 
     // 窗口每次显示时更新 overlay 状态
     updateOverlayVisibility();
@@ -423,10 +513,7 @@ void GirlfriendWindow::setupUI()
     // 隐藏AvatarWidget内部的情绪/mood标签，使用GirlfriendWindow的overlay标签
     m_avatarWidget->hideInternalLabels(true);
 
-    // 设置按钮 - 右上角，白色背景黑色文字
-    // 使用原生窗口属性，尝试在视频模式下也能显示
-    m_settingsButton->setAttribute(Qt::WA_NativeWindow);
-    m_settingsButton->setAttribute(Qt::WA_ShowWithoutActivating);
+    // 设置按钮 - 右上角
     m_settingsButton->setFixedSize(28, 28);
     m_settingsButton->setStyleSheet(
         "QPushButton { background: white; color: black; border: none; "
@@ -506,10 +593,14 @@ void GirlfriendWindow::addMessageBubble(const QString &role, const QString &cont
 
     QString style;
     if (role == "girlfriend") {
-        style = "QFrame { background: rgba(233, 30, 99, 0.15); border-radius: 12px; }";
+        style = m_isDarkTheme
+            ? QStringLiteral("QFrame { background: rgba(233, 30, 99, 0.12); border-radius: 12px; }")
+            : QStringLiteral("QFrame { background: rgba(233, 30, 99, 0.15); border-radius: 12px; }");
         bubble->setLayoutDirection(Qt::LeftToRight);
     } else {
-        style = "QFrame { background: rgba(100, 100, 100, 0.1); border-radius: 12px; }";
+        style = m_isDarkTheme
+            ? QStringLiteral("QFrame { background: rgba(255, 255, 255, 0.06); border-radius: 12px; }")
+            : QStringLiteral("QFrame { background: rgba(100, 100, 100, 0.1); border-radius: 12px; }");
         bubble->setLayoutDirection(Qt::RightToLeft);
     }
     bubble->setStyleSheet(style);
@@ -542,7 +633,9 @@ void GirlfriendWindow::updateStreamingBubble(const QString &content)
     if (!m_streamingBubble) {
         m_streamingBubble = new QFrame(m_chatContainer);
         m_streamingBubble->setStyleSheet(
-            "QFrame { background: rgba(233, 30, 99, 0.15); border-radius: 12px; }"
+            m_isDarkTheme
+                ? QStringLiteral("QFrame { background: rgba(233, 30, 99, 0.12); border-radius: 12px; }")
+                : QStringLiteral("QFrame { background: rgba(233, 30, 99, 0.15); border-radius: 12px; }")
         );
         m_streamingBubble->setLayoutDirection(Qt::LeftToRight);
 
@@ -623,8 +716,15 @@ void GirlfriendWindow::onSendClicked()
     // 更新心情值
     m_personalityEngine->updateMood(userInput);
 
-    // 重新构建系统提示（包含更新后的心情和时间感知）
-    QString systemPrompt = m_personalityEngine->buildSystemPrompt();
+    // 重置空闲情绪轮换计时器
+    m_avatarWidget->resetIdleTimer();
+
+    // 重新构建系统提示（包含更新后的心情、时间感知和用户记忆）
+    QString memoryContent = m_memoryManager->getMemoryContent();
+    // 仅当 memory.md 包含实际记录条目（"- xxx"）时才注入, 避免把空白模板发给 AI
+    if (!memoryContent.contains(QStringLiteral("- ")))
+        memoryContent.clear();
+    QString systemPrompt = m_personalityEngine->buildSystemPrompt(memoryContent);
     m_networkManager->setSystemPrompt(systemPrompt);
 
     // 显示用户消息
@@ -703,13 +803,16 @@ void GirlfriendWindow::onSettingsClicked()
     QWidgetAction *sessionComboAction = new QWidgetAction(m_settingsMenu);
     QComboBox *sessionComboBox = new QComboBox(m_settingsMenu);
     sessionComboBox->setStyleSheet(
-        "QComboBox { background: white; color: black; border: 1px solid #ccc; "
+        QStringLiteral("QComboBox { background: %1; color: %2; border: 1px solid %3; "
         "padding: 4px 8px; border-radius: 4px; min-width: 150px; }"
         "QComboBox::drop-down { border: none; }"
         "QComboBox::down-arrow { image: none; border-left: 4px solid transparent; "
-        "border-right: 4px solid transparent; border-top: 6px solid #666; margin-right: 8px; }"
-        "QComboBox QAbstractItemView { background: white; color: black; selection-background-color: #e91e63; }"
-    );
+        "border-right: 4px solid transparent; border-top: 6px solid %4; margin-right: 8px; }"
+        "QComboBox QAbstractItemView { background: %1; color: %2; selection-background-color: #e91e63; }")
+            .arg(m_isDarkTheme ? QStringLiteral("#2d2d2d") : QStringLiteral("white"),
+                 m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("black"),
+                 m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc"),
+                 m_isDarkTheme ? QStringLiteral("#999999") : QStringLiteral("#666666")));
 
     // Populate session dropdown
     QVector<SessionMetadata> sessions = GirlfriendSessionManager::instance()->sessions();
@@ -733,18 +836,18 @@ void GirlfriendWindow::onSettingsClicked()
     QAction *newSessionAction = m_settingsMenu->addAction("+ " + GTr::newSession());
     connect(newSessionAction, &QAction::triggered, this, &GirlfriendWindow::onNewSessionClicked);
 
-    // Delete session button (only if more than 1 session)
-    if (GirlfriendSessionManager::instance()->sessionCount() > 1) {
-        QWidgetAction *deleteAction = new QWidgetAction(m_settingsMenu);
-        QPushButton *deleteBtn = new QPushButton(GTr::deleteSession(), m_settingsMenu);
-        deleteBtn->setStyleSheet(
-            "QPushButton { background: #ff5252; color: white; padding: 4px 8px; "
+    // Manage Conversations button
+    {
+        QWidgetAction *manageAction = new QWidgetAction(m_settingsMenu);
+        QPushButton *manageBtn = new QPushButton(GTr::manageConversations(), m_settingsMenu);
+        manageBtn->setStyleSheet(
+            "QPushButton { background: #e91e63; color: white; padding: 4px 8px; "
             "border-radius: 4px; font-size: 11px; border: none; }"
-            "QPushButton:hover { background: #d32f2f; }"
+            "QPushButton:hover { background: #d81b60; }"
         );
-        connect(deleteBtn, &QPushButton::clicked, this, &GirlfriendWindow::onDeleteSessionClicked);
-        deleteAction->setDefaultWidget(deleteBtn);
-        m_settingsMenu->addAction(deleteAction);
+        connect(manageBtn, &QPushButton::clicked, this, &GirlfriendWindow::onManageConversations);
+        manageAction->setDefaultWidget(manageBtn);
+        m_settingsMenu->addAction(manageAction);
     }
 
     m_settingsMenu->addSeparator();
@@ -772,10 +875,13 @@ void GirlfriendWindow::onSettingsClicked()
         levelBtn->setChecked(static_cast<int>(currentLevel) == i - 1);
         levelBtn->setFixedSize(40, 28);
         levelBtn->setStyleSheet(
-            "QPushButton { background: white; color: black; border: 1px solid #ccc; border-radius: 4px; }"
+            QStringLiteral("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 4px; }"
             "QPushButton:checked { background: #e91e63; color: white; border: 1px solid #e91e63; }"
-            "QPushButton:hover { background: #f8bbd9; }"
-        );
+            "QPushButton:hover { background: %4; }")
+                .arg(m_isDarkTheme ? QStringLiteral("#2d2d2d") : QStringLiteral("white"),
+                     m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("black"),
+                     m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc"),
+                     m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#f8bbd9")));
         avatarLevelGroup->addButton(levelBtn, i);
         connect(levelBtn, &QPushButton::clicked, this, [this, i, levelBtn]() {
             levelBtn->setChecked(true);  // Ensure this button is checked
@@ -814,10 +920,13 @@ void GirlfriendWindow::onSettingsClicked()
         moodBtn->setChecked(static_cast<int>(currentMood) == i);
         moodBtn->setFixedSize(50, 28);
         moodBtn->setStyleSheet(
-            "QPushButton { background: white; color: black; border: 1px solid #ccc; border-radius: 4px; }"
+            QStringLiteral("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 4px; }"
             "QPushButton:checked { background: #e91e63; color: white; border: 1px solid #e91e63; }"
-            "QPushButton:hover { background: #f8bbd9; }"
-        );
+            "QPushButton:hover { background: %4; }")
+                .arg(m_isDarkTheme ? QStringLiteral("#2d2d2d") : QStringLiteral("white"),
+                     m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("black"),
+                     m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc"),
+                     m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#f8bbd9")));
         moodInfluenceGroup->addButton(moodBtn, i);
         connect(moodBtn, &QPushButton::clicked, this, [this, i, moodBtn]() {
             moodBtn->setChecked(true);  // Ensure this button is checked
@@ -847,6 +956,10 @@ void GirlfriendWindow::onSettingsClicked()
         GTr::voiceOutputEnabled() : GTr::voiceOutputDisabled());
     QAction *voiceOutputAction = m_settingsMenu->addAction(voiceOutputText);
     connect(voiceOutputAction, &QAction::triggered, this, &GirlfriendWindow::onToggleVoiceOutput);
+
+    // === Configure Voice ===
+    QAction *voiceConfigAction = m_settingsMenu->addAction(GTr::configureVoice());
+    connect(voiceConfigAction, &QAction::triggered, this, &GirlfriendWindow::showVoiceConfigDialog);
 
     m_settingsMenu->addSeparator();
 
@@ -906,6 +1019,7 @@ void GirlfriendWindow::onClearClicked()
         clearChatUI();
 
         // 重置情绪和心情状态
+        m_avatarWidget->resetIdleTimer();
         m_avatarWidget->setEmotion("default");
         m_personalityEngine->setMood(0.6);
         m_avatarWidget->setMood(0.6);
@@ -915,6 +1029,118 @@ void GirlfriendWindow::onClearClicked()
 
         qDebug() << "GirlfriendWindow: History cleared, emotion and mood reset to default";
     }
+}
+
+void GirlfriendWindow::showVoiceConfigDialog()
+{
+    GirlfriendSettings *gs = GirlfriendSettings::instance();
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(GTr::voiceConfigTitle());
+    dialog.setMinimumWidth(420);
+    dialog.setStyleSheet(QStringLiteral(
+        "QDialog { background: %1; }"
+        "QLabel { color: %2; }"
+        "QLineEdit { background: %3; color: %2; border: 1px solid %4; padding: 6px; border-radius: 4px; }")
+        .arg(m_isDarkTheme ? QStringLiteral("#1e1e1e") : QStringLiteral("#ffffff"),
+             m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("#333333"),
+             m_isDarkTheme ? QStringLiteral("#2d2d2d") : QStringLiteral("#ffffff"),
+             m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc")));
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setSpacing(12);
+
+    // Description
+    QLabel *descLabel = new QLabel(GTr::voiceConfigDescription(), &dialog);
+    descLabel->setWordWrap(true);
+    descLabel->setStyleSheet(QStringLiteral("QLabel { color: %1; font-size: 11px; }")
+        .arg(m_isDarkTheme ? QStringLiteral("#999999") : QStringLiteral("#666666")));
+    mainLayout->addWidget(descLabel);
+
+    // Form
+    QFormLayout *formLayout = new QFormLayout();
+    formLayout->setSpacing(8);
+    formLayout->setContentsMargins(0, 8, 0, 8);
+
+    QLineEdit *appIdEdit = new QLineEdit(gs->xfyunAppId(), &dialog);
+    formLayout->addRow(GTr::voiceConfigAppId() + ":", appIdEdit);
+
+    QLineEdit *apiKeyEdit = new QLineEdit(gs->xfyunApiKey(), &dialog);
+    formLayout->addRow(GTr::voiceConfigApiKey() + ":", apiKeyEdit);
+
+    QLineEdit *apiSecretEdit = new QLineEdit(gs->xfyunApiSecret(), &dialog);
+    formLayout->addRow(GTr::voiceConfigApiSecret() + ":", apiSecretEdit);
+
+    QLineEdit *asrUrlEdit = new QLineEdit(gs->xfyunAsrUrl(), &dialog);
+    formLayout->addRow(GTr::voiceConfigAsrUrl() + ":", asrUrlEdit);
+
+    QLineEdit *ttsUrlEdit = new QLineEdit(gs->xfyunTtsUrl(), &dialog);
+    formLayout->addRow(GTr::voiceConfigTtsUrl() + ":", ttsUrlEdit);
+
+    QLineEdit *voiceTypeEdit = new QLineEdit(gs->xfyunVoiceType(), &dialog);
+    formLayout->addRow(GTr::voiceConfigVoiceType() + ":", voiceTypeEdit);
+
+    mainLayout->addLayout(formLayout);
+
+    // Optional fields hint
+    QLabel *optionalHint = new QLabel(GTr::voiceConfigOptionalHint(), &dialog);
+    optionalHint->setWordWrap(true);
+    optionalHint->setStyleSheet(QStringLiteral("QLabel { color: %1; font-size: 10px; font-style: italic; }")
+        .arg(m_isDarkTheme ? QStringLiteral("#888888") : QStringLiteral("#999999")));
+    mainLayout->addWidget(optionalHint);
+
+    // Restart hint
+    QLabel *hintLabel = new QLabel(GTr::voiceConfigTestHint(), &dialog);
+    hintLabel->setWordWrap(true);
+    hintLabel->setStyleSheet(QStringLiteral("QLabel { color: %1; font-size: 10px; font-style: italic; }")
+        .arg(m_isDarkTheme ? QStringLiteral("#888888") : QStringLiteral("#999999")));
+    mainLayout->addWidget(hintLabel);
+
+    // Buttons
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+
+    QPushButton *cancelBtn = new QPushButton(GTr::voiceConfigCancel(), &dialog);
+    cancelBtn->setStyleSheet("QPushButton { background: #555; color: white; border: none; "
+        "padding: 8px 20px; border-radius: 6px; font-size: 12px; }"
+        "QPushButton:hover { background: #777; }");
+    cancelBtn->setMinimumWidth(80);
+    connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
+    buttonLayout->addWidget(cancelBtn);
+
+    QPushButton *saveBtn = new QPushButton(GTr::voiceConfigSave(), &dialog);
+    saveBtn->setStyleSheet("QPushButton { background: #e91e63; color: white; border: none; "
+        "padding: 8px 20px; border-radius: 6px; font-size: 12px; }"
+        "QPushButton:hover { background: #c2185b; }");
+    saveBtn->setMinimumWidth(80);
+    connect(saveBtn, &QPushButton::clicked, &dialog, [&]() {
+        QString appId = appIdEdit->text().trimmed();
+        QString apiKey = apiKeyEdit->text().trimmed();
+        QString apiSecret = apiSecretEdit->text().trimmed();
+
+        if (appId.isEmpty() || apiKey.isEmpty() || apiSecret.isEmpty()) {
+            QMessageBox::warning(&dialog, GTr::voiceConfigTitle(), GTr::voiceConfigMissingFields());
+            return;
+        }
+
+        gs->setXfyunAppId(appId);
+        gs->setXfyunApiKey(apiKey);
+        gs->setXfyunApiSecret(apiSecret);
+        gs->setXfyunAsrUrl(asrUrlEdit->text().trimmed());
+        gs->setXfyunTtsUrl(ttsUrlEdit->text().trimmed());
+        gs->setXfyunVoiceType(voiceTypeEdit->text().trimmed());
+
+        // Reload voice config
+        m_voiceManager->loadConfig();
+
+        QMessageBox::information(&dialog, GTr::voiceConfigTitle(), GTr::voiceConfigSaved());
+        dialog.accept();
+    });
+    buttonLayout->addWidget(saveBtn);
+
+    mainLayout->addLayout(buttonLayout);
+
+    dialog.exec();
 }
 
 void GirlfriendWindow::onStreamChunkReceived(const QString &chunk)
@@ -971,13 +1197,37 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
 
     // 从显示文本中移除记忆更新标记
     QString displayText = emotionResult.cleanText;
-    QRegularExpression memoryRegex(R"(\[更新记忆:[^\]]+\])");
+    QRegularExpression memoryRegex(R"(\[(?:更新记忆|memory):[^\]]+\])");
     displayText.remove(memoryRegex);
     displayText = displayText.trimmed();
 
     // 显示女友回复
     addMessageBubble("girlfriend", displayText);
     session->addMessage("girlfriend", displayText, emotionResult.emotion);
+
+    // 自动命名：如果会话尚未自动命名，根据用户第一条消息生成标题
+    QString currentId = GirlfriendSessionManager::instance()->currentSessionId();
+    const auto &sessions = GirlfriendSessionManager::instance()->sessions();
+    for (const auto &meta : sessions) {
+        if (meta.id == currentId && !meta.autoNamed && session->messages().size() >= 2) {
+            QString firstUserMsg;
+            for (const auto &msg : session->messages()) {
+                if (msg.role == "user") {
+                    firstUserMsg = msg.content;
+                    break;
+                }
+            }
+            if (!firstUserMsg.isEmpty()) {
+                QString title = firstUserMsg.split('\n')[0].left(30);
+                if (title.length() < firstUserMsg.split('\n')[0].length()) {
+                    title += "...";
+                }
+                GirlfriendSessionManager::instance()->renameSession(currentId, title);
+                GirlfriendSessionManager::instance()->markSessionAutoNamed(currentId);
+            }
+            break;
+        }
+    }
 
     // 保存回复文本用于TTS
     m_lastReplyText = displayText;
@@ -1001,7 +1251,7 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
         QString ttsText = displayText;
 
         // 移除情绪标记 [情绪:xxx] 并替换为空格（保持语义分隔）
-        QRegularExpression emotionRegex(R"(\[情绪:[^\]]+\])");
+        QRegularExpression emotionRegex(R"(\[(?:情绪|emotion):[^\]]+\])");
         ttsText.replace(emotionRegex, " ");
 
         // 移除动作词 (xxx) 和 （xxx） 并替换为空格（支持英文和中文括号，处理嵌套）
@@ -1012,7 +1262,7 @@ void GirlfriendWindow::onStreamFinished(const QString &fullContent)
         }
 
         // 移除记忆更新标记 [更新记忆:xxx]
-        QRegularExpression memoryRegex(R"(\[更新记忆:[^\]]+\])");
+        QRegularExpression memoryRegex(R"(\[(?:更新记忆|memory):[^\]]+\])");
         ttsText.replace(memoryRegex, " ");
 
         // 移除思考标记内容
@@ -1208,6 +1458,7 @@ void GirlfriendWindow::onSessionChanged(int index)
             // Update avatar emotion and mood from new session
             GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
             if (session) {
+                m_avatarWidget->resetIdleTimer();
                 m_avatarWidget->setEmotion(session->currentEmotion());
                 // 加载新会话的心情值
                 double sessionMood = session->mood();
@@ -1251,112 +1502,136 @@ void GirlfriendWindow::onNewSessionClicked()
     qDebug() << "GirlfriendWindow: Created and switched to new session" << newSessionId;
 }
 
-void GirlfriendWindow::onDeleteSessionClicked()
+void GirlfriendWindow::onManageConversations()
 {
     QVector<SessionMetadata> sessions = GirlfriendSessionManager::instance()->sessions();
     QString currentId = GirlfriendSessionManager::instance()->currentSessionId();
 
-    // 只有一个会话时不能删除
-    if (sessions.size() <= 1) {
-        QMessageBox::information(this, GTr::deleteSessionConfirmTitle(),
-            GTr::cannotDeleteOnlySession());
-        return;
-    }
+    // Sort: pinned first, then by name
+    std::sort(sessions.begin(), sessions.end(), [](const SessionMetadata &a, const SessionMetadata &b) {
+        if (a.pinned != b.pinned) return a.pinned > b.pinned;
+        return a.name.toLower() < b.name.toLower();
+    });
 
-    // 创建选择对话框
     QDialog *dialog = new QDialog(this);
-    dialog->setWindowTitle(GTr::deleteSessionConfirmTitle());
-    dialog->setMinimumWidth(250);
-    dialog->setStyleSheet(
-        "QDialog { background: #e91e63; }"
-        "QLabel { color: white; }"
-    );
+    dialog->setWindowTitle(GTr::manageConversations());
+    dialog->setMinimumWidth(380);
+    dialog->setMinimumHeight(300);
+    dialog->setStyleSheet(QStringLiteral(
+        "QDialog { background: %1; }"
+        "QLabel { color: %2; }"
+        "QListWidget { background: %3; color: %2; border: 1px solid %4; }"
+        "QListWidget::item { padding: 4px; }"
+        "QListWidget::item:selected { background: %5; }"
+        "QPushButton { color: %2; }")
+        .arg(m_isDarkTheme ? QStringLiteral("#1e1e1e") : QStringLiteral("#ffffff"),
+             m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("#333333"),
+             m_isDarkTheme ? QStringLiteral("#2d2d2d") : QStringLiteral("#f5f5f5"),
+             m_isDarkTheme ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc"),
+             m_isDarkTheme ? QStringLiteral("rgba(233, 30, 99, 0.15)") : QStringLiteral("rgba(233, 30, 99, 0.12)")));
 
     QVBoxLayout *layout = new QVBoxLayout(dialog);
 
-    QLabel *label = new QLabel(GTr::selectSessionToDelete(), dialog);
-    label->setStyleSheet("QLabel { color: white; font-size: 14px; padding: 8px; }");
+    QLabel *label = new QLabel(GTr::selectSessionToManage(), dialog);
     layout->addWidget(label);
 
-    // 创建会话列表（排除当前会话）- 粉红色背景白色文字
     QListWidget *sessionList = new QListWidget(dialog);
-    sessionList->setStyleSheet(
-        "QListWidget { background: #f8bbd9; border: 1px solid #e91e63; color: white; }"
-        "QListWidget::item { padding: 10px; color: white; font-size: 13px; }"
-        "QListWidget::item:selected { background: #c2185b; color: white; }"  // 深红色选中
-        "QListWidget::item:hover { background: #f48fb1; }"
-    );
+    for (const auto &meta : sessions) {
+        QListWidgetItem *item = new QListWidgetItem();
+        item->setData(Qt::UserRole, meta.id);
+        item->setSizeHint(QSize(0, 36));
 
-    QString firstNonCurrentId;
-    for (const SessionMetadata &meta : sessions) {
-        if (meta.id != currentId) {
-            sessionList->addItem(meta.name);
-            if (firstNonCurrentId.isEmpty()) {
-                firstNonCurrentId = meta.id;
-            }
+        QWidget *itemWidget = new QWidget();
+        itemWidget->setStyleSheet(QStringLiteral("background: transparent;"));
+        QHBoxLayout *itemLayout = new QHBoxLayout(itemWidget);
+        itemLayout->setContentsMargins(8, 2, 8, 2);
+        itemLayout->setSpacing(4);
+
+        QString displayName = meta.name;
+        if (meta.id == currentId)
+            displayName += QStringLiteral("  (") + GTr::currentSessionLabel() + QStringLiteral(")");
+
+        if (meta.pinned) {
+            QFont f = QFont();
+            f.setBold(true);
+            QLabel *nameLabel = new QLabel(QStringLiteral("📌 ") + displayName);
+            nameLabel->setFont(f);
+            itemLayout->addWidget(nameLabel);
+        } else {
+            itemLayout->addWidget(new QLabel(displayName));
         }
+        itemLayout->addStretch();
+
+        QPushButton *menuBtn = new QPushButton(QStringLiteral("⋯"));
+        menuBtn->setFixedSize(28, 28);
+        menuBtn->setCursor(Qt::PointingHandCursor);
+        menuBtn->setStyleSheet(QStringLiteral(
+            "QPushButton { background: transparent; color: %1; border: 1px solid %2; "
+            "border-radius: 4px; font-size: 14px; }"
+            "QPushButton:hover { background: #e91e63; color: white; border-color: #e91e63; }")
+            .arg(m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("#555555"),
+                 m_isDarkTheme ? QStringLiteral("#555555") : QStringLiteral("#cccccc")));
+
+        QString sid = meta.id;
+        QString sname = meta.name;
+        bool sPinned = meta.pinned;
+        connect(menuBtn, &QPushButton::clicked, this, [this, dialog, sessionList, sid, sname, sPinned]() {
+            QMenu menu(dialog);
+            QAction *renameAct = menu.addAction(GTr::renameLabel());
+            QAction *pinAct = menu.addAction(sPinned ? GTr::unpinLabel() : GTr::pinLabel());
+            menu.addSeparator();
+            QAction *deleteAct = menu.addAction(GTr::deleteLabel());
+            // Disable delete for current session
+            if (sid == GirlfriendSessionManager::instance()->currentSessionId())
+                deleteAct->setEnabled(false);
+
+            QAction *chosen = menu.exec(QCursor::pos());
+            if (chosen == renameAct) {
+                bool ok;
+                QString newName = QInputDialog::getText(dialog,
+                    GTr::renameLabel(), GTr::renameLabel() + QStringLiteral(":"),
+                    QLineEdit::Normal, sname, &ok);
+                if (ok && !newName.trimmed().isEmpty()) {
+                    GirlfriendSessionManager::instance()->renameSession(sid, newName.trimmed());
+                    dialog->accept(); // Close and reopen to refresh
+                    QMetaObject::invokeMethod(this, "onManageConversations", Qt::QueuedConnection);
+                }
+            } else if (chosen == pinAct) {
+                GirlfriendSessionManager::instance()->setSessionPinned(sid, !sPinned);
+                dialog->accept();
+                QMetaObject::invokeMethod(this, "onManageConversations", Qt::QueuedConnection);
+            } else if (chosen == deleteAct) {
+                auto reallyDelete = QMessageBox::question(dialog,
+                    GTr::deleteLabel(),
+                    GTr::deleteSessionConfirmMessage(sname),
+                    QMessageBox::Yes | QMessageBox::No);
+                if (reallyDelete == QMessageBox::Yes) {
+                    GirlfriendSessionManager::instance()->deleteSession(sid);
+                    dialog->accept();
+                    QMetaObject::invokeMethod(this, "onManageConversations", Qt::QueuedConnection);
+                }
+            }
+        });
+
+        itemLayout->addWidget(menuBtn);
+        sessionList->addItem(item);
+        sessionList->setItemWidget(item, itemWidget);
     }
-    sessionList->setCurrentRow(0);
     layout->addWidget(sessionList);
 
-    // 确认和取消按钮 - 白色文字
     QHBoxLayout *btnLayout = new QHBoxLayout();
-    QPushButton *cancelBtn = new QPushButton(GTr::cancelButton(), dialog);
-    cancelBtn->setStyleSheet(
-        "QPushButton { background: #f8bbd9; color: white; padding: 10px 20px; "
-        "border-radius: 6px; font-size: 13px; border: none; }"
-        "QPushButton:hover { background: #f48fb1; }"
-    );
-    connect(cancelBtn, &QPushButton::clicked, dialog, &QDialog::reject);
-
-    QPushButton *deleteBtn = new QPushButton(GTr::deleteSession(), dialog);
-    deleteBtn->setStyleSheet(
-        "QPushButton { background: #c2185b; color: white; padding: 10px 20px; "
-        "border-radius: 6px; font-size: 13px; border: none; }"  // 深红色
-        "QPushButton:hover { background: #b71c1c; }"
-    );
-    connect(deleteBtn, &QPushButton::clicked, dialog, &QDialog::accept);
-
-    btnLayout->addWidget(cancelBtn);
-    btnLayout->addWidget(deleteBtn);
+    btnLayout->addStretch();
+    QPushButton *closeBtn = new QPushButton(GTr::closeButton(), dialog);
+    closeBtn->setStyleSheet(QStringLiteral(
+        "QPushButton { background: transparent; color: %1; border: 1px solid #e91e63; "
+        "padding: 6px 16px; border-radius: 4px; font-size: 12px; }"
+        "QPushButton:hover { background: #e91e63; color: white; }")
+        .arg(m_isDarkTheme ? QStringLiteral("#e0e0e0") : QStringLiteral("#333333")));
+    connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::accept);
+    btnLayout->addWidget(closeBtn);
     layout->addLayout(btnLayout);
 
-    // 显示对话框
-    if (dialog->exec() == QDialog::Accepted) {
-        int selectedRow = sessionList->currentRow();
-        if (selectedRow >= 0) {
-            // 找到对应的会话ID（需要重新映射，因为列表只有非当前会话）
-            int nonCurrentIndex = 0;
-            QString toDeleteId;
-            QString toDeleteName;
-            for (const SessionMetadata &meta : sessions) {
-                if (meta.id != currentId) {
-                    if (nonCurrentIndex == selectedRow) {
-                        toDeleteId = meta.id;
-                        toDeleteName = meta.name;
-                        break;
-                    }
-                    nonCurrentIndex++;
-                }
-            }
-
-            if (!toDeleteId.isEmpty()) {
-                // 最终确认
-                QMessageBox::StandardButton finalConfirm = QMessageBox::question(
-                    this,
-                    GTr::deleteSessionConfirmTitle(),
-                    GTr::deleteSessionConfirmMessage(toDeleteName),
-                    QMessageBox::Yes | QMessageBox::No
-                );
-
-                if (finalConfirm == QMessageBox::Yes) {
-                    GirlfriendSessionManager::instance()->deleteSession(toDeleteId);
-                    qDebug() << "Deleted session:" << toDeleteName;
-                }
-            }
-        }
-    }
-
+    dialog->exec();
     dialog->deleteLater();
 }
 
@@ -1368,9 +1643,8 @@ void GirlfriendWindow::onAvatarLevelChanged(int level)
     bool wasSpeaking = m_voiceManager->isSpeaking();
     bool wasStreaming = m_isStreaming;
 
-    // 保存当前情绪，用于切换后恢复或播放
-    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
-    QString currentEmotion = session ? session->currentEmotion() : "default";
+    // 从 AvatarWidget 获取当前实际显示的情绪（而非 session，session 可能过期）
+    QString currentEmotion = m_avatarWidget->currentDisplayEmotion();
     if (currentEmotion.isEmpty() || currentEmotion == "speaking") {
         currentEmotion = "default";
     }
@@ -1412,9 +1686,8 @@ void GirlfriendWindow::onAvatarLevelChanged(int level)
 
         // 设置当前情绪（视频会播放对应的情绪视频）
         m_avatarWidget->setEmotion(currentEmotion);
+        m_avatarWidget->resetIdleTimer();
 
-        // 启动 timer 定期刷新 overlay 层级
-        m_videoOverlayTimer->start(200);
     }
     // 切换到图片模式 (Level 1/2): 继续播放 TTS 直至完成
     else {
@@ -1443,11 +1716,10 @@ void GirlfriendWindow::onAvatarLevelChanged(int level)
         if (!wasSpeaking) {
             m_avatarWidget->unlockState();
             m_avatarWidget->setEmotion(currentEmotion);
+            m_avatarWidget->resetIdleTimer();
         }
         // 如果正在播放 TTS，不解锁，等 onSpeakingFinished 处理
 
-        // 停止 timer
-        m_videoOverlayTimer->stop();
     }
 
     updateOverlayVisibility();
@@ -1497,6 +1769,12 @@ void GirlfriendWindow::onAvatarEmotionChanged(const QString &emotion)
     // 信号传递的值可能因为状态锁等原因不准确
     m_currentOverlayEmotion = m_avatarWidget->currentDisplayEmotion();
     updateOverlayLabels();
+
+    // 同步到 session，确保等级切换时能保留当前情绪
+    GirlfriendSession* session = GirlfriendSessionManager::instance()->currentSessionData();
+    if (session) {
+        session->setCurrentEmotion(m_currentOverlayEmotion);
+    }
 }
 
 void GirlfriendWindow::onAvatarMoodChanged(double mood)
@@ -1560,9 +1838,9 @@ void GirlfriendWindow::updateOverlayLabels()
     int barWidth = static_cast<int>(m_currentOverlayMood * 50);  // 50px总宽度
     if (barWidth < 2) barWidth = 2;  // 最小宽度2px确保可见
 
-    // 进度条部分：粉红色，空白部分：白色
+    // 进度条部分：粉红色，空白部分：根据主题
     QString barColor = "#e91e63";  // 粉红色（进度条部分）
-    QString bgColor = "#ffffff";   // 白色（空白部分）
+    QString bgColor = m_isDarkTheme ? QStringLiteral("#444444") : QStringLiteral("#ffffff");
 
     // 使用固定px值，避免百分比渲染问题
     // 使用table结构确保渲染正确
@@ -1594,7 +1872,6 @@ void GirlfriendWindow::updateOverlayLabels()
 
 void GirlfriendWindow::updateOverlayVisibility()
 {
-    // 设置按钮始终可见（所有等级）
     if (m_settingsButton) {
         m_settingsButton->show();
         m_settingsButton->raise();
@@ -1604,38 +1881,23 @@ void GirlfriendWindow::updateOverlayVisibility()
 
     AvatarLevel currentLevel = GirlfriendSettings::instance()->avatarLevel();
 
-    // Level 3 (视频模式): 隐藏情绪标签、心情条和底部聊天区域
-    // 设置按钮保持可见
-    if (currentLevel == AvatarLevel::Level3_Hotter) {
-        // 隐藏情绪标签和心情条
-        if (m_overlayEmotionLabel) {
-            m_overlayEmotionLabel->hide();
-        }
-        if (m_overlayMoodBarLabel) {
-            m_overlayMoodBarLabel->hide();
-        }
-        if (m_overlayMoodPercentLabel) {
-            m_overlayMoodPercentLabel->hide();
-        }
-        // 隐藏底部聊天区域
-        QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
-        if (bottomOverlay) {
+    // Emotion label and mood bar — visible in all levels (including video mode)
+    if (m_overlayEmotionLabel) {
+        m_overlayEmotionLabel->show();
+    }
+    if (m_overlayMoodBarLabel) {
+        m_overlayMoodBarLabel->show();
+    }
+    if (m_overlayMoodPercentLabel) {
+        m_overlayMoodPercentLabel->show();
+    }
+
+    // Chat input area: hidden in video mode (Level 3) — intentional design choice
+    QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
+    if (bottomOverlay) {
+        if (currentLevel == AvatarLevel::Level3_Hotter) {
             bottomOverlay->hide();
-        }
-    } else {
-        // Level 1/2 (图片模式): 显示情绪标签、心情条和底部聊天区域
-        if (m_overlayEmotionLabel) {
-            m_overlayEmotionLabel->show();
-        }
-        if (m_overlayMoodBarLabel) {
-            m_overlayMoodBarLabel->show();
-        }
-        if (m_overlayMoodPercentLabel) {
-            m_overlayMoodPercentLabel->show();
-        }
-        // 显示底部聊天区域
-        QWidget *bottomOverlay = findChild<QWidget *>("bottomOverlay");
-        if (bottomOverlay) {
+        } else {
             bottomOverlay->show();
             bottomOverlay->raise();
         }
@@ -1673,14 +1935,3 @@ void GirlfriendWindow::clearChatUI()
     m_streamingTextLabel = nullptr;
 }
 
-void GirlfriendWindow::onVideoOverlayTimerTick()
-{
-    // 视频模式下定期刷新 overlay widgets 的层级，确保它们在视频之上可见
-    if (GirlfriendSettings::instance()->avatarLevel() == AvatarLevel::Level3_Hotter) {
-        // 设置按钮始终可见（视频模式下需要定期 raise）
-        if (m_settingsButton) {
-            m_settingsButton->raise();
-            m_settingsButton->repaint();
-        }
-    }
-}

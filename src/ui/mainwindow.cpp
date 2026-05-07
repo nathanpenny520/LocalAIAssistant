@@ -3,6 +3,7 @@
 #include "translationmanager.h"
 #include "markdownrenderer.h"
 #include "filemanager.h"
+#include "operationconfirmdialog.h"
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -11,14 +12,21 @@
 #include <QMenuBar>
 #include <QMenu>
 #include <QScrollBar>
+#include <QTextBlock>
 #include <QTextCursor>
 #include <QEvent>
+#include <QKeyEvent>
+#include <QInputMethodEvent>
+#include <QInputDialog>
 #include <QRegularExpression>
+#include <algorithm>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QIcon>
 #include <QFile>
 #include <QCoreApplication>
+#include <QTextCharFormat>
+#include <QPalette>
 
 // Parse thinking content from AI response
 // Returns a map with "thinking" and "response" keys
@@ -52,15 +60,13 @@ QMap<QString, QString> MainWindow::parseThinkingContent(const QString &content)
 
 QString MainWindow::formatMessageWithThinking(const QString &role, const QString &content)
 {
-    QString locale = TranslationManager::instance()->currentLocale();
-    QString thinkingLabel = (locale == "en") ? "Thinking Process" : QStringLiteral("思考过程");
-    QString userLabel = (locale == "en") ? "You" : QStringLiteral("用户");
-    QString aiLabel = (locale == "en") ? "AI" : QStringLiteral("AI");
+    QString thinkingLabel = tr("思考过程");
+    QString userLabel = tr("用户");
+    QString aiLabel = tr("AI");
 
     // Get current theme for color-aware rendering
     StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
     bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-    // Also check if SystemTheme actually uses dark colors
     if (theme == StyleSheetManager::SystemTheme) {
         QPalette palette = QApplication::palette();
         QColor windowColor = palette.color(QPalette::Window);
@@ -70,48 +76,61 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
 
     if (role == "user") {
-        // User messages are simple text, no need for full markdown rendering
-        // Just escape HTML special characters
+        // User message in a <table> — Qt rich-text handles tables more reliably than <div>
         QString escapedContent = content;
         escapedContent.replace("&", "&amp;");
         escapedContent.replace("<", "&lt;");
         escapedContent.replace(">", "&gt;");
-        return QString("<div style='margin: 12px 0; color: %1;'><b style='color: #007aff;'>%2:</b> %3</div>")
-               .arg(colors.text, userLabel, escapedContent);
+        escapedContent.replace("\n", "<br>");
+
+        QString boxBg    = isDarkTheme ? "#1e2a3a" : "#f6f7fa";
+        QString boxBorder = isDarkTheme ? "#334"      : "#d8dce6";
+
+        return QString(
+            "<table width='100%%' cellpadding='0' cellspacing='0' "
+            "style='background:%1; border:1px solid %2; margin-top:18px; margin-bottom:4px;'>"
+            "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
+            "<b style='color:#007aff; font-size:18px;'>%4</b><br>%5"
+            "</td></tr></table>"
+        ).arg(boxBg, boxBorder, colors.text, userLabel, escapedContent);
     }
 
-    // Parse thinking content for AI messages
+    // AI message
     QMap<QString, QString> parsed = parseThinkingContent(content);
     QString thinking = parsed["thinking"];
     QString response = parsed["response"];
 
     QString html;
 
-    // If there's thinking content, show it in a styled blockquote
+    // AI label
+    html += QString("<p style='margin:0 0 8px 0;'><b style='color:#007aff; font-size:18px;'>%1</b></p>")
+            .arg(aiLabel);
+
+    // Thinking content: collapsible, no enclosing box, left accent line only
     if (!thinking.isEmpty()) {
-        // Escape thinking content for HTML display
         QString escapedThinking = thinking;
         escapedThinking.replace("&", "&amp;");
         escapedThinking.replace("<", "&lt;");
         escapedThinking.replace(">", "&gt;");
         escapedThinking.replace("\n", "<br>");
 
+        QString accentColor = isDarkTheme ? "#555" : "#d0d0d0";
+
         html += QString(
-            "<blockquote style='background-color: %1; border-left: 4px solid %2; "
-            "padding: 10px 14px; margin: 12px 0; color: %3; font-size: 13px;'>"
-            "<b>%4</b><br><br>%5</blockquote>"
-        ).arg(colors.quoteBg, colors.quoteBorder, colors.quoteText, thinkingLabel, escapedThinking);
+            "<details open style='margin-bottom:14px; color:%1; font-size:13px;'>"
+            "<summary style='cursor:pointer; color:%2; font-size:14px; font-weight:bold; "
+            "  margin-bottom:6px;'>&#9654; %3</summary>"
+            "<div style='margin-top:6px; padding-left:12px; "
+            "  border-left:2px solid %4; color:%5; line-height:1.6;'>%6</div>"
+            "</details>"
+        ).arg(colors.secondary, colors.secondary, thinkingLabel,
+              accentColor, colors.secondary, escapedThinking);
     }
 
-    // Add the AI label
-    html += QString("<div style='margin: 12px 0; color: %1;'><b style='color: #007aff;'>%2:</b></div>")
-            .arg(colors.text, aiLabel);
-
-    // Add the actual response with full markdown rendering
+    // AI response: pure markdown
     if (!response.isEmpty()) {
         html += MarkdownRenderer::toHtml(response, isDarkTheme);
     } else if (thinking.isEmpty()) {
-        // No thinking content found, show original content
         html += MarkdownRenderer::toHtml(content, isDarkTheme);
     }
 
@@ -122,13 +141,15 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , m_historyList(new QListWidget(this))
     , m_chatDisplay(new QTextBrowser(this))
-    , m_inputLine(new QLineEdit(this))
+    , m_inputLine(new QPlainTextEdit(this))
     , m_sendButton(new QPushButton(tr("发送"), this))
     , m_newChatButton(new QPushButton(tr("+ 新建对话"), this))
     , m_settingsAction(new QAction(tr("设置"), this))
     , m_toggleHistoryAction(new QAction(tr("显示历史面板"), this))
     , m_contextMenu(new QMenu(this))
     , m_deleteAction(new QAction(tr("删除该对话"), this))
+    , m_renameAction(new QAction(tr("重命名"), this))
+    , m_pinAction(new QAction(tr("置顶"), this))
     , m_networkManager(new NetworkManager(this))
     , m_markdownDoc(new QTextDocument(this))
     , m_splitter(nullptr)
@@ -154,19 +175,44 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(m_sendButton, &QPushButton::clicked, this, &MainWindow::onSendClicked);
     connect(m_fileButton, &QPushButton::clicked, this, &MainWindow::onFileButtonClicked);
-    connect(m_inputLine, &QLineEdit::returnPressed, this, &MainWindow::onSendClicked);
+    // Install event filter so Enter sends and Shift+Enter inserts newline
+    m_inputLine->installEventFilter(this);
+    m_inputPlaceholder = tr("输入消息... (Enter发送, Shift+Enter换行)");
+    m_inputLine->setPlaceholderText(m_inputPlaceholder);
+    m_inputLine->setMaximumHeight(m_maxInputHeight);
+    m_inputLine->setTabChangesFocus(true);
+    m_inputLine->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Dynamic height: grow from 1 line, cap at m_maxInputHeight
+    connect(m_inputLine, &QPlainTextEdit::textChanged, this, [this]() {
+        // Hide placeholder when user has typed anything; restore when empty
+        if (m_inputLine->toPlainText().isEmpty()) {
+            m_inputLine->setPlaceholderText(m_inputPlaceholder);
+        } else {
+            m_inputLine->setPlaceholderText(QString());
+        }
+        adjustInputHeight();
+    });
     connect(m_settingsAction, &QAction::triggered, this, &MainWindow::onSettingsClicked);
     connect(m_toggleHistoryAction, &QAction::triggered, this, &MainWindow::onToggleHistoryPanel);
     connect(m_newChatButton, &QPushButton::clicked, this, &MainWindow::onNewChatClicked);
     connect(m_historyList, &QListWidget::itemClicked, this, &MainWindow::onSessionItemClicked);
     connect(m_deleteAction, &QAction::triggered, this, &MainWindow::onDeleteSession);
+    connect(m_renameAction, &QAction::triggered, this, &MainWindow::onRenameSession);
+    connect(m_pinAction, &QAction::triggered, this, &MainWindow::onTogglePinSession);
     connect(m_historyList, &QWidget::customContextMenuRequested, this, &MainWindow::onCustomContextMenuRequested);
 
     connect(m_networkManager, &NetworkManager::responseReceived, this, &MainWindow::onNetworkFinished);
     connect(m_networkManager, &NetworkManager::streamChunkReceived, this, &MainWindow::onStreamChunkReceived);
     connect(m_networkManager, &NetworkManager::streamFinished, this, &MainWindow::onStreamFinished);
     connect(m_networkManager, &NetworkManager::errorOccurred, this, &MainWindow::onNetworkError);
-    connect(SessionManager::instance(), &SessionManager::sessionChanged, this, &MainWindow::renderCurrentSession);
+    connect(SessionManager::instance(), &SessionManager::sessionChanged, this, [this](const QString &sessionId) {
+        // Only re-render if the changed session is currently being displayed.
+        // Background updates (e.g. streaming to another session) should not
+        // disrupt the current view.
+        if (sessionId == SessionManager::instance()->currentSessionId()) {
+            renderCurrentSession();
+        }
+    });
     connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this, &MainWindow::onThemeChanged);
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this, &MainWindow::onLanguageChanged);
 
@@ -174,12 +220,30 @@ MainWindow::MainWindow(QWidget *parent)
     m_searchAction->setShortcut(QKeySequence::Find);  // Ctrl+F / Cmd+F
     connect(m_searchAction, &QAction::triggered, this, &MainWindow::onSearchTriggered);
 
+    // 初始化知识库
+    KnowledgeBase::instance()->init();
+
+    // 从 QSettings 加载用户自定义路径白名单到 SafetyChecker
+    {
+        QSettings settings("LocalAIAssistant", "Settings");
+        QStringList savedWhitelist = settings.value("pathWhitelist").toStringList();
+        if (!savedWhitelist.isEmpty()) {
+            TaskEngine::instance()->safetyChecker().setAllowedPaths(savedWhitelist);
+        }
+    }
+
     // Load saved sessions from disk
     SessionManager::instance()->loadSessionsFromFile();
     updateSessionList();
     renderCurrentSession();
 
     StyleSheetManager::instance()->applyTheme(this);
+
+    // Initial height: single line; grows with content up to m_maxInputHeight
+    adjustInputHeight();
+
+    // Install global event filter to catch IME composition events (e.g. pinyin)
+    qApp->installEventFilter(this);
 }
 
 MainWindow::~MainWindow()
@@ -213,8 +277,10 @@ void MainWindow::setupUI()
     m_leftPanel = new QWidget(m_splitter);
     QVBoxLayout *leftLayout = new QVBoxLayout(m_leftPanel);
     leftLayout->setContentsMargins(5, 5, 5, 5);
+    m_newChatButton->setObjectName(QStringLiteral("newChatButton"));
     leftLayout->addWidget(m_newChatButton);
     leftLayout->addWidget(m_historyList);
+    m_historyList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // 设置左侧面板最小宽度，防止完全关闭
     m_leftPanel->setMinimumWidth(120);
@@ -257,6 +323,9 @@ void MainWindow::setupUI()
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->addWidget(m_splitter);
 
+    m_contextMenu->addAction(m_renameAction);
+    m_contextMenu->addAction(m_pinAction);
+    m_contextMenu->addSeparator();
     m_contextMenu->addAction(m_deleteAction);
     m_historyList->setContextMenuPolicy(Qt::CustomContextMenu);
 
@@ -283,71 +352,52 @@ void MainWindow::setupMenuBar()
         menuBar()->clear();
     }
 
-    QString locale = TranslationManager::instance()->currentLocale();
-
     QMenuBar *bar = menuBar() ? menuBar() : new QMenuBar(this);
 
 #ifdef Q_OS_MACOS
-    QString appName = (locale == "en") ? "LocalAI Assistant" : QStringLiteral("本地AI助手");
-    QString prefText = (locale == "en") ? "Preferences..." : QStringLiteral("偏好设置...");
-    QString quitText = (locale == "en") ? "Quit LocalAI Assistant" : QStringLiteral("退出 本地AI助手");
-
     bar->setNativeMenuBar(true);
 
-    QMenu *appMenu = bar->addMenu(appName);
-    QAction *prefAction = appMenu->addAction(prefText);
+    QMenu *appMenu = bar->addMenu(tr("本地AI助手"));
+    QAction *prefAction = appMenu->addAction(tr("偏好设置..."));
     prefAction->setMenuRole(QAction::PreferencesRole);
     prefAction->setShortcut(QKeySequence::StandardKey::Preferences);
     connect(prefAction, &QAction::triggered, this, &MainWindow::onSettingsClicked);
 
     appMenu->addSeparator();
 
-    QAction *quitAction = appMenu->addAction(quitText);
+    QAction *quitAction = appMenu->addAction(tr("退出 本地AI助手"));
     quitAction->setMenuRole(QAction::QuitRole);
     quitAction->setShortcut(QKeySequence::StandardKey::Quit);
     connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
 
-    QMenu *fileMenu = bar->addMenu((locale == "en") ? "&File" : QStringLiteral("文件"));
-    fileMenu->menuAction()->setText((locale == "en") ? "File" : QStringLiteral("文件"));
+    QMenu *fileMenu = bar->addMenu(tr("文件"));
 #else
-    // Windows/Linux: 标准 File 菜单
-    QString fileText = (locale == "en") ? "&File" : QStringLiteral("文件");
-    QMenu *fileMenu = bar->addMenu(fileText);
+    QMenu *fileMenu = bar->addMenu(tr("文件"));
 
-    QString settingsText = (locale == "en") ? "Settings..." : QStringLiteral("设置...");
-    m_settingsAction->setText(settingsText);
+    m_settingsAction->setText(tr("设置..."));
     fileMenu->addAction(m_settingsAction);
 
     fileMenu->addSeparator();
 
-    QString exitText = (locale == "en") ? "E&xit" : QStringLiteral("退出");
-    QAction *exitAction = fileMenu->addAction(exitText);
+    QAction *exitAction = fileMenu->addAction(tr("退出"));
     exitAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
 #endif
 
-    // 视图菜单 - 显示/隐藏历史面板
-    QString viewText = (locale == "en") ? "View" : QStringLiteral("视图");
-    QMenu *viewMenu = bar->addMenu(viewText);
+    QMenu *viewMenu = bar->addMenu(tr("视图"));
 
-    QString toggleHistoryText = (locale == "en") ? "Show History Panel" : QStringLiteral("显示历史面板");
-    m_toggleHistoryAction->setText(toggleHistoryText);
+    m_toggleHistoryAction->setText(tr("显示历史面板"));
     m_toggleHistoryAction->setCheckable(true);
     m_toggleHistoryAction->setChecked(m_leftPanel && m_leftPanel->width() > 0);
     m_toggleHistoryAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
     viewMenu->addAction(m_toggleHistoryAction);
 
-    // 编辑菜单 - 搜索功能
-    QString editText = (locale == "en") ? "Edit" : QStringLiteral("编辑");
-    QMenu *editMenu = bar->addMenu(editText);
+    QMenu *editMenu = bar->addMenu(tr("编辑"));
 
-    QString searchText = (locale == "en") ? "Find..." : QStringLiteral("查找...");
-    m_searchAction->setText(searchText);
+    m_searchAction->setText(tr("查找..."));
     editMenu->addAction(m_searchAction);
 
-    // AI女友菜单入口
-    QString girlfriendText = (locale == "en") ? "AI Girlfriend" : QStringLiteral("AI女友");
-    m_girlfriendAction->setText(girlfriendText);
+    m_girlfriendAction->setText(tr("AI女友"));
     m_girlfriendAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
     viewMenu->addAction(m_girlfriendAction);
     connect(m_girlfriendAction, &QAction::triggered, this, &MainWindow::onGirlfriendClicked);
@@ -361,20 +411,16 @@ void MainWindow::retranslateUi()
 {
     m_sendButton->setText(tr("发送"));
     m_newChatButton->setText(tr("+ 新建对话"));
+    m_renameAction->setText(tr("重命名"));
+    m_pinAction->setText(tr("置顶"));
     m_deleteAction->setText(tr("删除该对话"));
     setWindowTitle(tr("本地AI助手"));
 
     // 文件按钮 tooltip
     m_fileButton->setToolTip(tr("添加文件"));
 
-    // 更新显示历史面板菜单项文本
-    QString locale = TranslationManager::instance()->currentLocale();
-    QString toggleHistoryText = (locale == "en") ? "Show History Panel" : QStringLiteral("显示历史面板");
-    m_toggleHistoryAction->setText(toggleHistoryText);
-
-    // 更新搜索相关文本
-    QString searchText = (locale == "en") ? "Find..." : QStringLiteral("查找...");
-    m_searchAction->setText(searchText);
+    m_toggleHistoryAction->setText(tr("显示历史面板"));
+    m_searchAction->setText(tr("查找..."));
     if (m_searchInput) {
         m_searchInput->setPlaceholderText(tr("搜索历史消息..."));
     }
@@ -388,78 +434,54 @@ void MainWindow::retranslateUi()
         m_searchCloseBtn->setToolTip(tr("关闭"));
     }
 
-    // AI女友菜单项文本
-    QString girlfriendText = (locale == "en") ? "AI Girlfriend" : QStringLiteral("AI女友");
-    m_girlfriendAction->setText(girlfriendText);
+    m_girlfriendAction->setText(tr("AI女友"));
+
+    // Update input placeholder; only show if input is empty
+    m_inputPlaceholder = tr("输入消息... (Enter发送, Shift+Enter换行)");
+    if (m_inputLine->toPlainText().isEmpty()) {
+        m_inputLine->setPlaceholderText(m_inputPlaceholder);
+    }
 
     updateSessionList();
 }
 
-void MainWindow::appendChatMessage(const QString &sender, const QString &message)
-{
-    QString role = (sender == tr("用户")) ? "user" : "assistant";
-    QString formatted = formatMessageWithThinking(role, message);
-
-    // Get current HTML content
-    QString currentHtml = m_chatDisplay->toHtml();
-
-    // Find body content position
-    int bodyStart = currentHtml.indexOf("<body>");
-    int bodyEnd = currentHtml.indexOf("</body>");
-
-    if (bodyStart != -1 && bodyEnd != -1) {
-        QString bodyContent = currentHtml.mid(bodyStart + 6, bodyEnd - bodyStart - 6);
-        // Dynamic separator color based on actual theme (including SystemTheme)
-        StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-        bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-        if (theme == StyleSheetManager::SystemTheme) {
-            QPalette palette = QApplication::palette();
-            QColor windowColor = palette.color(QPalette::Window);
-            int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-            isDarkTheme = (brightness < 128);
-        }
-        MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
-        QString separator = QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>").arg(colors.tableBorder);
-        QString newHtml = currentHtml.left(bodyStart + 6) + bodyContent + separator + formatted + currentHtml.mid(bodyEnd);
-        m_chatDisplay->setHtml(newHtml);
-    } else {
-        m_chatDisplay->setHtml(formatted);
-    }
-
-    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
-    scrollBar->setValue(scrollBar->maximum());
-}
 
 void MainWindow::renderCurrentSession()
 {
     if (m_isRendering) {
         return;
     }
+
+    // During onSendClicked we append the user message via the cursor API
+    // and suppress the setHtml() call that addMessageToCurrentSession would
+    // trigger. This flag is cleared right after appendUserMessageToDisplay.
+    if (m_suppressRender) {
+        return;
+    }
+
     m_isRendering = true;
 
     const auto &session = SessionManager::instance()->currentSession();
 
-    QString fullHtml;
+    m_chatDisplay->clear();
+    QTextCursor cursor = m_chatDisplay->textCursor();
 
     for (int i = 0; i < session.messages.size(); ++i) {
         const auto &msg = session.messages[i];
         QString rendered = formatMessageWithThinking(msg.role, msg.content);
 
-        // 渲染附件信息（仅用户消息）
         if (msg.role == "user" && !msg.attachments.isEmpty()) {
             QString attachmentHtml;
             for (const auto &attachment : msg.attachments) {
                 if (attachment.type == "image") {
-                    // 图片：显示缩略图
                     attachmentHtml += QString(
                         "<div style='margin:8px 0;'>"
                         "<img src='%1' style='max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;' />"
                         "</div>"
                     ).arg(attachment.content);
                 } else {
-                    // 其他文件：显示文件名和类型
                     QString iconColor = (attachment.type == "text") ? "#4CAF50" : "#FF9800";
-                    QString typeLabel = (attachment.type == "text") ? "文本" : "二进制";
+                    QString typeLabel = (attachment.type == "text") ? tr("文本") : tr("二进制");
                     QFileInfo info(attachment.path);
                     attachmentHtml += QString(
                         "<div style='margin:8px 0; padding:8px 12px; background:#f5f5f5; border-radius:6px; display:inline-block;'>"
@@ -468,35 +490,88 @@ void MainWindow::renderCurrentSession()
                     ).arg(iconColor).arg(typeLabel).arg(info.fileName()).arg(attachment.size / 1024);
                 }
             }
-            // 用户消息格式: <div ...><b>用户:</b> 内容</div>
-            // 在 </div> 之前插入附件
-            rendered = rendered.replace("</div>", attachmentHtml + "</div>");
+            rendered = rendered.replace(QStringLiteral("</table>"), attachmentHtml + QStringLiteral("</table>"));
         }
 
-        fullHtml += rendered;
+        cursor.insertHtml(rendered);
 
+        // Spacer between messages — HTML-based to avoid block-format leakage
         if (i < session.messages.size() - 1) {
-            // Dynamic separator color based on actual theme (including SystemTheme)
-            StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-            bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-            if (theme == StyleSheetManager::SystemTheme) {
-                QPalette palette = QApplication::palette();
-                QColor windowColor = palette.color(QPalette::Window);
-                int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-                isDarkTheme = (brightness < 128);
-            }
-            MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
-            QString separator = QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>").arg(colors.tableBorder);
-            fullHtml += separator;
+            cursor.insertHtml(QStringLiteral("<p style='margin:0; line-height:1px;'>&nbsp;</p>"));
         }
     }
 
-    m_chatDisplay->setHtml(fullHtml);
+    // Remove trailing empty block so subsequent cursor API appends don't create a gap
+    QTextDocument *doc = m_chatDisplay->document();
+    if (doc->blockCount() > 1 && doc->lastBlock().text().isEmpty()) {
+        QTextCursor cleanup(doc->lastBlock());
+        cleanup.deletePreviousChar();
+    }
 
     QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
 
     m_isRendering = false;
+}
+
+void MainWindow::appendUserMessageToDisplay(const QString &text, const QVector<FileAttachment> &attachments)
+{
+    QTextCursor cursor = m_chatDisplay->textCursor();
+    cursor.movePosition(QTextCursor::End);
+
+    // Detect theme
+    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+    if (theme == StyleSheetManager::SystemTheme) {
+        QPalette palette = QApplication::palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+        isDarkTheme = (brightness < 128);
+    }
+    MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
+
+    // Escape HTML in user text
+    QString escaped = text;
+    escaped.replace(QLatin1String("&"), QLatin1String("&amp;"));
+    escaped.replace(QLatin1String("<"), QLatin1String("&lt;"));
+    escaped.replace(QLatin1String(">"), QLatin1String("&gt;"));
+    escaped.replace(QLatin1String("\n"), QLatin1String("<br>"));
+
+    // User message: table-based box (Qt handles tables reliably)
+    QString boxBg    = isDarkTheme ? "#1e2a3a" : "#f6f7fa";
+    QString boxBorder = isDarkTheme ? "#334"      : "#d8dce6";
+
+    cursor.insertHtml(QString(
+        "<table width='100%%' cellpadding='0' cellspacing='0' "
+        "style='background:%1; border:1px solid %2; margin-top:18px; margin-bottom:4px;'>"
+        "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
+        "<b style='color:#007aff; font-size:18px;'>%4</b><br>%5"
+        "</td></tr></table>"
+    ).arg(boxBg, boxBorder, colors.text, tr("用户"), escaped));
+
+    // Append attachment info if any
+    for (const auto &attachment : attachments) {
+        if (attachment.type == QStringLiteral("image")) {
+            cursor.insertBlock();
+            cursor.insertHtml(QStringLiteral(
+                "<div style='margin:8px 0;'>"
+                "<img src='%1' style='max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;' />"
+                "</div>").arg(attachment.content));
+        } else {
+            QString iconColor = (attachment.type == QStringLiteral("text")) ? QStringLiteral("#4CAF50") : QStringLiteral("#FF9800");
+            QString typeLabel = (attachment.type == QStringLiteral("text")) ? tr("文本") : tr("二进制");
+            QFileInfo info(attachment.path);
+            cursor.insertBlock();
+            cursor.insertHtml(QStringLiteral(
+                "<div style='margin:8px 0; padding:8px 12px; background:#f5f5f5; border-radius:6px; display:inline-block;'>"
+                "<span style='color:%1; font-weight:bold;'>[%2]</span> %3 (%4 KB)"
+                "</div>").arg(iconColor, typeLabel, info.fileName()).arg(attachment.size / 1024));
+        }
+    }
+
+    // Scroll to show the new message
+    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
 }
 
 void MainWindow::updateSessionList()
@@ -505,14 +580,77 @@ void MainWindow::updateSessionList()
     m_historyList->clear();
 
     const auto &sessions = SessionManager::instance()->allSessions();
-    for (const auto &session : sessions) {
-        QString displayTitle = session.title.isEmpty() ? tr("新对话") : session.title;
-        QListWidgetItem *item = new QListWidgetItem(displayTitle, m_historyList);
+
+    // Sort: pinned first, then by title
+    QVector<ChatSession> sorted;
+    for (const auto &s : sessions)
+        sorted.append(s);
+    std::sort(sorted.begin(), sorted.end(), [](const ChatSession &a, const ChatSession &b) {
+        if (a.pinned != b.pinned)
+            return a.pinned > b.pinned;
+        return a.title.toLower() < b.title.toLower();
+    });
+
+    QString currentId = SessionManager::instance()->currentSessionId();
+    QColor pinColor = palette().color(QPalette::BrightText);
+    QColor defaultTextColor = palette().color(QPalette::WindowText);
+
+    for (const auto &session : sorted) {
+        QListWidgetItem *item = new QListWidgetItem();
         item->setData(Qt::UserRole, session.id);
+        item->setSizeHint(QSize(0, 44));
+
+        // Custom widget: [pin icon] title ...  [...]
+        QWidget *itemWidget = new QWidget();
+        itemWidget->setStyleSheet(QStringLiteral("background: transparent;"));
+        itemWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        QHBoxLayout *layout = new QHBoxLayout(itemWidget);
+        layout->setContentsMargins(6, 1, 8, 1);
+        layout->setSpacing(4);
+
+        QString displayTitle = session.title.isEmpty() ? tr("新对话") : session.title;
+
+        QLabel *titleLabel = new QLabel(displayTitle);
+        titleLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        titleLabel->setWordWrap(false);
+        titleLabel->setTextFormat(Qt::PlainText);
+        titleLabel->setMaximumWidth(140);
+
+        if (session.pinned) {
+            QFont f = titleLabel->font();
+            f.setBold(true);
+            titleLabel->setFont(f);
+            titleLabel->setStyleSheet(QStringLiteral("color: %1;").arg(pinColor.name()));
+            titleLabel->setText(QStringLiteral("📌 ") + displayTitle);
+        }
+
+        QPushButton *menuBtn = new QPushButton(QStringLiteral("..."));
+        menuBtn->setFixedSize(28, 28);
+        menuBtn->setCursor(Qt::PointingHandCursor);
+        menuBtn->setToolTip(tr("更多操作"));
+        QString btnTextColor = palette().color(QPalette::Text).name();
+        QString btnBorderColor = palette().color(QPalette::Mid).name();
+        bool isDark = (StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme);
+        QString hoverBg = isDark ? QStringLiteral("#555555") : QStringLiteral("#d0d0d0");
+        QString hoverBorder = isDark ? QStringLiteral("#777777") : QStringLiteral("#a0a0a0");
+        menuBtn->setStyleSheet(
+            QStringLiteral("QPushButton { border: 1px solid %1; border-radius: 4px; background: transparent; color: %2; font-size: 16px; font-weight: bold; }"
+                           "QPushButton:hover { background: %3; color: %2; border-color: %4; }")
+                .arg(btnBorderColor, btnTextColor, hoverBg, hoverBorder));
+
+        QString sid = session.id;
+        connect(menuBtn, &QPushButton::clicked, this, [this, sid]() {
+            onSessionMenuButtonClicked(sid);
+        });
+
+        layout->addWidget(titleLabel, 1);
+        layout->addWidget(menuBtn);
+
         m_historyList->addItem(item);
+        m_historyList->setItemWidget(item, itemWidget);
         m_sessionItemMap[session.id] = item;
 
-        if (session.id == SessionManager::instance()->currentSessionId()) {
+        if (session.id == currentId) {
             m_historyList->setCurrentItem(item);
             m_historyList->scrollToItem(item);
         }
@@ -522,10 +660,10 @@ void MainWindow::updateSessionList()
 void MainWindow::setInputEnabled(bool enabled)
 {
     m_sendButton->setEnabled(enabled);
-    m_inputLine->setEnabled(enabled);
+    m_inputLine->setReadOnly(!enabled);
 
     if (enabled) {
-        m_inputLine->setPlaceholderText("");
+        m_inputLine->setPlaceholderText(m_inputPlaceholder);
         m_sendButton->setText(tr("发送"));
     } else {
         m_inputLine->setPlaceholderText(tr("正在思考..."));
@@ -535,18 +673,14 @@ void MainWindow::setInputEnabled(bool enabled)
 
 void MainWindow::onSendClicked()
 {
-    QString userInput = m_inputLine->text().trimmed();
+    QString userInput = m_inputLine->toPlainText().trimmed();
     if (userInput.isEmpty() && m_fileManager->pendingFileCount() == 0) {
         return;  // 无输入且无文件时不发送
     }
 
     // 如果有文件，显示提示
     if (m_fileManager->pendingFileCount() > 0) {
-        QString locale = TranslationManager::instance()->currentLocale();
-        QString tip = (locale == "en")
-            ? QString("Sending with %1 file(s)").arg(m_fileManager->pendingFileCount())
-            : QString(QStringLiteral("发送消息时携带 %1 个文件")).arg(m_fileManager->pendingFileCount());
-        qDebug() << tip;
+        qDebug() << tr("发送消息时携带 %1 个文件").arg(m_fileManager->pendingFileCount());
     }
 
     // 创建消息并添加附件
@@ -556,7 +690,30 @@ void MainWindow::onSendClicked()
         attachments = m_fileManager->pendingFiles();
     }
 
-    // 使用带附件参数的函数保存消息
+    // 如果检测到任务请求，注入任务 prompt 模板（仅对 AI 可见）
+    QString aiPrompt = userInput;
+    if (TaskEngine::instance()->isTaskRequest(userInput)) {
+        aiPrompt = userInput + TaskEngine::instance()->taskPromptTemplate();
+    }
+
+    // 如果检测到知识库请求，注入检索上下文（仅对 AI 可见）
+    KnowledgeBase *kb = KnowledgeBase::instance();
+    if (kb->isReady() && KnowledgeBase::isKnowledgeQuery(userInput)) {
+        QString context = kb->generateContext(userInput);
+        if (!context.isEmpty()) {
+            aiPrompt = context + QLatin1String("\n\n") + tr("用户问题：") + aiPrompt;
+        }
+    }
+
+    // Suppress renderCurrentSession while we add the user message, so the
+    // setHtml() call doesn't disrupt existing chat content. We append the
+    // user message via the cursor API instead.
+    m_suppressRender = true;
+    m_isStreaming = true;
+    m_streamingContent.clear();
+    m_streamEndedWithNewline = false;
+
+    // Save user input to session (renderCurrentSession is suppressed by m_suppressRender)
     if (attachments.isEmpty()) {
         SessionManager::instance()->addMessageToCurrentSession("user", userInput);
     } else {
@@ -566,14 +723,18 @@ void MainWindow::onSendClicked()
         m_fileButton->setToolTip(tr("添加文件"));
     }
 
+    // Manually append user message to chat display
+    appendUserMessageToDisplay(userInput, attachments);
+    m_suppressRender = false;
+
     m_inputLine->clear();
 
-    // 构建消息列表发送
+    // Build augmented messages for AI (inject task/knowledge prompts if needed)
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    if (aiPrompt != userInput)
+        messages.last().content = aiPrompt;
 
-    m_isStreaming = true;
-    m_streamingContent.clear();
-    m_requestSessionId = SessionManager::instance()->currentSessionId();  // 记录发起请求时的会话ID
+    m_requestSessionId = SessionManager::instance()->currentSessionId();
     setInputEnabled(false);
     m_networkManager->sendChatRequestWithContext(messages);
 }
@@ -588,14 +749,18 @@ void MainWindow::onNetworkFinished(const QString &response)
     m_isStreaming = false;
     m_streamingContent.clear();
 
+    // 检查是否为任务计划响应
+    if (response.contains(QStringLiteral("[TASK_PLAN]"))) {
+        handleTaskResponse(response);
+        m_requestSessionId.clear();
+        setInputEnabled(true);
+        return;
+    }
+
     // 直接添加消息到原会话
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
 
-    // 只有当前显示的是原会话才渲染
-    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
-        m_isRendering = false;
-        renderCurrentSession();
-    }
+    // renderCurrentSession() is triggered via sessionChanged signal
 
     m_requestSessionId.clear();
     setInputEnabled(true);
@@ -614,11 +779,7 @@ void MainWindow::onNetworkError(const QString &error)
     // 直接添加错误消息到原会话
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", tr("错误: ") + error);
 
-    // 只有当前显示的是原会话才渲染
-    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
-        m_isRendering = false;
-        renderCurrentSession();
-    }
+    // renderCurrentSession() is triggered via sessionChanged signal
 
     m_requestSessionId.clear();
     setInputEnabled(true);
@@ -626,28 +787,50 @@ void MainWindow::onNetworkError(const QString &error)
 
 void MainWindow::onStreamChunkReceived(const QString &chunk)
 {
-    // 验证响应是否属于当前显示的会话
     if (!m_isStreaming || m_requestSessionId != SessionManager::instance()->currentSessionId()) {
         return;
     }
 
     m_streamingContent += chunk;
 
-    // During streaming, just append text to show progress (minimal updates)
     QTextCursor cursor = m_chatDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
 
-    // First chunk - add AI label
+    // First chunk — insert AI label then start response text
     if (m_streamingContent == chunk) {
-        QString locale = TranslationManager::instance()->currentLocale();
-        QString aiLabel = (locale == "en") ? "AI" : QStringLiteral("AI");
-        cursor.insertHtml(QString("<p style='margin:12px 0;'><b style='color:#007aff;'>%1:</b></p>").arg(aiLabel));
+        cursor.insertBlock();
+        QTextCharFormat boldFormat;
+        boldFormat.setForeground(QColor(QStringLiteral("#007aff")));
+        boldFormat.setFontWeight(QFont::Bold);
+        boldFormat.setFontPointSize(14);
+        cursor.insertText(tr("AI"), boldFormat);
+        cursor.insertBlock();
     }
 
-    // Append chunk text (raw, will be re-rendered on completion)
-    cursor.insertText(chunk);
+    // Append chunk text, converting \n to paragraph blocks for readable streaming
+    QTextCharFormat normalFormat;
+    const QStringList lines = chunk.split(QChar::LineFeed);
+    bool hadEmptyLine = false;
+    for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].isEmpty()) {
+            hadEmptyLine = true;
+            continue;
+        }
+        if (i > 0) {
+            // Skip insertBlock if previous chunk ended with \n and this chunk starts with \n
+            bool skipBlock = (i == 1 && m_streamEndedWithNewline && lines[0].isEmpty());
+            if (!skipBlock) {
+                cursor.insertBlock();
+                if (hadEmptyLine) {
+                    cursor.insertBlock();  // intentional blank line between paragraphs
+                }
+            }
+        }
+        cursor.insertText(lines[i], normalFormat);
+        hadEmptyLine = false;
+    }
+    m_streamEndedWithNewline = chunk.endsWith(QLatin1Char('\n'));
 
-    // Force scroll to bottom (ensureCursorVisible may not work reliably with insertHtml)
     QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
 }
@@ -661,14 +844,23 @@ void MainWindow::onStreamFinished(const QString &fullContent)
 
     m_isStreaming = false;
 
+    // 检查是否为任务计划响应
+    if (fullContent.contains(QStringLiteral("[TASK_PLAN]"))) {
+        handleTaskResponse(fullContent);
+        m_streamingContent.clear();
+        m_requestSessionId.clear();
+        setInputEnabled(true);
+        return;
+    }
+
     // 直接添加消息到原会话，不需要切换
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullContent);
 
-    // 自动命名：如果是新对话的第一条回复，根据用户第一条消息生成标题
+    // 自动命名：如果对话尚未自动命名，根据用户第一条消息生成标题
     const auto &sessions = SessionManager::instance()->allSessions();
     if (sessions.contains(m_requestSessionId)) {
         const auto &session = sessions[m_requestSessionId];
-        if (session.title == "新对话" && session.messages.size() == 2) {
+        if (!session.autoNamed && session.messages.size() >= 2) {
             QString firstUserMsg;
             for (const auto &msg : session.messages) {
                 if (msg.role == "user") {
@@ -689,11 +881,8 @@ void MainWindow::onStreamFinished(const QString &fullContent)
 
     SessionManager::instance()->saveSessionsToFile();
 
-    // 只有当前显示的是原会话才渲染
-    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
-        m_isRendering = false;
-        renderCurrentSession();
-    }
+    // renderCurrentSession() is already triggered via sessionChanged signal
+    // from addMessageToSession() above — no need for an explicit call
 
     m_streamingContent.clear();
     m_requestSessionId.clear();
@@ -708,9 +897,19 @@ void MainWindow::onSettingsClicked()
             dialog.getApiBaseUrl(),
             dialog.getApiKey(),
             dialog.getModelName(),
-            dialog.isLocalMode()
+            dialog.isLocalMode(),
+            dialog.getApiType()
         );
         m_networkManager->setStreamingEnabled(dialog.isStreamingEnabled());
+
+        // 同步路径白名单到 SafetyChecker
+        SafetyChecker &checker = TaskEngine::instance()->safetyChecker();
+        QStringList customWhitelist = dialog.pathWhitelist();
+        if (!customWhitelist.isEmpty()) {
+            checker.setAllowedPaths(customWhitelist);
+        } else {
+            checker.resetToDefaults();
+        }
     }
 }
 
@@ -749,27 +948,130 @@ void MainWindow::onSessionItemClicked(QListWidgetItem *item)
         return;
     }
 
+    // If streaming is active, renderCurrentSession would have been blocked
+    // by the old m_isStreaming check; now m_suppressRender only gates the
+    // send flow, so switchToSession → sessionChanged → renderCurrentSession
+    // runs normally. Chunks stop appearing because onStreamChunkReceived
+    // checks m_requestSessionId != currentSessionId().
     QString sessionId = item->data(Qt::UserRole).toString();
     SessionManager::instance()->switchToSession(sessionId);
+    updateSessionList();
 }
 
 void MainWindow::onDeleteSession()
 {
-    QListWidgetItem *item = m_historyList->currentItem();
-    if (!item) {
+    QString sessionId = m_contextMenuSessionId;
+    if (sessionId.isEmpty())
         return;
+
+    const auto &sessions = SessionManager::instance()->allSessions();
+
+    // Don't allow deleting the last remaining session
+    if (sessions.size() <= 1)
+        return;
+
+    // Don't allow deleting a session that has an active stream in flight
+    if (m_isStreaming && sessionId == m_requestSessionId)
+        return;
+
+    // If deleting the current active session, switch to another first
+    if (sessionId == SessionManager::instance()->currentSessionId()) {
+        QString targetId;
+        for (const auto &s : sessions) {
+            if (s.id != sessionId) {
+                targetId = s.id;
+                break;
+            }
+        }
+        if (!targetId.isEmpty())
+            SessionManager::instance()->switchToSession(targetId);
     }
 
-    QString sessionId = item->data(Qt::UserRole).toString();
     SessionManager::instance()->removeSession(sessionId);
-    delete item;
-    m_sessionItemMap.remove(sessionId);
+    if (m_sessionItemMap.contains(sessionId)) {
+        delete m_sessionItemMap[sessionId];
+        m_sessionItemMap.remove(sessionId);
+    }
+    updateSessionList();
+}
+
+void MainWindow::onRenameSession()
+{
+    QString sessionId = m_contextMenuSessionId;
+    if (sessionId.isEmpty())
+        return;
+
+    const auto &sessions = SessionManager::instance()->allSessions();
+    if (!sessions.contains(sessionId))
+        return;
+
+    QString oldTitle = sessions[sessionId].title;
+    bool ok = false;
+    QString newTitle = QInputDialog::getText(this, tr("重命名"), tr("新名称:"),
+                                              QLineEdit::Normal, oldTitle, &ok);
+    if (ok && !newTitle.trimmed().isEmpty()) {
+        SessionManager::instance()->updateSessionTitle(sessionId, newTitle.trimmed());
+        updateSessionList();
+    }
+}
+
+void MainWindow::onTogglePinSession()
+{
+    QString sessionId = m_contextMenuSessionId;
+    if (sessionId.isEmpty())
+        return;
+
+    const auto &sessions = SessionManager::instance()->allSessions();
+    if (!sessions.contains(sessionId))
+        return;
+
+    bool newPinned = !sessions[sessionId].pinned;
+    SessionManager::instance()->setSessionPinned(sessionId, newPinned);
+    updateSessionList();
+}
+
+void MainWindow::onSessionMenuButtonClicked(const QString &sessionId)
+{
+    m_contextMenuSessionId = sessionId;
+
+    // Update pin action text based on current state
+    const auto &sessions = SessionManager::instance()->allSessions();
+    if (sessions.contains(sessionId)) {
+        m_pinAction->setText(sessions[sessionId].pinned ? tr("取消置顶") : tr("置顶"));
+    }
+
+    // Find the button widget to position the menu under it
+    if (m_sessionItemMap.contains(sessionId)) {
+        QListWidgetItem *item = m_sessionItemMap[sessionId];
+        QWidget *w = m_historyList->itemWidget(item);
+        if (w) {
+            // Find the "⋯" button inside the item widget
+            QPushButton *btn = w->findChild<QPushButton *>();
+            if (btn) {
+                QPoint menuPos = btn->mapToGlobal(QPoint(0, btn->height()));
+                m_contextMenu->exec(menuPos);
+                return;
+            }
+        }
+    }
+
+    // Fallback
+    m_contextMenu->exec(QCursor::pos());
 }
 
 void MainWindow::onCustomContextMenuRequested(const QPoint &pos)
 {
     QListWidgetItem *item = m_historyList->itemAt(pos);
     if (item) {
+        m_contextMenuSessionId = item->data(Qt::UserRole).toString();
+
+        // Update pin action text
+        const auto &sessions = SessionManager::instance()->allSessions();
+        if (sessions.contains(m_contextMenuSessionId)) {
+            m_pinAction->setText(sessions[m_contextMenuSessionId].pinned
+                                     ? tr("取消置顶") : tr("置顶"));
+        }
+
         m_contextMenu->exec(m_historyList->mapToGlobal(pos));
     }
 }
@@ -785,6 +1087,8 @@ void MainWindow::onThemeChanged(int theme)
     this->setStyleSheet(StyleSheetManager::instance()->currentStyleSheet());
     // Re-render chat content with new theme colors
     renderCurrentSession();
+    // Rebuild session list so "⋯" buttons pick up new palette colors
+    updateSessionList();
 
     // Re-apply highlights with new theme colors if there's a search term
     // This must be done after renderCurrentSession() completes
@@ -834,24 +1138,17 @@ void MainWindow::onFileButtonClicked()
         return;
     }
 
-    QString locale = TranslationManager::instance()->currentLocale();
-    QString errorTitle = (locale == "en") ? "Error" : QStringLiteral("错误");
+    QString errorTitle = tr("错误");
 
     for (const QString &path : filePaths) {
         QFileInfo info(path);
         if (!info.exists()) {
-            QString msg = (locale == "en")
-                ? QString("File does not exist: %1").arg(path)
-                : QString(QStringLiteral("文件不存在: %1")).arg(path);
-            QMessageBox::warning(this, errorTitle, msg);
+            QMessageBox::warning(this, errorTitle, tr("文件不存在: %1").arg(path));
             continue;
         }
 
         if (info.size() > 10 * 1024 * 1024) {
-            QString msg = (locale == "en")
-                ? QString("File too large (>10MB): %1").arg(path)
-                : QString(QStringLiteral("文件过大 (>10MB): %1")).arg(path);
-            QMessageBox::warning(this, errorTitle, msg);
+            QMessageBox::warning(this, errorTitle, tr("文件过大 (>10MB): %1").arg(path));
             continue;
         }
 
@@ -875,8 +1172,6 @@ void MainWindow::updateFileListDisplay()
     }
 
     m_fileListArea->setVisible(true);
-
-    QString locale = TranslationManager::instance()->currentLocale();
 
     for (const FileAttachment &file : files) {
         // 创建文件标签 widget
@@ -949,10 +1244,7 @@ void MainWindow::updateFileListDisplay()
     }
 
     // 更新文件按钮 tooltip 显示文件数量
-    QString tooltip = (locale == "en")
-        ? QString("Add Files (%1 pending)").arg(files.size())
-        : QString(QStringLiteral("添加文件 (%1 个待发送)")).arg(files.size());
-    m_fileButton->setToolTip(tooltip);
+    m_fileButton->setToolTip(tr("添加文件 (%1 个待发送)").arg(files.size()));
 }
 
 void MainWindow::clearFileListDisplay()
@@ -1256,6 +1548,147 @@ void MainWindow::updateSearchResultLabel()
     }
 }
 
+void MainWindow::appendCommandOutput(const QString &line)
+{
+    QTextCursor cursor = m_chatDisplay->textCursor();
+    cursor.movePosition(QTextCursor::End);
+
+    QTextCharFormat monoFormat;
+    monoFormat.setFontFamilies({QStringLiteral("Menlo")});
+    monoFormat.setFontPointSize(11);
+    monoFormat.setForeground(QColor(QStringLiteral("#4a4a4a")));
+
+    // 检测主题以适配暗色模式
+    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
+    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
+    if (theme == StyleSheetManager::SystemTheme) {
+        QPalette palette = QApplication::palette();
+        QColor windowColor = palette.color(QPalette::Window);
+        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
+        isDarkTheme = (brightness < 128);
+    }
+    if (isDarkTheme)
+        monoFormat.setForeground(QColor(QStringLiteral("#a0a0a0")));
+
+    // 空格缩进
+    cursor.insertText(QStringLiteral("  "), monoFormat);
+    cursor.insertText(line, monoFormat);
+    cursor.insertBlock();
+
+    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    scrollBar->setValue(scrollBar->maximum());
+}
+
+void MainWindow::handleTaskResponse(const QString &response)
+{
+    TaskEngine *engine = TaskEngine::instance();
+    OperationPlan plan = engine->parsePlanFromAIResponse(response);
+
+    if (plan.isEmpty()) {
+        // 无法解析操作计划，按普通消息显示
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
+        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+            renderCurrentSession();
+        }
+        return;
+    }
+
+    // 安全检查
+    SafetyChecker::Result safetyResult = engine->validatePlan(plan);
+    if (safetyResult == SafetyChecker::Blocked) {
+        QString errMsg = tr("⚠️ 操作被安全拦截：%1")
+                             .arg(engine->safetyChecker().lastBlockReason());
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", errMsg);
+        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+            renderCurrentSession();
+        }
+        return;
+    }
+
+    // 显示确认对话框
+    OperationConfirmDialog dialog(plan, this);
+    dialog.exec();
+
+    if (dialog.isConfirmed()) {
+        // 用户确认，连接 CommandExecutor 信号以展示实时输出
+        CommandExecutor *executor = engine->executor();
+        QString accumulatedOutput;
+
+        QMetaObject::Connection connStart = connect(
+            executor, &CommandExecutor::operationStarted, this,
+            [this](int index, const QString &command) {
+                Q_UNUSED(index);
+                appendCommandOutput(QStringLiteral("$ %1").arg(command));
+            });
+
+        QMetaObject::Connection connStdout = connect(
+            executor, &CommandExecutor::stdoutLineReceived, this,
+            [this](const QString &line, int index) {
+                Q_UNUSED(index);
+                appendCommandOutput(line);
+            });
+
+        QMetaObject::Connection connStderr = connect(
+            executor, &CommandExecutor::stderrLineReceived, this,
+            [this](const QString &line, int index) {
+                Q_UNUSED(index);
+                appendCommandOutput(line);
+            });
+
+        // 执行命令
+        QVector<CommandResult> results = engine->executePlan(plan);
+
+        // 断开信号
+        disconnect(connStart);
+        disconnect(connStdout);
+        disconnect(connStderr);
+
+        // 格式化执行结果
+        QString resultMsg;
+        int successCount = 0;
+        int failCount = 0;
+        for (const auto &r : results) {
+            if (r.success)
+                successCount++;
+            else {
+                failCount++;
+                if (!r.errorMessage.isEmpty())
+                    appendCommandOutput(QStringLiteral("  ❌ %1").arg(r.errorMessage));
+            }
+        }
+
+        resultMsg = tr("✅ 命令执行完成：%1 成功").arg(successCount);
+        if (failCount > 0)
+            resultMsg += tr("，%1 失败").arg(failCount);
+
+        if (engine->canUndo())
+            resultMsg += QLatin1String("\n\n") + tr("💡 提示：可以输入「撤销刚才的操作」来恢复");
+
+        // 将计划摘要和结果添加到聊天
+        QString fullMsg = plan.generateSummary()
+                          + QStringLiteral("\n\n") + resultMsg
+                          + QStringLiteral("\n\n") + response;
+
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullMsg);
+    } else if (dialog.isModifyRequested()) {
+        // 用户请求修改计划
+        QString modifyMsg = tr("📝 请补充说明需要如何调整计划，例如：\n"
+                               "  • 修改目标路径\n"
+                               "  • 增加或减少操作\n"
+                               "  • 添加筛选条件\n"
+                               "我会根据你的反馈重新生成计划。");
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", modifyMsg);
+    } else {
+        // 用户取消
+        QString cancelMsg = tr("❌ 操作已取消。");
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", cancelMsg);
+    }
+
+    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+        renderCurrentSession();
+    }
+}
+
 void MainWindow::onGirlfriendClicked()
 {
     static GirlfriendWindow *girlfriendWindow = nullptr;
@@ -1273,4 +1706,64 @@ void MainWindow::onGirlfriendClicked()
     girlfriendWindow->show();
     girlfriendWindow->raise();
     girlfriendWindow->activateWindow();
+}
+
+void MainWindow::adjustInputHeight()
+{
+    // Calculate required height from document content, clamped to [singleLine, m_maxInputHeight]
+    int docHeight = static_cast<int>(m_inputLine->document()->size().height());
+    int margins = m_inputLine->contentsMargins().top() + m_inputLine->contentsMargins().bottom();
+    int frame = static_cast<int>(2 * m_inputLine->frameWidth());
+    int contentHeight = docHeight + margins + frame;
+    int singleLine = m_inputLine->fontMetrics().lineSpacing() + margins + frame + 8;
+
+    int newHeight = qBound(singleLine, contentHeight, m_maxInputHeight);
+    if (m_inputLine->height() != newHeight) {
+        m_inputLine->setFixedHeight(newHeight);
+    }
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    // ——— IME composition handling (e.g. pinyin) ———
+    // Works cross-platform: QEvent::InputMethod on Windows/Linux;
+    // QEvent::InputMethodQuery is a reliable macOS fallback (the IME
+    // queries cursor position to place the candidate window).
+    if (obj == m_inputLine || obj == m_inputLine->viewport()) {
+        if (event->type() == QEvent::InputMethod) {
+            auto *imeEvent = static_cast<QInputMethodEvent *>(event);
+            if (!imeEvent->preeditString().isEmpty()) {
+                m_inputLine->setPlaceholderText(QString());
+            } else if (m_inputLine->toPlainText().isEmpty()) {
+                m_inputLine->setPlaceholderText(m_inputPlaceholder);
+            }
+        }
+        // macOS IME may not populate preeditString; treat input-method
+        // queries as evidence that composition is active.
+        if (event->type() == QEvent::InputMethodQuery) {
+            if (m_inputLine->toPlainText().isEmpty()) {
+                m_inputLine->setPlaceholderText(QString());
+            }
+        }
+        // Restore placeholder when leaving an empty input
+        if (event->type() == QEvent::FocusOut) {
+            if (m_inputLine->toPlainText().isEmpty()) {
+                m_inputLine->setPlaceholderText(m_inputPlaceholder);
+            }
+        }
+
+        if (event->type() == QEvent::KeyPress) {
+            auto *keyEvent = static_cast<QKeyEvent *>(event);
+            if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+                // Shift+Enter: let QPlainTextEdit handle it (inserts newline)
+                if (keyEvent->modifiers() & Qt::ShiftModifier) {
+                    return QMainWindow::eventFilter(obj, event);
+                }
+                // Enter without Shift: send the message
+                onSendClicked();
+                return true;
+            }
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
 }

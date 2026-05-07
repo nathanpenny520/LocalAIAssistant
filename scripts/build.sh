@@ -40,6 +40,7 @@ COMMAND="build"
 NO_RUN_PROMPT=false
 RUN_TARGET=""
 CLI_HELP_ONLY=false
+PACKAGE=false
 
 # ============================================================
 # Pause function for interactive terminal
@@ -48,7 +49,7 @@ CLI_HELP_ONLY=false
 pause_if_interactive() {
     if [ -t 0 ]; then
         echo ""
-        read -p "按 Enter 键退出..." -r
+        read -p "Press Enter to exit..." -r
     fi
 }
 
@@ -503,12 +504,339 @@ cmd_build() {
         fi
     fi
 
+    # Package if requested
+    if [ "$PACKAGE" = true ]; then
+        cmd_package
+    fi
+
     # Prompt to open program
     if [ "$NO_RUN_PROMPT" = false ]; then
         prompt_open_program "$has_gui" "$has_cli"
     fi
 
     return 0
+}
+
+# ============================================================
+# Package — Create distributable release artifacts
+# ============================================================
+
+get_version() {
+    grep -oE '[0-9]+\.[0-9]+\.[0-9]+' "$PROJECT_ROOT/CMakeLists.txt" | head -1
+}
+
+package_macos() {
+    local version
+    version=$(get_version)
+    local app_path="$BUILD_DIR/LocalAIAssistant.app"
+    local cli_bin="$BUILD_DIR/LocalAIAssistant-CLI"
+    local release_dir="$PROJECT_ROOT/release"
+    local dmg_name="LocalAIAssistant-${version}-macOS.dmg"
+    local macdeployqt="$QT_PATH/bin/macdeployqt"
+
+    echo ""
+    echo "========================================="
+    echo "  Packaging for macOS"
+    echo "========================================="
+
+    if [ ! -d "$app_path" ]; then
+        echo "Error: $app_path not found. Build first."
+        return 1
+    fi
+
+    rm -rf "$release_dir"
+    mkdir -p "$release_dir"
+
+    # Run macdeployqt to bundle Qt frameworks
+    if [ -f "$macdeployqt" ]; then
+        echo ""
+        echo "[1/3] Bundling Qt frameworks with macdeployqt..."
+        "$macdeployqt" "$app_path" -verbose=1 -no-strip 2>&1 | sed 's/^/  /'
+        if [ $? -ne 0 ]; then
+            echo "  Warning: macdeployqt reported issues, continuing anyway..."
+        fi
+    else
+        echo ""
+        echo "[1/3] macdeployqt not found at $macdeployqt"
+        echo "  Qt frameworks will NOT be bundled. The app will only"
+        echo "  run on machines with Qt installed."
+    fi
+
+    # Create staging directory for DMG
+    echo ""
+    echo "[2/3] Creating DMG staging directory..."
+    local staging="$release_dir/staging"
+    mkdir -p "$staging"
+    cp -R "$app_path" "$staging/"
+
+    # Remove developer .env from app bundle (avoid leaking credentials)
+    rm -f "$staging/LocalAIAssistant.app/Contents/Resources/.env" 2>/dev/null || true
+    echo "  .env removed from app bundle (use Settings UI or .env.example)"
+
+    # Copy .env.example as a template for users
+    if [ -f "$PROJECT_ROOT/.env.example" ]; then
+        cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
+        echo "  .env.example template included"
+    fi
+    ln -s /Applications "$staging/Applications"
+
+    # Copy CLI binary into staging (alongside .app)
+    if [ -f "$cli_bin" ]; then
+        cp "$cli_bin" "$staging/"
+        echo "  CLI binary included"
+    fi
+
+    # Create DMG
+    echo ""
+    echo "[3/3] Creating DMG..."
+    local dmg_path="$release_dir/$dmg_name"
+    hdiutil create -volname "LocalAIAssistant" \
+        -srcfolder "$staging" \
+        -ov -format UDZO \
+        "$dmg_path" 2>&1 | sed 's/^/  /'
+
+    if [ -f "$dmg_path" ]; then
+        rm -rf "$staging"
+        echo ""
+        echo "  === macOS package created ==="
+        echo "  $dmg_path"
+        echo ""
+        echo "  Note: This app is not code-signed."
+        echo "  Users must right-click → Open to launch the first time."
+    else
+        echo "  Error: DMG creation failed"
+        return 1
+    fi
+}
+
+package_windows() {
+    local version
+    version=$(get_version)
+    local gui_exe="$BUILD_DIR/LocalAIAssistant.exe"
+    local cli_exe="$BUILD_DIR/LocalAIAssistant-CLI.exe"
+    local release_dir="$PROJECT_ROOT/release"
+    local zip_name="LocalAIAssistant-${version}-Windows.zip"
+
+    echo ""
+    echo "========================================="
+    echo "  Packaging for Windows"
+    echo "========================================="
+
+    if [ ! -f "$gui_exe" ] && [ ! -f "$cli_exe" ]; then
+        echo "Error: No executables found in $BUILD_DIR. Build first."
+        return 1
+    fi
+
+    rm -rf "$release_dir"
+    mkdir -p "$release_dir"
+
+    # Create staging directory
+    local staging="$release_dir/LocalAIAssistant"
+    mkdir -p "$staging"
+
+    echo ""
+    echo "[1/2] Collecting files..."
+
+    # Copy GUI executable and all adjacent files (DLLs, resources)
+    if [ -f "$gui_exe" ]; then
+        cp "$gui_exe" "$staging/" 2>/dev/null
+        echo "  GUI executable copied"
+    fi
+
+    # Copy CLI executable
+    if [ -f "$cli_exe" ]; then
+        cp "$cli_exe" "$staging/" 2>/dev/null
+        echo "  CLI executable copied"
+    fi
+
+    # Copy resource directories from build
+    for dir in core AIGirlfriend girlfriend translations models; do
+        if [ -d "$BUILD_DIR/$dir" ]; then
+            cp -R "$BUILD_DIR/$dir" "$staging/"
+            echo "  $dir/ copied"
+        fi
+    done
+
+    # Copy individual resource files (skip .env to avoid leaking developer credentials)
+    for file in soul.md personality.md memory.md; do
+        if [ -f "$BUILD_DIR/$file" ]; then
+            cp "$BUILD_DIR/$file" "$staging/"
+        fi
+    done
+
+    # Copy .env.example as a template for users
+    if [ -f "$PROJECT_ROOT/.env.example" ]; then
+        cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
+        echo "  .env.example template included"
+    fi
+
+    # Copy usage docs
+    if [ -d "$PROJECT_ROOT/docs" ]; then
+        mkdir -p "$staging/docs"
+        cp "$PROJECT_ROOT/docs/USAGE.md" "$staging/docs/" 2>/dev/null || true
+        cp "$PROJECT_ROOT/docs/USAGE_zh_CN.md" "$staging/docs/" 2>/dev/null || true
+        echo "  docs/ copied"
+    fi
+
+    echo ""
+    echo "[2/2] Creating zip archive..."
+
+    cd "$release_dir"
+    if command -v zip &> /dev/null; then
+        zip -rq "$zip_name" "LocalAIAssistant"
+        echo "  === Windows package created ==="
+        echo "  $release_dir/$zip_name"
+    else
+        echo "  Error: 'zip' command not found"
+        cd "$PROJECT_ROOT"
+        return 1
+    fi
+    cd "$PROJECT_ROOT"
+
+    rm -rf "$staging"
+}
+
+package_linux() {
+    local version
+    version=$(get_version)
+    local gui_bin="$BUILD_DIR/LocalAIAssistant"
+    local cli_bin="$BUILD_DIR/LocalAIAssistant-CLI"
+    local release_dir="$PROJECT_ROOT/release"
+    local archive_name="LocalAIAssistant-${version}-Linux.tar.gz"
+
+    echo ""
+    echo "========================================="
+    echo "  Packaging for Linux"
+    echo "========================================="
+
+    if [ ! -f "$gui_bin" ] && [ ! -f "$cli_bin" ]; then
+        echo "Error: No executables found in $BUILD_DIR. Build first."
+        return 1
+    fi
+
+    rm -rf "$release_dir"
+    mkdir -p "$release_dir"
+
+    local staging="$release_dir/LocalAIAssistant-${version}"
+    mkdir -p "$staging"
+
+    echo ""
+    echo "[1/2] Collecting files..."
+
+    # Copy binaries
+    if [ -f "$gui_bin" ]; then
+        cp "$gui_bin" "$staging/"
+        echo "  GUI binary copied"
+    fi
+    if [ -f "$cli_bin" ]; then
+        cp "$cli_bin" "$staging/"
+        echo "  CLI binary copied"
+    fi
+
+    # Copy resource directories
+    for dir in core AIGirlfriend girlfriend translations models; do
+        if [ -d "$BUILD_DIR/$dir" ]; then
+            cp -R "$BUILD_DIR/$dir" "$staging/"
+            echo "  $dir/ copied"
+        fi
+    done
+
+    # Copy individual resource files (skip .env to avoid leaking developer credentials)
+    for file in soul.md personality.md memory.md; do
+        if [ -f "$BUILD_DIR/$file" ]; then
+            cp "$BUILD_DIR/$file" "$staging/"
+        fi
+    done
+
+    # Copy .env.example as a template for users
+    if [ -f "$PROJECT_ROOT/.env.example" ]; then
+        cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
+        echo "  .env.example template included"
+    fi
+
+    # Copy usage docs
+    if [ -d "$PROJECT_ROOT/docs" ]; then
+        mkdir -p "$staging/docs"
+        cp "$PROJECT_ROOT/docs/USAGE.md" "$staging/docs/" 2>/dev/null || true
+        cp "$PROJECT_ROOT/docs/USAGE_zh_CN.md" "$staging/docs/" 2>/dev/null || true
+        echo "  docs/ copied"
+    fi
+
+    # Copy desktop file
+    if [ -f "$PROJECT_ROOT/resources/localaiassistant.desktop" ]; then
+        cp "$PROJECT_ROOT/resources/localaiassistant.desktop" "$staging/"
+        echo "  .desktop file copied"
+    fi
+
+    # Create install script
+    cat > "$staging/install.sh" << 'INSTALL_SCRIPT'
+#!/bin/bash
+INSTALL_DIR="$HOME/.local"
+echo "Installing LocalAIAssistant..."
+mkdir -p "$INSTALL_DIR/bin"
+mkdir -p "$INSTALL_DIR/share/localaiassistant"
+mkdir -p "$INSTALL_DIR/share/applications"
+mkdir -p "$INSTALL_DIR/share/icons/hicolor/256x256/apps"
+
+cp LocalAIAssistant "$INSTALL_DIR/bin/" 2>/dev/null || true
+cp LocalAIAssistant-CLI "$INSTALL_DIR/bin/" 2>/dev/null || true
+cp -R core AIGirlfriend girlfriend translations models "$INSTALL_DIR/share/localaiassistant/" 2>/dev/null || true
+
+if [ -f "localaiassistant.desktop" ]; then
+    sed -i "s|^Exec=.*|Exec=$INSTALL_DIR/bin/LocalAIAssistant|" localaiassistant.desktop
+    cp localaiassistant.desktop "$INSTALL_DIR/share/applications/"
+fi
+
+echo "Done. Run 'LocalAIAssistant' from terminal or find it in your app launcher."
+echo "Add $INSTALL_DIR/bin to your PATH if it is not already."
+INSTALL_SCRIPT
+    chmod +x "$staging/install.sh"
+    echo "  install.sh created"
+
+    # Create tar.gz
+    echo ""
+    echo "[2/2] Creating tar.gz archive..."
+
+    cd "$release_dir"
+    tar -czf "$archive_name" "LocalAIAssistant-${version}"
+    echo "  === Linux package created ==="
+    echo "  $release_dir/$archive_name"
+
+    cd "$PROJECT_ROOT"
+    rm -rf "$staging"
+}
+
+cmd_package() {
+    # Detect platform if not already set
+    if [ -z "$PLATFORM" ]; then
+        detect_platform
+    fi
+
+    # Ensure Qt path is set (needed for macdeployqt)
+    if [ -z "$QT_PATH" ] && [[ "$PLATFORM" == "macos" ]]; then
+        detect_qt_path || true
+    fi
+
+    echo ""
+    echo "==================================="
+    echo "  LocalAIAssistant - Package"
+    echo "==================================="
+
+    case "$PLATFORM" in
+        macos)
+            package_macos
+            ;;
+        windows)
+            package_windows
+            ;;
+        linux)
+            package_linux
+            ;;
+        *)
+            echo "Error: Unknown platform '$PLATFORM'"
+            return 1
+            ;;
+    esac
 }
 
 # ============================================================
@@ -538,13 +866,19 @@ prompt_open_program() {
     local open_target=""
 
     if [ "$has_gui" = true ] && [ "$has_cli" = true ]; then
-        read -p "Which to open? [G]ui / [C]li: " -n 1 -r
-        echo ""
-        if [[ $REPLY =~ ^[Cc]$ ]]; then
-            open_target="cli"
-        else
-            open_target="gui"
-        fi
+        while true; do
+            read -p "Which to open? [G]ui / [C]li: " -n 1 -r
+            echo ""
+            if [[ $REPLY =~ ^[Gg]$ ]]; then
+                open_target="gui"
+                break
+            elif [[ $REPLY =~ ^[Cc]$ ]]; then
+                open_target="cli"
+                break
+            else
+                echo "Invalid input. Please enter G or C."
+            fi
+        done
     elif [ "$has_gui" = true ]; then
         open_target="gui"
     else
@@ -693,7 +1027,7 @@ parse_args() {
     # First argument might be a command
     if [[ $# -gt 0 ]]; then
         case $1 in
-            build|run|help)
+            build|run|help|package)
                 COMMAND="$1"
                 shift
                 ;;
@@ -732,6 +1066,10 @@ parse_args() {
                 ;;
             --no-run)
                 NO_RUN_PROMPT=true
+                shift
+                ;;
+            -p|--package)
+                PACKAGE=true
                 shift
                 ;;
             --gui)
@@ -777,6 +1115,7 @@ Usage: ./build.sh [command] [options] [target]
 Commands:
   build    Build the project (default command)
   run      Run compiled executable directly
+  package  Package build artifacts for distribution
   help     Show this help message
 
 Build Options:
@@ -786,7 +1125,13 @@ Build Options:
   -v, --verbose     Show verbose output
   -j, --jobs <n>    Parallel compile jobs (default: auto-detect)
   -q, --qt-path <path>  Specify Qt installation path
+  -p, --package     Create platform package after successful build
   --no-run          Skip "open program" prompt after build
+
+Package Output:
+  macOS:   release/LocalAIAssistant-x.x.x-macOS.dmg
+  Windows: release/LocalAIAssistant-x.x.x-Windows.zip
+  Linux:   release/LocalAIAssistant-x.x.x-Linux.tar.gz
 
 Build Targets:
   all               Build all targets (default)
@@ -801,6 +1146,8 @@ Run Options:
 Examples:
   ./build.sh                        # Build all, prompt to open
   ./build.sh build -c -d            # Clean debug build
+  ./build.sh build -p               # Build and create platform package
+  ./build.sh package                # Package existing build artifacts
   ./build.sh LocalAIAssistant-CLI   # Build CLI only
   ./build.sh -j 8 --no-run          # 8 parallel jobs, no prompt
   ./build.sh run                    # Run GUI (default)
@@ -861,6 +1208,11 @@ main() {
         exit $?
     fi
 
+    if [ "$COMMAND" == "package" ]; then
+        cmd_package
+        exit $?
+    fi
+
     # Detect Qt path FIRST (before checking dependencies)
     # This ensures MinGW compiler path is available for dependency check
     if [ -z "$QT_PATH" ]; then
@@ -897,7 +1249,7 @@ main() {
     # NOW check dependencies (after PATH is set up)
     if ! check_dependencies; then
         echo ""
-        echo "❌ 依赖检查失败，请安装缺少的依赖后重试"
+        echo "❌ Dependency check failed. Install missing dependencies and retry."
         pause_if_interactive
         exit 1
     fi
@@ -918,7 +1270,7 @@ main() {
         exit 0
     else
         echo ""
-        echo "❌ 编译失败，请检查错误信息"
+        echo "❌ Build failed. Check error messages above."
         pause_if_interactive
         exit 1
     fi

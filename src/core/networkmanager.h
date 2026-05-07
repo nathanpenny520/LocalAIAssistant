@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef NETWORKMANAGER_H
 #define NETWORKMANAGER_H
 
@@ -13,6 +15,12 @@
 #include <optional>
 #include "datamodels.h"
 
+enum class ApiType {
+    OpenAI,    // OpenAI / llama.cpp / vLLM 等兼容服务 (→ /v1/chat/completions)
+    Ollama,    // Ollama (→ /api/chat)
+    LlamaCpp   // llama.cpp server (同 OpenAI 协议, 单独列出方便用户选择)
+};
+
 class NetworkManager : public QObject
 {
     Q_OBJECT
@@ -25,6 +33,9 @@ public:
     void setSystemPrompt(const QString &prompt);  // 设置自定义 system prompt
     void abortCurrentRequest();  // 中止当前请求
 
+    ApiType apiType() const { return m_apiType; }
+    void setApiType(ApiType type) { m_apiType = type; }
+
 signals:
     void responseReceived(const QString &content);
     void streamChunkReceived(const QString &chunk);
@@ -35,7 +46,8 @@ public slots:
     void sendChatRequest(const QString &userMessage);
     void sendChatRequestWithContext(const QVector<ChatMessage> &messages);
     void updateSettings(const QString &apiBaseUrl, const QString &apiKey,
-                        const QString &modelName, bool isLocalMode);
+                        const QString &modelName, bool isLocalMode,
+                        ApiType apiType = ApiType::OpenAI);
 
 private slots:
     void onReplyFinished();
@@ -47,8 +59,9 @@ private:
     void saveSettings();
     QString loadSystemPrompt();
     QString extractContentFromResponse(const QByteArray &data);
-    QString extractDeltaFromSSE(const QByteArray &data, bool isOllama = false);
-    QJsonArray buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages, bool isOllama = false);
+    bool isOllamaFormat() const;
+    QString extractDeltaFromSSE(const QByteArray &data);
+    QJsonArray buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages);
     QJsonObject buildTextContentBlock(const QString &text);
     QJsonObject buildImageContentBlock(const QString &base64Data, const QString &mime);
     QJsonObject buildFileContentBlock(const FileAttachment &file);
@@ -60,6 +73,7 @@ private:
     QString m_apiKey;
     QString m_modelName;
     bool m_isLocalMode;
+    ApiType m_apiType = ApiType::OpenAI;
 
     QString m_systemPrompt;
     double m_temperature;

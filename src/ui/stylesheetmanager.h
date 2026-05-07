@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef STYLESHEETMANAGER_H
 #define STYLESHEETMANAGER_H
 

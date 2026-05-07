@@ -198,9 +198,9 @@ QString MarkdownRenderer::toHtml(const QString &markdown, bool isDarkTheme)
             continue;
         }
 
-        // Handle horizontal rules
-        if (line.trimmed() == "---" || line.trimmed() == "***" || line.trimmed() == "- - -") {
-            result += QString("<hr style='border: none; border-top: 1px solid %1; margin: 16px 0;'>\n").arg(colors.tableBorder);
+        // Handle horizontal rules — render as an empty line
+        if (line.trimmed() == "---" || line.trimmed() == "***" || line.trimmed() == "___") {
+            result += "<p style='margin: 12px 0;'>&nbsp;</p>\n";
             continue;
         }
 
@@ -232,7 +232,7 @@ QString MarkdownRenderer::toHtml(const QString &markdown, bool isDarkTheme)
 
         // Regular paragraph
         QString processedLine = processBoldItalic(line, colors);
-        result += QString("<p style='margin: 8px 0; line-height: 1.6; color: %1;'>").arg(colors.text) + processedLine + "</p>\n";
+        result += QString("<p style='margin: 6px 0 14px 0; line-height: 1.6; color: %1;'>").arg(colors.text) + processedLine + "</p>\n";
     }
 
     // Close any remaining open elements

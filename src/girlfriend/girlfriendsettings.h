@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef GIRLFRIENDSETTINGS_H
 #define GIRLFRIENDSETTINGS_H
 
@@ -50,6 +52,28 @@ public:
     QString currentSessionId() const { return m_currentSessionId; }
     void setCurrentSessionId(const QString &id);
 
+    // XFYUN Voice Credentials (user-editable via settings UI)
+    QString xfyunAppId() const { return m_xfyunAppId; }
+    void setXfyunAppId(const QString &id);
+
+    QString xfyunApiKey() const { return m_xfyunApiKey; }
+    void setXfyunApiKey(const QString &key);
+
+    QString xfyunApiSecret() const { return m_xfyunApiSecret; }
+    void setXfyunApiSecret(const QString &secret);
+
+    QString xfyunAsrUrl() const { return m_xfyunAsrUrl; }
+    void setXfyunAsrUrl(const QString &url);
+
+    QString xfyunTtsUrl() const { return m_xfyunTtsUrl; }
+    void setXfyunTtsUrl(const QString &url);
+
+    QString xfyunVoiceType() const { return m_xfyunVoiceType; }
+    void setXfyunVoiceType(const QString &type);
+
+    // Check if credentials are configured
+    bool isXfyunConfigured() const;
+
     // Persistence
     void save();
     void load();
@@ -60,6 +84,7 @@ signals:
     void videoSoundChanged(bool enabled);
     void voiceOutputChanged(bool enabled);
     void currentSessionIdChanged(const QString &id);
+    void xfyunCredentialsChanged();
 
 private:
     GirlfriendSettings();
@@ -72,6 +97,14 @@ private:
     bool m_videoSoundEnabled = false;
     bool m_voiceOutputEnabled = true;
     QString m_currentSessionId;
+
+    // XFYUN credentials
+    QString m_xfyunAppId;
+    QString m_xfyunApiKey;
+    QString m_xfyunApiSecret;
+    QString m_xfyunAsrUrl;
+    QString m_xfyunTtsUrl;
+    QString m_xfyunVoiceType;
 };
 
 #endif // GIRLFRIENDSETTINGS_H

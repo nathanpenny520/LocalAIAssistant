@@ -146,8 +146,8 @@ QList<MemoryManager::MemoryUpdate> MemoryManager::parseMemoryUpdates(const QStri
 {
     QList<MemoryUpdate> updates;
 
-    // 匹配格式: [更新记忆:分类|内容]
-    QRegularExpression regex(R"(\[更新记忆:([^\|]+)\|([^\]]+)\])");
+    // 匹配格式: [更新记忆:分类|内容] 或 [memory:category|content]
+    QRegularExpression regex(R"(\[(?:更新记忆|memory):([^\|]+)\|([^\]]+)\])");
     QRegularExpressionMatchIterator it = regex.globalMatch(response);
 
     // 英文 category 映射到中文分类名

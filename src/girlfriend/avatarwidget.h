@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef AVATARWIDGET_H
 #define AVATARWIDGET_H
 
@@ -7,9 +9,12 @@
 #include <QMap>
 #include <QString>
 #include <QResizeEvent>
-#include <QVideoWidget>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QGraphicsVideoItem>
 #include <QMediaPlayer>
 #include <QAudioOutput>
+#include <QTimer>
 #include "girlfriendsettings.h"
 
 class AvatarWidget : public QWidget
@@ -19,18 +24,19 @@ class AvatarWidget : public QWidget
 public:
     explicit AvatarWidget(QWidget *parent = nullptr);
 
-    void setEmotion(const QString &emotion);
+    void setEmotion(const QString &emotion, bool forceUpdate = false);
     void setSpeaking(bool speaking);
     void setMood(double mood);
     QString currentEmotion() const { return m_currentEmotion; }
-    QString currentDisplayEmotion() const;  // 获取当前实际显示的情绪（考虑 speaking 状态）
+    QString currentDisplayEmotion() const;
     double currentMood() const { return m_currentMood; }
     AvatarLevel currentLevel() const { return m_currentLevel; }
-    void retranslateUi();  // 更新情绪标签文字
+    void retranslateUi();
     void setAvatarLevel(AvatarLevel level);
-    void hideInternalLabels(bool hide);  // 隐藏内部情绪/mood标签
-    void lockState();    // 锁定状态，禁止情绪切换
-    void unlockState();  // 解锁状态，应用暂存的情绪
+    void hideInternalLabels(bool hide);
+    void lockState();
+    void unlockState();
+    void resetIdleTimer();
 
 signals:
     void emotionChanged(const QString &emotion);
@@ -45,6 +51,7 @@ private:
     QString getAvatarPath(const QString &emotion) const;
     void playVideo(const QString &emotion);
     void stopVideo();
+    void onIdleCycle();
 
     QLabel *m_avatarLabel;
     QLabel *m_emotionTagLabel;
@@ -52,20 +59,26 @@ private:
     QLabel *m_moodPercentLabel;
     QMap<QString, QPixmap> m_avatarImages;
 
-    // Video player for Level 3
+    // Video player for Level 3 — uses QGraphicsView for proper widget layering
     QMediaPlayer *m_videoPlayer;
     QAudioOutput *m_audioOutput;
-    QVideoWidget *m_videoWidget;
+    QGraphicsView *m_graphicsView;
+    QGraphicsScene *m_graphicsScene;
+    QGraphicsVideoItem *m_videoItem;
     QString m_currentVideoEmotion;
+
+    // Idle emotion cycling — adds visual variety when user is inactive
+    QTimer *m_idleTimer;
+    QTimer *m_idleCycleTimer;
+    bool m_idleCycling = false;
 
     QString m_currentEmotion;
     bool m_isSpeaking;
     double m_currentMood = 0.6;
     AvatarLevel m_currentLevel;
 
-    // 状态锁 - 防止在关键操作期间发生冲突的状态切换
-    bool m_stateLocked = false;  // true 时禁止情绪/视频切换
-    QString m_pendingEmotion;     // 锁定期间暂存的情绪，解锁后应用
+    bool m_stateLocked = false;
+    QString m_pendingEmotion;
 };
 
 #endif // AVATARWIDGET_H

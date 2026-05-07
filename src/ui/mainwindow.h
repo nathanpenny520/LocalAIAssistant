@@ -1,10 +1,12 @@
+#pragma once
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
 #include <QMainWindow>
 #include <QListWidget>
 #include <QTextBrowser>
-#include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
 #include <QAction>
@@ -20,6 +22,8 @@
 #include "sessionmanager.h"
 #include "filemanager.h"  // 新增
 #include "girlfriendwindow.h"
+#include "../tasks/taskengine.h"
+#include "../knowledge/knowledgebase.h"
 
 class MainWindow : public QMainWindow
 {
@@ -32,6 +36,7 @@ public:
 protected:
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
     void onSendClicked();
@@ -43,11 +48,15 @@ private slots:
     void onNewChatClicked();
     void onSessionItemClicked(QListWidgetItem *item);
     void onDeleteSession();
+    void onRenameSession();
+    void onTogglePinSession();
     void onCustomContextMenuRequested(const QPoint &pos);
+    void onSessionMenuButtonClicked(const QString &sessionId);
     void onThemeChanged(int theme);
     void onLanguageChanged();
     void onToggleHistoryPanel();  // 显示/隐藏历史面板
     void onGirlfriendClicked();  // AI女友入口
+    void handleTaskResponse(const QString &response);  // 处理AI返回的任务计划
 
     // 文件相关
     void onFileButtonClicked();           // 新增
@@ -60,16 +69,20 @@ private slots:
     void onSearchPrevious();              // 查找上一个
     void onSearchClose();                 // 关闭搜索栏
 
+    // 命令执行实时输出
+    void appendCommandOutput(const QString &line);
+
 private:
     void setupUI();
     void setupMenuBar();
     void retranslateUi();
-    void appendChatMessage(const QString &sender, const QString &message);
+    void appendUserMessageToDisplay(const QString &text, const QVector<FileAttachment> &attachments);
     void renderCurrentSession();
     void updateSessionList();
     void setInputEnabled(bool enabled);
     QMap<QString, QString> parseThinkingContent(const QString &content);
     QString formatMessageWithThinking(const QString &role, const QString &content);
+    void adjustInputHeight();             // 动态调整输入框高度
     void updateFileListDisplay();         // 新增
     void clearFileListDisplay();          // 新增
     void setupSearchBar();               // 新增：设置搜索栏
@@ -81,13 +94,17 @@ private:
 
     QListWidget *m_historyList;
     QTextBrowser *m_chatDisplay;
-    QLineEdit *m_inputLine;
+    QPlainTextEdit *m_inputLine;
+    int m_maxInputHeight = 120;          // 输入框最大高度
+    QString m_inputPlaceholder;          // 保存占位符文本用于恢复
     QPushButton *m_sendButton;
     QPushButton *m_newChatButton;
     QAction *m_settingsAction;
     QAction *m_toggleHistoryAction;  // 显示/隐藏历史面板
     QMenu *m_contextMenu;
     QAction *m_deleteAction;
+    QAction *m_renameAction;
+    QAction *m_pinAction;
     NetworkManager *m_networkManager;
     QMap<QString, QListWidgetItem*> m_sessionItemMap;
     QTextDocument *m_markdownDoc;
@@ -95,9 +112,12 @@ private:
     QWidget *m_leftPanel;            // 左侧面板（历史列表）
 
     bool m_isStreaming;
+    bool m_suppressRender = false;   // 仅阻止 onSendClicked 期间的 renderCurrentSession
     QString m_streamingContent;
+    bool m_streamEndedWithNewline = false;
     bool m_isRendering = false;
     QString m_requestSessionId;  // 记录发起请求时的会话ID
+    QString m_contextMenuSessionId;  // 右键菜单/⋯按钮对应的会话ID
 
     // 文件相关成员
     FileManager *m_fileManager;           // 新增

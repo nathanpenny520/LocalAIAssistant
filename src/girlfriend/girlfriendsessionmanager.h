@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef GIRLFRIENDSESSIONMANAGER_H
 #define GIRLFRIENDSESSIONMANAGER_H
 
@@ -11,6 +13,8 @@ struct SessionMetadata {
     QString name;
     QString createdAt;
     QString lastUsedAt;
+    bool pinned = false;
+    bool autoNamed = false;
 };
 
 class GirlfriendSession;
@@ -34,6 +38,8 @@ public:
     bool switchSession(const QString &sessionId);
     bool deleteSession(const QString &sessionId);
     bool renameSession(const QString &sessionId, const QString &newName);
+    bool setSessionPinned(const QString &sessionId, bool pinned);
+    void markSessionAutoNamed(const QString &sessionId);
 
     // Persistence
     void saveAll();

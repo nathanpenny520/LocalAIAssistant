@@ -1,9 +1,11 @@
 #include "networkmanager.h"
 #include "datamodels.h"
+#include "../prompts/promptmanager.h"
 #include <QDebug>
 #include <QBuffer>
 #include <QDir>
 #include <QStandardPaths>
+#include <QFile>
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
@@ -13,10 +15,11 @@ NetworkManager::NetworkManager(QObject *parent)
     , m_apiKey()
     , m_modelName()
     , m_isLocalMode(true)
+    , m_apiType(ApiType::OpenAI)
     , m_systemPrompt()
     , m_temperature(0.4)
     , m_topP(1.0)
-    , m_maxContext(10)
+    , m_maxContext(20)
     , m_maxTokens(8192)
     , m_presencePenalty(0.2)
     , m_frequencyPenalty(0.0)
@@ -72,11 +75,20 @@ void NetworkManager::loadSettings()
     m_modelName = settings.value("modelName", "local-model").toString().trimmed();
 
     m_temperature = settings.value("temperature", 0.4).toDouble();
-    m_maxContext = settings.value("maxContext", 10).toInt();
-    m_maxTokens = settings.value("maxTokens", 2048).toInt();
+    m_maxContext = settings.value("maxContext", 20).toInt();
+    m_maxTokens = settings.value("maxTokens", 8192).toInt();
     m_presencePenalty = settings.value("presencePenalty", 0.2).toDouble();
     m_topP = settings.value("topP", 1.0).toDouble();
     m_frequencyPenalty = settings.value("frequencyPenalty", 0.0).toDouble();
+
+    // API type: "openai" / "ollama" / "llamacpp"
+    QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
+    if (apiTypeStr == "ollama")
+        m_apiType = ApiType::Ollama;
+    else if (apiTypeStr == "llamacpp")
+        m_apiType = ApiType::LlamaCpp;
+    else
+        m_apiType = ApiType::OpenAI;
 
     // seed handling: -1 means not set (null)
     int seedValue = settings.value("seed", -1).toInt();
@@ -91,49 +103,7 @@ void NetworkManager::loadSettings()
 
 QString NetworkManager::loadSystemPrompt()
 {
-    // Try multiple possible paths
-    QStringList possiblePaths;
-
-    // 1. Application directory
-    QString appDir = QCoreApplication::applicationDirPath();
-
-#ifdef Q_OS_MACOS
-    // macOS app bundle structure
-    possiblePaths << QDir::cleanPath(appDir + "/../Resources/core/soul.md");
-#elif defined(Q_OS_WIN)
-    // Windows: 资源在可执行文件同级目录
-    possiblePaths << QDir::cleanPath(appDir + "/core/soul.md");
-#else
-    // Linux
-    possiblePaths << QDir::cleanPath(appDir + "/core/soul.md");
-    possiblePaths << "/usr/share/localaiassistant/core/soul.md";
-    possiblePaths << "/usr/local/share/localaiassistant/core/soul.md";
-#endif
-
-    // 用户数据目录
-    possiblePaths << QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/core/soul.md");
-
-    // 开发时的相对路径
-    possiblePaths << "sourcecode-ai-assistant/src/core/soul.md";
-    possiblePaths << "src/core/soul.md";
-
-    for (const QString &path : possiblePaths) {
-        QFile file(path);
-        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QString content = QString::fromUtf8(file.readAll());
-            file.close();
-            return content.trimmed();
-        }
-    }
-
-    // Fallback: built-in default prompt
-    return "You are a helpful AI assistant integrated into a desktop application.\n\n"
-           "## Language\n\n"
-           "Adapt to user's language. Reply in the same language the user uses.\n\n"
-           "## Guidelines\n\n"
-           "1. For technical problems, break down the logic before giving conclusions.\n"
-           "2. For code suggestions, follow modern coding standards.\n"
-           "3. Keep answers concise and avoid unnecessary verbosity.";
+    return PromptManager::instance()->systemPrompt();
 }
 
 void NetworkManager::saveSettings()
@@ -154,17 +124,37 @@ void NetworkManager::saveSettings()
     // seed save: -1 means null
     settings.setValue("seed", m_seed.has_value() ? m_seed.value() : -1);
     settings.setValue("streamingEnabled", m_streamingEnabled);
+
+    // Save API type
+    switch (m_apiType) {
+    case ApiType::Ollama:   settings.setValue("apiType", "ollama"); break;
+    case ApiType::LlamaCpp: settings.setValue("apiType", "llamacpp"); break;
+    default:                settings.setValue("apiType", "openai"); break;
+    }
 }
 
 void NetworkManager::updateSettings(const QString &apiBaseUrl, const QString &apiKey,
-                                    const QString &modelName, bool isLocalMode)
+                                    const QString &modelName, bool isLocalMode,
+                                    ApiType apiType)
 {
     m_apiBaseUrl = apiBaseUrl.trimmed();
     m_apiKey = apiKey.trimmed();
     m_modelName = modelName.trimmed();
     m_isLocalMode = isLocalMode;
+    m_apiType = apiType;
 
     saveSettings();
+}
+
+bool NetworkManager::isOllamaFormat() const
+{
+    // 显式设置了 Ollama
+    if (m_apiType == ApiType::Ollama)
+        return true;
+    // 未显式设置, 通过 URL 端口自动检测 (向后兼容)
+    if (m_apiType == ApiType::OpenAI && m_apiBaseUrl.contains(QStringLiteral("11434")))
+        return true;
+    return false;
 }
 
 void NetworkManager::sendChatRequest(const QString &userMessage)
@@ -190,25 +180,21 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
         return;
     }
 
-    // 检查是否已有协议前缀，如果没有则添加 https://
+    // 未指定协议前缀：本地模式默认 http，云端模式默认 https
     if (!fullUrl.startsWith("http://", Qt::CaseInsensitive) &&
         !fullUrl.startsWith("https://", Qt::CaseInsensitive)) {
-        fullUrl = "https://" + fullUrl;
+        fullUrl = (m_isLocalMode ? QStringLiteral("http://") : QStringLiteral("https://")) + fullUrl;
     }
-    
+
     if (!fullUrl.endsWith("/")) {
         fullUrl += "/";
     }
-    
-    // 检查是否是 Ollama
-    bool isOllama = fullUrl.contains("11434");
 
-    // Ollama 使用 /api/chat 接口（支持 messages 格式和参数）
-    // 其他使用 OpenAI 格式 /v1/chat/completions
-    if (isOllama) {
-        fullUrl += "api/chat";
+    // 根据 API 类型拼接端点: Ollama → /api/chat, 其余 → /v1/chat/completions
+    if (isOllamaFormat()) {
+        fullUrl += QStringLiteral("api/chat");
     } else {
-        fullUrl += "v1/chat/completions";
+        fullUrl += QStringLiteral("v1/chat/completions");
     }
 
     QUrl url(fullUrl);
@@ -232,8 +218,26 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
         jsonPayload["seed"] = m_seed.value();
     }
 
-    // Use messages format, pass isOllama parameter to support different formats
-    jsonPayload["messages"] = buildMessagesArray(messages, m_maxContext, isOllama);
+    // 注入用户记忆到 system prompt（如果存在有效内容）
+    {
+        QString memoryPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                             + QStringLiteral("/girlfriend/memory.md");
+        QFile memoryFile(memoryPath);
+        QString memoryContent;
+        if (memoryFile.exists() && memoryFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            memoryContent = QString::fromUtf8(memoryFile.readAll());
+            memoryFile.close();
+        }
+        if (!memoryContent.isEmpty() && !memoryContent.contains(QStringLiteral("待记录"))) {
+            m_systemPrompt = loadSystemPrompt()
+                + QStringLiteral("\n\n## 用户记忆档案\n\n")
+                + memoryContent;
+        } else {
+            m_systemPrompt = loadSystemPrompt();
+        }
+    }
+
+    jsonPayload["messages"] = buildMessagesArray(messages, m_maxContext);
 
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
@@ -257,7 +261,7 @@ void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &mess
     }
 }
 
-QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages, bool isOllama)
+QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages)
 {
     QJsonArray jsonMessages;
 
@@ -279,7 +283,7 @@ QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messag
         if (msg.attachments.isEmpty()) {
             // No attachments, use simple string format
             msgObj["content"] = msg.content;
-        } else if (isOllama) {
+        } else if (isOllamaFormat()) {
             // Ollama format: content as string, images as separate array
             msgObj["content"] = msg.content;
 
@@ -361,25 +365,11 @@ void NetworkManager::onStreamReadyRead()
         return;
     }
 
-    // Check if it's Ollama
-    bool isOllama = m_apiBaseUrl.contains("11434");
-
     QByteArray newData = m_currentReply->readAll();
-
-    if (isOllama) {
-        // For Ollama, read data line by line
-        QString chunk = extractDeltaFromSSE(newData, true);
-        if (!chunk.isEmpty()) {
-            m_streamBuffer += chunk;
-            emit streamChunkReceived(chunk);
-        }
-    } else {
-        // For OpenAI format, extract content
-        QString chunk = extractDeltaFromSSE(newData, false);
-        if (!chunk.isEmpty()) {
-            m_streamBuffer += chunk;
-            emit streamChunkReceived(chunk);
-        }
+    QString chunk = extractDeltaFromSSE(newData);
+    if (!chunk.isEmpty()) {
+        m_streamBuffer += chunk;
+        emit streamChunkReceived(chunk);
     }
 }
 
@@ -417,7 +407,7 @@ void NetworkManager::onStreamFinished()
     m_currentReply = nullptr;
 }
 
-QString NetworkManager::extractDeltaFromSSE(const QByteArray &data, bool isOllama)
+QString NetworkManager::extractDeltaFromSSE(const QByteArray &data)
 {
     QString result;
     QString text = QString::fromUtf8(data).trimmed();
@@ -431,7 +421,7 @@ QString NetworkManager::extractDeltaFromSSE(const QByteArray &data, bool isOllam
         return result;
     }
 
-    if (isOllama) {
+    if (isOllamaFormat()) {
         // For Ollama, parse JSON directly
         QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
         if (doc.isNull() || !doc.isObject()) {

@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef GIRLFRIENDWINDOW_H
 #define GIRLFRIENDWINDOW_H
 
@@ -41,6 +43,7 @@ protected:
 private:
     void retranslateUi();  // 更新界面文字
     void updateOverlayLabels();  // 更新overlay上的情绪标签和mood bar
+    void applyTheme();  // 应用亮/暗主题
 
 private slots:
     void onSendClicked();
@@ -63,7 +66,7 @@ private slots:
     // Settings menu slots
     void onSessionChanged(int index);
     void onNewSessionClicked();
-    void onDeleteSessionClicked();
+    void onManageConversations();
     void onAvatarLevelChanged(int level);
     void onMoodInfluenceChanged(int level);
     void onVideoSoundToggled();
@@ -72,7 +75,6 @@ private slots:
     void onSettingsVoiceOutputChanged(bool enabled);
     void onAvatarEmotionChanged(const QString &emotion);  // 情绪变化时更新overlay标签
     void onAvatarMoodChanged(double mood);  // mood变化时更新overlay标签
-    void onVideoOverlayTimerTick();  // 视频模式下定期刷新overlay层级
 
 private:
     void setupUI();
@@ -84,6 +86,7 @@ private:
     void loadSessionMessages();  // Load messages from current session
     void clearChatUI();          // Clear all message bubbles
     void updateOverlayVisibility();  // 根据头像等级更新overlay可见性
+    void showVoiceConfigDialog();   // 显示语音配置对话妰
 
     // 流式思考过滤器
     QString filterThinkingFromChunk(const QString &chunk);
@@ -119,8 +122,8 @@ private:
     QFrame *m_streamingBubble;      // 流式消息气泡
     QLabel *m_streamingTextLabel;   // 流式消息文本标签
     QString m_lastReplyText;        // 最后一条回复文本（用于TTS）
+    bool m_isDarkTheme = false;     // 当前是否为暗色主题
 
-    QTimer *m_videoOverlayTimer;    // 视频模式下定期刷新overlay层级
 };
 
 #endif // GIRLFRIENDWINDOW_H

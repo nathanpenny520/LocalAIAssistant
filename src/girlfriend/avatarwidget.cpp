@@ -5,44 +5,51 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QFile>
+#include <QRandomGenerator>
 
 AvatarWidget::AvatarWidget(QWidget *parent)
     : QWidget(parent)
     , m_avatarLabel(new QLabel(this))
     , m_videoPlayer(new QMediaPlayer(this))
     , m_audioOutput(new QAudioOutput(this))
-    , m_videoWidget(new QVideoWidget(this))
+    , m_graphicsView(new QGraphicsView(this))
+    , m_graphicsScene(new QGraphicsScene(this))
+    , m_videoItem(new QGraphicsVideoItem())
     , m_emotionTagLabel(new QLabel(this))
     , m_moodBarWidget(new QLabel(this))
     , m_moodPercentLabel(new QLabel(this))
     , m_currentEmotion("default")
     , m_isSpeaking(false)
     , m_currentLevel(GirlfriendSettings::instance()->avatarLevel())
+    , m_idleTimer(new QTimer(this))
+    , m_idleCycleTimer(new QTimer(this))
 {
-    // 设置背景透明
     setAttribute(Qt::WA_TranslucentBackground);
     setAutoFillBackground(false);
 
-    // Video player for Level 3 - 先创建，确保在底层
+    // GraphicsView setup for video (Level 3)
+    m_graphicsScene->addItem(m_videoItem);
+    m_graphicsView->setScene(m_graphicsScene);
+    m_graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_graphicsView->setStyleSheet("background: transparent; border: none;");
+    m_graphicsView->setFrameShape(QFrame::NoFrame);
+    m_graphicsView->hide();
+
+    // Video player setup
     m_videoPlayer->setAudioOutput(m_audioOutput);
-    m_videoPlayer->setVideoOutput(m_videoWidget);
-    m_videoWidget->setAttribute(Qt::WA_TranslucentBackground);
-    m_videoWidget->setAttribute(Qt::WA_ShowWithoutActivating);
-    m_videoWidget->setStyleSheet("background: transparent;");
-    m_videoWidget->setAspectRatioMode(Qt::KeepAspectRatioByExpanding);
-    m_videoWidget->hide();
+    m_videoPlayer->setVideoOutput(m_videoItem);
+    m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
 
     loadAvatarImages();
 
-    // Connect to settings changes
     connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
             this, &AvatarWidget::setAvatarLevel);
 
-    // 图片覆盖整个区域，保持比例裁剪
     m_avatarLabel->setAlignment(Qt::AlignCenter);
     m_avatarLabel->setScaledContents(true);
 
-    // 情绪标签样式 - 粉红色背景白色文字
+    // Emotion tag label
     m_emotionTagLabel->setStyleSheet(
         "QLabel { background: rgba(233, 30, 99, 0.85); color: white; "
         "padding: 4px 12px; font-size: 12px; border-radius: 6px; }"
@@ -51,38 +58,71 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     m_emotionTagLabel->move(12, 12);
     m_emotionTagLabel->raise();
 
-    // Mood bar widget - 粉红色风格
+    // Mood bar
     m_moodBarWidget->setStyleSheet("QLabel { background: transparent; }");
     m_moodBarWidget->setFixedHeight(6);
     m_moodBarWidget->setFixedWidth(50);
 
-    // Mood percentage label - 白色文字
+    // Mood percentage
     m_moodPercentLabel->setStyleSheet(
         "QLabel { background: transparent; font-size: 10px; color: white; }"
     );
 
-    // Connect video sound setting
+    // Video sound setting
     connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
             this, [this](bool enabled) {
         m_audioOutput->setMuted(!enabled);
     });
 
-    // Initial mute setting
-    m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
-
-    // 确保层级：视频在底层，标签在上层
-    m_videoWidget->stackUnder(m_avatarLabel);
+    // Stacking: graphicsView (video) bottom, avatarLabel above, labels on top
+    m_graphicsView->stackUnder(m_avatarLabel);
     m_avatarLabel->stackUnder(m_emotionTagLabel);
     m_emotionTagLabel->stackUnder(m_moodBarWidget);
     m_moodBarWidget->stackUnder(m_moodPercentLabel);
+
+    // Idle timer: after 30s of no emotion change, begin cycling
+    m_idleTimer->setInterval(30000);
+    m_idleTimer->setSingleShot(true);
+    connect(m_idleTimer, &QTimer::timeout, this, [this]() {
+        m_idleCycling = true;
+        m_idleCycleTimer->start(5000);
+        onIdleCycle();
+    });
+
+    // Idle cycle timer: switch emotions every 5s while idle
+    m_idleCycleTimer->setInterval(5000);
+    connect(m_idleCycleTimer, &QTimer::timeout, this, &AvatarWidget::onIdleCycle);
 
     updateMoodDisplay();
     updateDisplay();
 }
 
+void AvatarWidget::resetIdleTimer()
+{
+    m_idleTimer->start(30000);
+    if (m_idleCycling) {
+        m_idleCycling = false;
+        m_idleCycleTimer->stop();
+    }
+}
+
+void AvatarWidget::onIdleCycle()
+{
+    if (!m_idleCycling || m_isSpeaking || m_stateLocked) return;
+
+    static const QStringList idlePool = {"default", "studying", "awaiting"};
+    static thread_local QString s_lastIdle;
+    QString pick;
+    do {
+        pick = idlePool[QRandomGenerator::global()->bounded(idlePool.size())];
+    } while (pick == s_lastIdle && idlePool.size() > 1);
+    s_lastIdle = pick;
+
+    setEmotion(pick, true);
+}
+
 void AvatarWidget::loadAvatarImages()
 {
-    // Get avatar path from GirlfriendSettings
     QString avatarDir = GirlfriendSettings::instance()->avatarLevelPath();
 
     if (avatarDir.isEmpty()) {
@@ -98,13 +138,10 @@ void AvatarWidget::loadAvatarImages()
 
     qDebug() << "AvatarWidget: Loading avatars from:" << avatarDir;
 
-    // Store current level from settings
     m_currentLevel = GirlfriendSettings::instance()->avatarLevel();
 
-    // Clear existing images
     m_avatarImages.clear();
 
-    // Define emotion to filename mapping
     QMap<QString, QString> fileNames = {
         {"default", "default.png"},
         {"happy", "happy.png"},
@@ -122,12 +159,10 @@ void AvatarWidget::loadAvatarImages()
         {"travelling", "travelling.png"}
     };
 
-    // Level 1 special case: uses "picture-original.png" for default
     if (m_currentLevel == AvatarLevel::Level1_Belle) {
         fileNames["default"] = "picture-original.png";
     }
 
-    // Load all emotion images
     QStringList emotions = fileNames.keys();
     for (const QString &emotion : emotions) {
         QString fileName = fileNames.value(emotion);
@@ -142,25 +177,28 @@ void AvatarWidget::loadAvatarImages()
     }
 }
 
-void AvatarWidget::setEmotion(const QString &emotion)
+void AvatarWidget::setEmotion(const QString &emotion, bool forceUpdate)
 {
-    // 状态锁检查：如果锁定，暂存情绪但不立即切换
     if (m_stateLocked) {
         m_pendingEmotion = emotion;
         qDebug() << "AvatarWidget: State locked, pending emotion:" << emotion;
         return;
     }
 
-    if (m_currentEmotion != emotion) {
+    if (forceUpdate || m_currentEmotion != emotion) {
         m_currentEmotion = emotion;
         updateDisplay();
         emit emotionChanged(emotion);
+    }
+
+    // Reset idle timer on any setEmotion call (except idle cycling itself)
+    if (!m_idleCycling) {
+        m_idleTimer->start(30000);
     }
 }
 
 QString AvatarWidget::currentDisplayEmotion() const
 {
-    // 返回当前实际显示的情绪（考虑 speaking 状态）
     return m_isSpeaking ? "speaking" : m_currentEmotion;
 }
 
@@ -169,8 +207,6 @@ void AvatarWidget::setSpeaking(bool speaking)
     m_isSpeaking = speaking;
     updateDisplay();
 
-    // 当 speaking 状态改变时，触发情绪变化信号（让 overlay 更新）
-    // 使用 displayEmotion（实际显示的情绪），而不是 m_currentEmotion
     QString displayEmotion = m_isSpeaking ? "speaking" : m_currentEmotion;
     emit emotionChanged(displayEmotion);
 }
@@ -184,20 +220,13 @@ void AvatarWidget::setMood(double mood)
 void AvatarWidget::setAvatarLevel(AvatarLevel level)
 {
     if (m_currentLevel != level) {
-        // 停止当前视频播放（任何等级切换都要停止）
         stopVideo();
-
-        // 切换等级时重置 speaking 状态（如果没有在播放 TTS）
-        // 如果正在播放 TTS，GirlfriendWindow 会处理状态
 
         m_currentLevel = level;
         loadAvatarImages();
 
-        // 切换到 Level 3 时，确保视频音频输出正确设置
         if (level == AvatarLevel::Level3_Hotter) {
-            // 重新设置音频输出（不使用 msleep，避免阻塞）
             m_videoPlayer->setAudioOutput(m_audioOutput);
-            // 应用当前的视频声音设置
             m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
             qDebug() << "AvatarWidget: Level 3 audio output set, muted:"
                      << !GirlfriendSettings::instance()->videoSoundEnabled();
@@ -221,18 +250,22 @@ void AvatarWidget::updateMoodDisplay()
 {
     int percent = static_cast<int>(m_currentMood * 100);
 
+    // 5-segment gradient from dim to bright (higher mood = brighter)
     QString barColor;
-    if (m_currentMood > 0.7) {
-        barColor = "linear-gradient(90deg, #e91e63, #ff4081)";
-    } else if (m_currentMood >= 0.4) {
-        barColor = "#e91e63";
+    if (m_currentMood > 0.8) {
+        barColor = "linear-gradient(90deg, #ff4081, #ff80ab)";  // bright pink-gold
+    } else if (m_currentMood > 0.6) {
+        barColor = "linear-gradient(90deg, #e91e63, #f06292)";  // warm pink
+    } else if (m_currentMood > 0.4) {
+        barColor = "#95a5a6";  // neutral gray
+    } else if (m_currentMood > 0.2) {
+        barColor = "#7f8c8d";  // dim gray
     } else {
-        barColor = "#9e9e9e";
+        barColor = "#5a5a5a";  // very dim
     }
 
-    // Mood bar using HTML
     QString barHtml = QString(
-        "<div style='background: #e0e0e0; border-radius: 3px; width: 50px; height: 6px;'>"
+        "<div style='background: #444; border-radius: 3px; width: 50px; height: 6px;'>"
         "<div style='background: %1; border-radius: 3px; width: %2px; height: 6px;'>"
         "</div></div>"
     ).arg(barColor).arg(static_cast<int>(m_currentMood * 50));
@@ -243,10 +276,8 @@ void AvatarWidget::updateMoodDisplay()
     m_moodPercentLabel->setText(QString("%1%").arg(percent));
     m_moodPercentLabel->adjustSize();
 
-    // 先确保情绪标签已调整大小
     m_emotionTagLabel->adjustSize();
 
-    // Position below emotion tag - aligned with emotion label left edge
     int emotionLabelHeight = m_emotionTagLabel->sizeHint().height();
     m_moodBarWidget->move(12, 12 + emotionLabelHeight + 4);
     m_moodBarWidget->raise();
@@ -257,33 +288,26 @@ void AvatarWidget::updateMoodDisplay()
 
 void AvatarWidget::updateDisplay()
 {
-    // 如果正在说话，优先显示 speaking 图片/视频
     QString displayEmotion = m_isSpeaking ? "speaking" : m_currentEmotion;
 
-    // Level 3 uses video playback
     if (m_currentLevel == AvatarLevel::Level3_Hotter) {
-        // Hide image label, show video widget
         m_avatarLabel->hide();
-        m_videoWidget->show();
-        m_videoWidget->setGeometry(0, 0, width(), height());
+        m_graphicsView->show();
+        m_graphicsView->setGeometry(0, 0, width(), height());
         playVideo(displayEmotion);
 
-        // 视频模式下，确保情绪标签和mood bar在视频之上
         m_emotionTagLabel->raise();
         m_moodBarWidget->raise();
         m_moodPercentLabel->raise();
     } else {
-        // Level 1/2 use images
         stopVideo();
         m_avatarLabel->show();
 
         if (m_avatarImages.contains(displayEmotion)) {
             QPixmap pixmap = m_avatarImages[displayEmotion];
-
-            // Level 2: 使用KeepAspectRatio完整显示图片（窗口已设为9:16比例）
             QSize widgetSize = this->size();
 
-            Qt::AspectRatioMode aspectMode = Qt::KeepAspectRatioByExpanding;  // 默认填充，居中裁剪
+            Qt::AspectRatioMode aspectMode = Qt::KeepAspectRatioByExpanding;
 
             QPixmap scaled = pixmap.scaled(
                 widgetSize,
@@ -291,7 +315,6 @@ void AvatarWidget::updateDisplay()
                 Qt::SmoothTransformation
             );
 
-            // 如果使用KeepAspectRatioByExpanding且缩放后比窗口大，居中裁剪
             if (aspectMode == Qt::KeepAspectRatioByExpanding &&
                 (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height())) {
                 int x = (scaled.width() - widgetSize.width()) / 2;
@@ -303,7 +326,6 @@ void AvatarWidget::updateDisplay()
             m_avatarLabel->resize(widgetSize);
             m_avatarLabel->move(0, 0);
 
-            // 居中显示（对于KeepAspectRatio可能不会填满）
             if (scaled.width() < widgetSize.width() || scaled.height() < widgetSize.height()) {
                 int x = (widgetSize.width() - scaled.width()) / 2;
                 int y = (widgetSize.height() - scaled.height()) / 2;
@@ -313,7 +335,6 @@ void AvatarWidget::updateDisplay()
         }
     }
 
-    // 更新情绪标签 - 使用 displayEmotion 保持与图片/视频同步
     QMap<QString, QString> emotionLabels = {
         {"default", GTr::emotionDefault()},
         {"happy", GTr::emotionHappy()},
@@ -334,9 +355,8 @@ void AvatarWidget::updateDisplay()
     QString labelText = emotionLabels.value(displayEmotion, GTr::emotionDefault());
     m_emotionTagLabel->setText(labelText);
     m_emotionTagLabel->adjustSize();
-    m_emotionTagLabel->raise();  // 确保标签在图片/视频上方
+    m_emotionTagLabel->raise();
 
-    // 确保mood bar也在最上层（特别是视频模式下）
     m_moodBarWidget->raise();
     m_moodPercentLabel->raise();
 }
@@ -360,7 +380,6 @@ QString AvatarWidget::getAvatarPath(const QString &emotion) const
         {"travelling", "travelling.png"}
     };
 
-    // Level 1 special case: uses "picture-original.png" for default
     if (m_currentLevel == AvatarLevel::Level1_Belle && emotion == "default") {
         return GirlfriendSettings::instance()->avatarLevelPath() + "/picture-original.png";
     }
@@ -376,25 +395,22 @@ void AvatarWidget::resizeEvent(QResizeEvent *event)
     m_emotionTagLabel->move(12, 12);
     m_emotionTagLabel->adjustSize();
 
-    // 重新定位mood bar
     int emotionLabelHeight = m_emotionTagLabel->sizeHint().height();
     m_moodBarWidget->move(12, 12 + emotionLabelHeight + 4);
     m_moodBarWidget->raise();
     m_moodPercentLabel->move(12 + 54, 12 + emotionLabelHeight + 2);
     m_moodPercentLabel->raise();
 
-    // 确保情绪标签在最上层
     m_emotionTagLabel->raise();
 
-    // Update video widget geometry if visible
-    if (m_videoWidget->isVisible()) {
-        m_videoWidget->setGeometry(0, 0, width(), height());
+    if (m_graphicsView->isVisible()) {
+        m_graphicsView->setGeometry(0, 0, width(), height());
+        m_videoItem->setSize(QSizeF(width(), height()));
     }
 }
 
 void AvatarWidget::retranslateUi()
 {
-    // 更新情绪标签文字
     updateDisplay();
 }
 
@@ -415,26 +431,26 @@ void AvatarWidget::playVideo(const QString &emotion)
         }
     }
 
-    // 每次播放时确保音频输出正确
     m_videoPlayer->setAudioOutput(m_audioOutput);
     m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
 
-    // Only change video if emotion changed
     if (m_currentVideoEmotion != emotion) {
         m_currentVideoEmotion = emotion;
         m_videoPlayer->setSource(QUrl::fromLocalFile(videoPath));
-        m_videoPlayer->setLoops(QMediaPlayer::Infinite);  // Auto-loop
+        m_videoPlayer->setLoops(QMediaPlayer::Infinite);
         m_videoPlayer->play();
         qDebug() << "AvatarWidget: Playing video for emotion:" << emotion
                  << "from" << videoPath
                  << "audio muted:" << m_audioOutput->isMuted();
     }
+    // Always update video size to match current widget dimensions
+    m_videoItem->setSize(QSizeF(width(), height()));
 }
 
 void AvatarWidget::stopVideo()
 {
     m_videoPlayer->stop();
-    m_videoWidget->hide();
+    m_graphicsView->hide();
     m_avatarLabel->show();
     m_currentVideoEmotion.clear();
 }
@@ -449,21 +465,12 @@ void AvatarWidget::lockState()
 void AvatarWidget::unlockState()
 {
     m_stateLocked = false;
-    qDebug() << "AvatarWidget: State unlocked";
-
-    // 应用暂存的情绪
     if (!m_pendingEmotion.isEmpty()) {
-        QString emotion = m_pendingEmotion;
+        QString pending = m_pendingEmotion;
         m_pendingEmotion.clear();
-        // 直接设置，不再检查锁
-        if (m_currentEmotion != emotion) {
-            m_currentEmotion = emotion;
-            updateDisplay();
-            emit emotionChanged(emotion);
-        }
-        qDebug() << "AvatarWidget: Applied pending emotion:" << emotion;
+        setEmotion(pending);
+        qDebug() << "AvatarWidget: State unlocked, applied pending emotion:" << pending;
     } else {
-        // 没有暂存情绪时，触发当前情绪的信号（可能是 speaking 后恢复）
-        emit emotionChanged(m_currentEmotion);
+        qDebug() << "AvatarWidget: State unlocked, no pending emotion";
     }
 }

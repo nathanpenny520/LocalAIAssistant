@@ -1,10 +1,12 @@
 #include "personalityengine.h"
+#include "../prompts/promptmanager.h"
 #include <QDebug>
 #include <QFile>
 #include <QDir>
 #include <QCoreApplication>
 #include <QRegularExpression>
 #include <QTime>
+#include <QRandomGenerator>
 
 PersonalityEngine::PersonalityEngine(QObject *parent)
     : QObject(parent)
@@ -16,45 +18,25 @@ PersonalityEngine::PersonalityEngine(QObject *parent)
 
 void PersonalityEngine::loadFromFile()
 {
-    QStringList possiblePaths = findPossiblePaths();
+    m_personalityPrompt = PromptManager::instance()->girlfriendPrompt();
 
-    for (const QString &path : possiblePaths) {
-        QFile file(path);
-        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            m_personalityPrompt = QString::fromUtf8(file.readAll());
-            file.close();
-            qDebug() << "PersonalityEngine: Loaded prompt from:" << path;
-            return;
-        }
+    if (m_personalityPrompt.isEmpty()) {
+        m_personalityPrompt = QStringLiteral("你是小清，一个温柔体贴、有知性陪伴感的AI女友。");
+        qDebug() << "PersonalityEngine: Using default prompt";
+    } else {
+        parseTemplateConfig();
+        qDebug() << "PersonalityEngine: Loaded prompt from PromptManager";
     }
-
-    // Fallback: 默认 Prompt
-    m_personalityPrompt = "你是小清，一个温柔体贴、有知性陪伴感的AI女友。";
-    qDebug() << "PersonalityEngine: Using default prompt";
 }
 
-QStringList PersonalityEngine::findPossiblePaths() const
+void PersonalityEngine::parseTemplateConfig()
 {
-    QStringList paths;
+    m_templateConfig = PromptManager::instance()->girlfriendConfig();
+}
 
-    QString appDir = QCoreApplication::applicationDirPath();
-
-#ifdef Q_OS_MACOS
-    // macOS app bundle 结构
-    paths << QDir::cleanPath(appDir + "/../Resources/girlfriend/personality.md");
-#elif defined(Q_OS_WIN)
-    // Windows: 资源在可执行文件同级目录
-    paths << QDir::cleanPath(appDir + "/girlfriend/personality.md");
-#else
-    // Linux
-    paths << QDir::cleanPath(appDir + "/girlfriend/personality.md");
-#endif
-
-    // 通用备用路径
-    paths << "src/girlfriend/personality.md";
-    paths << "sourcecode-ai-assistant/src/girlfriend/personality.md";
-
-    return paths;
+QString PersonalityEngine::templateValue(const QString &key, const QString &fallback) const
+{
+    return m_templateConfig.value(key, fallback);
 }
 
 QString PersonalityEngine::loadPersonalityPrompt()
@@ -65,37 +47,63 @@ QString PersonalityEngine::loadPersonalityPrompt()
     return m_personalityPrompt;
 }
 
-QString PersonalityEngine::buildSystemPrompt()
+QString PersonalityEngine::buildSystemPrompt(const QString &memoryContent)
 {
     QString prompt = m_personalityPrompt;
 
-    // 替换用户昵称占位符
-    prompt.replace("{{user_nickname}}", m_userNickname);
+    prompt.replace(QStringLiteral("{{user_nickname}}"), m_userNickname);
 
-    // 添加心情提示
+    // 心情提示 — 从 personality.md 读取配置, 无配置则用代码内置默认值
     QString moodHint = getMoodHint();
-    if (!moodHint.isEmpty()) {
-        prompt += "\n\n当前心情：" + moodHint;
+    if (moodHint.isEmpty()) {
+        prompt.remove(QStringLiteral("\n{{mood_hint}}"));
+    } else {
+        prompt.replace(QStringLiteral("{{mood_hint}}"),
+                       templateValue(QStringLiteral("mood_prefix"),
+                                     QStringLiteral("当前心情：")) + moodHint + QLatin1Char('\n'));
     }
 
-    // 添加时间感知
+    // 时间提示
     QTime now = QTime::currentTime();
     int hour = now.hour();
-    QString timeContext;
+    QString timeKey;
+    if (hour >= 6 && hour < 10)
+        timeKey = QStringLiteral("time_morning");
+    else if (hour >= 10 && hour < 14)
+        timeKey = QStringLiteral("time_noon");
+    else if (hour >= 18 && hour < 22)
+        timeKey = QStringLiteral("time_evening");
+    else if (hour >= 22 || hour < 2)
+        timeKey = QStringLiteral("time_night");
+    else
+        timeKey = QStringLiteral("time_afternoon");
 
-    if (hour >= 6 && hour < 10) {
-        timeContext = QString("早上%1点，用户刚起床，可以说早安、元气满满的话").arg(hour);
-    } else if (hour >= 10 && hour < 14) {
-        timeContext = QString("中午%1点，该吃午饭了").arg(hour);
-    } else if (hour >= 18 && hour < 22) {
-        timeContext = QString("晚上%1点，用户可能在休息").arg(hour);
-    } else if (hour >= 22 || hour < 2) {
-        timeContext = QString("深夜%1点，用户该睡觉了，语气要温柔哄睡").arg(hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour));
+    int displayHour = (hour == 0) ? 12 : (hour > 12 ? hour - 12 : hour);
+    QString timeContext = templateValue(timeKey,
+        // 内置默认值 (中文, 仅 personality.md 缺少对应 key 时使用)
+        (timeKey == QStringLiteral("time_morning"))
+            ? QStringLiteral("早上%1点，用户刚起床，可以说早安、元气满满的话")
+        : (timeKey == QStringLiteral("time_noon"))
+            ? QStringLiteral("中午%1点，该吃午饭了")
+        : (timeKey == QStringLiteral("time_evening"))
+            ? QStringLiteral("晚上%1点，用户可能在休息")
+        : (timeKey == QStringLiteral("time_night"))
+            ? QStringLiteral("深夜%1点，用户该睡觉了，语气要温柔哄睡")
+            : QStringLiteral("下午%1点"))
+        .arg(displayHour);
+
+    prompt.replace(QStringLiteral("{{time_context}}"),
+                   templateValue(QStringLiteral("time_prefix"),
+                                 QStringLiteral("当前时间：")) + timeContext + QLatin1Char('\n'));
+
+    // 用户记忆注入
+    if (!memoryContent.isEmpty()) {
+        QString memHeader = templateValue(QStringLiteral("memory_header"),
+                                          QStringLiteral("## 关于用户的记忆\n"));
+        prompt.replace(QStringLiteral("{{user_memories}}"), memHeader + memoryContent + QLatin1Char('\n'));
     } else {
-        timeContext = QString("下午%1点").arg(hour);
+        prompt.remove(QStringLiteral("{{user_memories}}"));
     }
-
-    prompt += "\n\n当前时间：" + timeContext;
 
     return prompt;
 }
@@ -224,16 +232,30 @@ QString PersonalityEngine::detectEmotion(const QString &text, double mood) const
         }
     }
 
-    // No keywords matched - apply mood-based default for High influence
-    if (influenceLevel == MoodInfluenceLevel::High) {
-        if (mood < 0.4) {
-            return "sad";
-        } else if (mood > 0.7) {
-            return "happy";
-        }
+    // No keywords matched - randomly pick from mood-appropriate pool
+    // This ensures the avatar doesn't always show the same "default" image
+    QStringList pool;
+    if (mood > 0.7) {
+        pool = {"happy", "love", "shy", "awaiting", "default"};
+    } else if (mood >= 0.3) {
+        pool = {"default", "default", "studying", "awaiting", "default"};
+    } else {
+        pool = {"sad", "worried", "crying", "angry", "afraid", "default"};
     }
 
-    return "default";
+    int idx = QRandomGenerator::global()->bounded(pool.size());
+    QString selected = pool[idx];
+
+    // Avoid repeating the same non-default emotion twice in a row
+    // (use a static last-emotion per instance, but since this is const, use mutable)
+    static thread_local QString s_lastFallback;
+    if (selected != "default" && selected == s_lastFallback && pool.size() > 1) {
+        idx = (idx + 1) % pool.size();
+        selected = pool[idx];
+    }
+    s_lastFallback = selected;
+
+    return selected;
 }
 
 QString PersonalityEngine::emotionToDisplayName(const QString &emotion) const
@@ -309,13 +331,16 @@ void PersonalityEngine::updateMood(const QString &userInput)
 QString PersonalityEngine::getMoodHint() const
 {
     if (m_mood < 0.3) {
-        return "心情很差，说话带着哭腔，可能会说'呜...'";
+        return templateValue(QStringLiteral("mood_low"),
+            QStringLiteral("心情很差，说话带着哭腔，可能会说'呜...'"));
     } else if (m_mood < 0.5) {
-        return "有点不开心，说话简短，偶尔撒娇说'哼'";
+        return templateValue(QStringLiteral("mood_mid"),
+            QStringLiteral("有点不开心，说话简短，偶尔撒娇说'哼'"));
     } else if (m_mood > 0.8) {
-        return "开开心心，语气特别甜，会说'嘻嘻~'";
+        return templateValue(QStringLiteral("mood_high"),
+            QStringLiteral("开开心心，语气特别甜，会说'嘻嘻~'"));
     } else {
-        return "";  // 正常状态不添加提示
+        return QString();  // 正常状态不添加提示
     }
 }
 
@@ -347,18 +372,22 @@ PersonalityEngine::EmotionResult PersonalityEngine::parseEmotionFromResponse(con
     result.emotion = "default";
     result.cleanText = text;
 
-    // 匹配情绪标记: [情绪:xxx]
-    QRegularExpression emotionRegex(R"(\[情绪:([^\]]+)\])");
+    // 匹配情绪标记: [情绪:xxx] 或 [emotion:xxx]
+    QRegularExpression emotionRegex(R"(\[(?:情绪|emotion):([^\]]+)\])");
     QRegularExpressionMatch match = emotionRegex.match(text);
 
     if (match.hasMatch()) {
-        QString chineseEmotion = match.captured(1);  // 提取情绪词
-        QString fullTag = match.captured(0);         // 完整标记
+        QString emotionName = match.captured(1).trimmed();  // 提取情绪词
+        QString fullTag = match.captured(0);                // 完整标记
 
-        // 转换为英文情绪ID
+        // 如果已经是英文 emotion ID，直接使用
         QMap<QString, QString> emotionMap = chineseToEnglishEmotion();
-        if (emotionMap.contains(chineseEmotion)) {
-            result.emotion = emotionMap[chineseEmotion];
+        if (emotionMap.contains(emotionName)) {
+            // 中文情绪词 → 英文 ID
+            result.emotion = emotionMap[emotionName];
+        } else if (emotionMap.values().contains(emotionName)) {
+            // 已经是英文 ID，直接使用
+            result.emotion = emotionName;
         }
 
         // 移除情绪标记，返回清理后的文本

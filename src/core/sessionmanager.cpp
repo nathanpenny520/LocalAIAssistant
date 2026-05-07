@@ -57,6 +57,7 @@ void SessionManager::switchToSession(const QString &sessionId)
 void SessionManager::addMessageToCurrentSession(const QString &role, const QString &content)
 {
     m_sessions[m_currentSessionId].messages.append(ChatMessage(role, content));
+    saveSessionsToFile();
     emit sessionChanged(m_currentSessionId);
 }
 
@@ -65,6 +66,7 @@ void SessionManager::addMessageToCurrentSession(const QString &role, const QStri
     ChatMessage msg(role, content);
     msg.attachments = attachments;
     m_sessions[m_currentSessionId].messages.append(msg);
+    saveSessionsToFile();
     emit sessionChanged(m_currentSessionId);
 }
 
@@ -72,6 +74,7 @@ void SessionManager::addMessageToSession(const QString &sessionId, const QString
 {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].messages.append(ChatMessage(role, content));
+        saveSessionsToFile();
         emit sessionChanged(sessionId);
     }
 }
@@ -80,6 +83,15 @@ void SessionManager::updateSessionTitle(const QString &sessionId, const QString 
 {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].title = title;
+        m_sessions[sessionId].autoNamed = true;
+        emit sessionChanged(sessionId);
+    }
+}
+
+void SessionManager::setSessionPinned(const QString &sessionId, bool pinned)
+{
+    if (m_sessions.contains(sessionId)) {
+        m_sessions[sessionId].pinned = pinned;
         emit sessionChanged(sessionId);
     }
 }
@@ -115,6 +127,8 @@ void SessionManager::saveSessionsToFile()
         QJsonObject sessionObj;
         sessionObj["id"] = session.id;
         sessionObj["title"] = session.title;
+        sessionObj["pinned"] = session.pinned;
+        sessionObj["autoNamed"] = session.autoNamed;
 
         QJsonArray messagesArray;
         for (const auto &msg : session.messages) {
@@ -183,6 +197,8 @@ void SessionManager::loadSessionsFromFile()
         ChatSession session;
         session.id = sessionObj["id"].toString();
         session.title = sessionObj["title"].toString(QStringLiteral("新对话"));
+        session.pinned = sessionObj["pinned"].toBool(false);
+        session.autoNamed = sessionObj["autoNamed"].toBool(false);
 
         QJsonArray messagesArray = sessionObj["messages"].toArray();
         for (const auto &msgVal : messagesArray) {

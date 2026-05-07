@@ -18,6 +18,7 @@
 
 #include "networkmanager.h"
 #include "sessionmanager.h"
+#include "../tasks/taskengine.h"
 
 namespace {
 #ifdef Q_OS_WIN
@@ -70,6 +71,7 @@ CLIApplication::CLIApplication(QObject *parent)
     : QObject(parent)
     , m_networkManager(nullptr)
     , m_fileManager(nullptr)
+    , m_taskEngine(nullptr)
     , m_running(false)
     , m_interactiveMode(false)
     , m_isStreaming(false)
@@ -89,6 +91,7 @@ int CLIApplication::run(int argc, char *argv[])
 
     m_networkManager = new NetworkManager(this);
     m_fileManager = new FileManager(this);
+    m_taskEngine = TaskEngine::instance();
     connect(m_networkManager, &NetworkManager::responseReceived,
             this, &CLIApplication::onResponseReceived);
     connect(m_networkManager, &NetworkManager::errorOccurred,
@@ -145,6 +148,8 @@ int CLIApplication::run(int argc, char *argv[])
         "Set random seed (integer, -1 to clear)", "value");
     QCommandLineOption maxContextOpt(QStringList() << "max-context",
         "Set max context messages (1-100)", "value");
+    QCommandLineOption apiTypeOpt(QStringList() << "api-type",
+        "Set API type (openai, ollama, llamacpp)", "type");
 
     parser.addOption(sessionOpt);
     parser.addOption(newSessionOpt);
@@ -165,6 +170,7 @@ int CLIApplication::run(int argc, char *argv[])
     parser.addOption(frequencyPenaltyOpt);
     parser.addOption(seedOpt);
     parser.addOption(maxContextOpt);
+    parser.addOption(apiTypeOpt);
 
     parser.process(app);
 
@@ -277,6 +283,9 @@ int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLine
     std::cout << "  /listfiles   - Show pending files\n";
     std::cout << "  /clearfiles  - Clear pending files\n";
     std::cout << "  /search <keyword> - Search messages\n";
+    std::cout << "  /confirm  - Confirm pending command plan\n";
+    std::cout << "  /cancel   - Cancel pending command plan\n";
+    std::cout << "  /undo     - Undo last executed commands\n";
     std::cout << "  /exit     - Exit program\n";
     std::cout << "====================================\n\n";
 
@@ -407,6 +416,30 @@ void CLIApplication::handleCommand(const QString &command)
     } else if (cmd == "/search") {
         std::cout << "Usage: /search <keyword>" << std::endl;
         std::cout << "Example: /search hello" << std::endl;
+    } else if (cmd == "/confirm") {
+        if (m_hasPendingPlan) {
+            executeConfirmedPlan();
+        } else {
+            std::cout << "No pending command plan to confirm." << std::endl;
+        }
+    } else if (cmd == "/cancel") {
+        if (m_hasPendingPlan) {
+            m_hasPendingPlan = false;
+            m_pendingPlan = OperationPlan();
+            std::cout << "Pending command plan cancelled." << std::endl;
+        } else {
+            std::cout << "No pending command plan to cancel." << std::endl;
+        }
+    } else if (cmd == "/undo") {
+        if (m_taskEngine->canUndo()) {
+            std::cout << "Undoing last operation..." << std::endl;
+            QVector<CommandResult> results = m_taskEngine->undoLast();
+            for (int i = 0; i < results.size(); ++i) {
+                std::cout << formatCommandResult(i, results[i]).toStdString() << std::endl;
+            }
+        } else {
+            std::cout << "Nothing to undo." << std::endl;
+        }
     } else if (cmd == "/exit" || cmd == "/quit") {
         quit();
         return;
@@ -433,6 +466,9 @@ void CLIApplication::showHelp()
     std::cout << "  /listfiles   - Show pending files\n";
     std::cout << "  /clearfiles  - Clear pending files\n";
     std::cout << "  /search <keyword> - Search messages in current session\n";
+    std::cout << "  /confirm  - Confirm pending command plan\n";
+    std::cout << "  /cancel   - Cancel pending command plan\n";
+    std::cout << "  /undo     - Undo last executed commands\n";
     std::cout << "  /exit     - Exit program\n";
     std::cout << "\nJust type text to chat with AI\n";
 }
@@ -466,6 +502,11 @@ void CLIApplication::showConfig()
               << "\n";
     std::cout << "Model: "
               << settings.value("modelName", "local-model").toString().toStdString()
+              << "\n";
+    QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
+    std::cout << "API type: "
+              << (apiTypeStr == "ollama" ? "Ollama" :
+                  apiTypeStr == "llamacpp" ? "llama.cpp" : "OpenAI-compatible")
               << "\n";
     std::cout << "----------------------------------------\n";
     std::cout << "Model parameters:\n";
@@ -602,6 +643,10 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     QString apiKey = settings.value("apiKey", "").toString();
     QString modelName = settings.value("modelName", "local-model").toString();
     bool isLocalMode = settings.value("localMode", true).toBool();
+    QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
+    ApiType apiType = ApiType::OpenAI;
+    if (apiTypeStr == "ollama") apiType = ApiType::Ollama;
+    else if (apiTypeStr == "llamacpp") apiType = ApiType::LlamaCpp;
 
     if (parser.isSet("api-url")) {
         apiUrl = parser.value("api-url");
@@ -621,6 +666,13 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     }
     if (parser.isSet("external")) {
         isLocalMode = false;
+        hasChanges = true;
+    }
+    if (parser.isSet("api-type")) {
+        QString val = parser.value("api-type").toLower();
+        if (val == "ollama") apiType = ApiType::Ollama;
+        else if (val == "llamacpp") apiType = ApiType::LlamaCpp;
+        else apiType = ApiType::OpenAI;
         hasChanges = true;
     }
 
@@ -674,7 +726,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
 
     // Update API settings first (triggers NetworkManager to save cached values)
     if (hasChanges) {
-        m_networkManager->updateSettings(apiUrl, apiKey, modelName, isLocalMode);
+        m_networkManager->updateSettings(apiUrl, apiKey, modelName, isLocalMode, apiType);
     }
 
     // Then set model parameters (override NetworkManager saved old values)
@@ -744,6 +796,9 @@ void CLIApplication::onStreamFinished(const QString &fullContent)
         SessionManager::instance()->saveSessionsToFile();
         m_isStreaming = false;
         m_streamingContent.clear();
+
+        if (extractAndHandleTaskPlan(fullContent))
+            return;
     }
 
     if (m_interactiveMode) {
@@ -762,6 +817,9 @@ void CLIApplication::onResponseReceived(const QString &response)
 
     SessionManager::instance()->addMessageToCurrentSession("assistant", response);
     SessionManager::instance()->saveSessionsToFile();
+
+    if (extractAndHandleTaskPlan(response))
+        return;
 
     if (m_interactiveMode) {
         std::cout << "\nAI: " << response.toStdString() << std::endl;
@@ -936,6 +994,168 @@ void CLIApplication::searchMessages(const QString &keyword)
     }
 
     QTimer::singleShot(0, this, &CLIApplication::readInput);
+}
+
+// ── Task execution ─────────────────────────────────────────────
+
+bool CLIApplication::extractAndHandleTaskPlan(const QString &response)
+{
+    // Check for [TASK_PLAN] ... [/TASK_PLAN] tags
+    int startIdx = response.indexOf(QStringLiteral("[TASK_PLAN]"));
+    if (startIdx < 0)
+        return false;
+
+    int endIdx = response.indexOf(QStringLiteral("[/TASK_PLAN]"), startIdx);
+    if (endIdx < 0)
+        return false;
+
+    QString jsonStr = response.mid(startIdx + 11, endIdx - startIdx - 11).trimmed();
+
+    // Also extract the display text (text before the task plan)
+    QString displayText = response.left(startIdx).trimmed();
+    if (!displayText.isEmpty())
+        std::cout << "\nAI: " << displayText.toStdString() << std::endl;
+
+    OperationPlan plan = m_taskEngine->parsePlanFromAIResponse(response);
+    if (plan.isEmpty()) {
+        std::cout << "Warning: Could not parse task plan from AI response." << std::endl;
+        return false;
+    }
+
+    // Validate with safety checker
+    SafetyChecker::Result safetyResult = m_taskEngine->validatePlan(plan);
+    if (safetyResult == SafetyChecker::Blocked) {
+        std::cout << "\n*** Command blocked: "
+                  << m_taskEngine->safetyChecker().lastBlockReason().toStdString()
+                  << " ***" << std::endl;
+        return true; // handled, don't show normal prompt
+    }
+
+    if (safetyResult == SafetyChecker::Approved) {
+        // Safe plan, execute immediately
+        std::cout << "\nExecuting command plan..." << std::endl;
+        showPlanPreview(plan);
+
+        // Connect for real-time output
+        connect(m_taskEngine->executor(), &CommandExecutor::stdoutLineReceived,
+                this, [](const QString &line, int) {
+                    std::cout << "  " << line.toStdString() << std::endl;
+                });
+        connect(m_taskEngine->executor(), &CommandExecutor::stderrLineReceived,
+                this, [](const QString &line, int) {
+                    std::cerr << "  [stderr] " << line.toStdString() << std::endl;
+                });
+
+        QVector<CommandResult> results = m_taskEngine->executePlan(plan);
+
+        // Disconnect signals
+        m_taskEngine->executor()->disconnect(this);
+
+        int successCount = 0;
+        for (const auto &r : results) {
+            if (r.success)
+                successCount++;
+        }
+
+        std::cout << "\n--- Command plan finished: "
+                  << successCount << "/" << results.size()
+                  << " succeeded ---" << std::endl;
+
+        for (int i = 0; i < results.size(); ++i) {
+            std::cout << formatCommandResult(i, results[i]).toStdString() << std::endl;
+        }
+
+        if (m_taskEngine->canUndo())
+            std::cout << "Tip: type /undo to revert the last operation" << std::endl;
+    } else {
+        // Needs confirmation
+        std::cout << "\n*** Command plan requires confirmation ***" << std::endl;
+        showPlanPreview(plan);
+        std::cout << "Type /confirm to execute, /cancel to abort." << std::endl;
+
+        m_pendingPlan = plan;
+        m_hasPendingPlan = true;
+    }
+
+    return true; // task plan handled
+}
+
+void CLIApplication::showPlanPreview(const OperationPlan &plan)
+{
+    std::cout << "Description: " << plan.description.toStdString() << std::endl;
+    std::cout << "Commands (" << plan.totalOperations() << "):" << std::endl;
+
+    for (int i = 0; i < plan.operations.size(); ++i) {
+        const auto &op = plan.operations[i];
+        QString dangerLabel;
+        SafetyChecker::DangerLevel level = m_taskEngine->safetyChecker().dangerLevel(op);
+        if (level == SafetyChecker::Dangerous)
+            dangerLabel = QStringLiteral(" [DANGEROUS]");
+        else if (level == SafetyChecker::Caution)
+            dangerLabel = QStringLiteral(" [CAUTION]");
+
+        std::cout << "  " << (i + 1) << ". "
+                  << op.command.toStdString()
+                  << dangerLabel.toStdString() << std::endl;
+        std::cout << "     " << op.description.toStdString() << std::endl;
+    }
+}
+
+void CLIApplication::executeConfirmedPlan()
+{
+    if (!m_hasPendingPlan || m_pendingPlan.isEmpty()) {
+        std::cout << "No pending command plan." << std::endl;
+        return;
+    }
+
+    std::cout << "Executing..." << std::endl;
+
+    // Connect for real-time output
+    connect(m_taskEngine->executor(), &CommandExecutor::stdoutLineReceived,
+            this, [](const QString &line, int) {
+                std::cout << "  " << line.toStdString() << std::endl;
+            });
+    connect(m_taskEngine->executor(), &CommandExecutor::stderrLineReceived,
+            this, [](const QString &line, int) {
+                std::cerr << "  [stderr] " << line.toStdString() << std::endl;
+            });
+
+    QVector<CommandResult> results = m_taskEngine->executePlan(m_pendingPlan);
+    m_hasPendingPlan = false;
+    m_pendingPlan = OperationPlan();
+
+    // Disconnect signals
+    m_taskEngine->executor()->disconnect(this);
+
+    int successCount = 0;
+    for (const auto &r : results) {
+        if (r.success)
+            successCount++;
+    }
+
+    std::cout << "\n--- Command plan finished: "
+              << successCount << "/" << results.size()
+              << " succeeded ---" << std::endl;
+
+    for (int i = 0; i < results.size(); ++i) {
+        std::cout << formatCommandResult(i, results[i]).toStdString() << std::endl;
+    }
+
+    if (m_taskEngine->canUndo())
+        std::cout << "Tip: type /undo to revert the last operation" << std::endl;
+}
+
+QString CLIApplication::formatCommandResult(int index, const CommandResult &result) const
+{
+    if (result.success) {
+        return QStringLiteral("  [%1] OK  (%2ms)")
+            .arg(index + 1)
+            .arg(result.elapsedMs);
+    } else {
+        return QStringLiteral("  [%1] FAIL  %2")
+            .arg(index + 1)
+            .arg(result.errorMessage);
+    }
 }
 
 void CLIApplication::quit()

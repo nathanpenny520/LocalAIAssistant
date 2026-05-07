@@ -1,5 +1,6 @@
 #include "voicemanager.h"
 #include "girlfriend_translations.h"
+#include "girlfriendsettings.h"
 #include <QDebug>
 #include <QFile>
 #include <QDir>
@@ -21,11 +22,11 @@
 #include <QMediaDevices>
 #include <QAudioDevice>
 
-// 超拟人语音合成 WebSocket API 鉴权参数
-static const QString ASR_HOST = "iat-api.xfyun.cn";
-static const QString ASR_PATH = "/v2/iat";
-static const QString TTS_HOST = "cbm01.cn-huabei-1.xf-yun.com";
-static const QString TTS_PATH = "/v1/private/mcd9m97e6";
+// 讯飞语音 WebSocket API 默认鉴权参数
+static const QString ASR_DEFAULT_HOST = "iat-api.xfyun.cn";
+static const QString ASR_DEFAULT_PATH = "/v2/iat";
+static const QString TTS_DEFAULT_HOST = "cbm01.cn-huabei-1.xf-yun.com";
+static const QString TTS_DEFAULT_PATH = "/v1/private/mcd9m97e6";
 
 VoiceManager::VoiceManager(QObject *parent)
     : QObject(parent)
@@ -43,7 +44,7 @@ VoiceManager::VoiceManager(QObject *parent)
     , m_audioOutput(nullptr)
     , m_ttsTempFile(nullptr)
     , m_isSpeaking(false)
-    , m_voiceType("x6_wumeinv_pro")  // 超拟人默认发音人
+    , m_voiceType("x6_lingxiaoxuan_pro")  // 超拟人默认发音人
     , m_enableVoiceOutput(true)
     , m_asrFrameIndex(0)
     , m_ttsSeq(0)
@@ -158,12 +159,25 @@ QString VoiceManager::findConfigFilePath() const
 
 bool VoiceManager::loadConfig()
 {
-    // 优先从系统环境变量读取（如果已设置）
+    // Priority 1: GirlfriendSettings (user-editable via UI — most user-friendly)
+    GirlfriendSettings *gs = GirlfriendSettings::instance();
+    if (gs->isXfyunConfigured()) {
+        m_appId = gs->xfyunAppId();
+        m_apiKey = gs->xfyunApiKey();
+        m_apiSecret = gs->xfyunApiSecret();
+        m_asrUrl = gs->xfyunAsrUrl().isEmpty() ? QStringLiteral("wss://iat-api.xfyun.cn/v2/iat") : gs->xfyunAsrUrl();
+        m_ttsUrl = gs->xfyunTtsUrl().isEmpty() ? QStringLiteral("wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6") : gs->xfyunTtsUrl();
+        if (!gs->xfyunVoiceType().isEmpty())
+            m_voiceType = gs->xfyunVoiceType();
+        qDebug() << "VoiceManager: Loaded credentials from GirlfriendSettings";
+        return true;
+    }
+
+    // Priority 2: System environment variables
     m_appId = qEnvironmentVariable("XFYUN_APP_ID");
     m_apiKey = qEnvironmentVariable("XFYUN_API_KEY");
     m_apiSecret = qEnvironmentVariable("XFYUN_API_SECRET");
 
-    // 如果系统环境变量已设置，直接使用
     if (!m_appId.isEmpty() && !m_apiKey.isEmpty() && !m_apiSecret.isEmpty()) {
         qDebug() << "VoiceManager: Loaded credentials from system environment variables";
         m_asrUrl = qEnvironmentVariable("XFYUN_ASR_URL", "wss://iat-api.xfyun.cn/v2/iat");
@@ -171,19 +185,16 @@ bool VoiceManager::loadConfig()
         return true;
     }
 
-    // 从配置文件读取（.env 或 voice_config.json）
+    // Priority 3: Config files (.env or voice_config.json)
     QString configPath = findConfigFilePath();
     if (configPath.isEmpty()) {
         qDebug() << "VoiceManager: No config file found (.env or voice_config.json)";
         return false;
     }
 
-    // 判断文件类型
     if (configPath.endsWith(".env")) {
-        // 解析 .env 文件
         return loadFromEnvFile(configPath);
     } else {
-        // 解析 JSON 配置文件
         return loadFromJsonFile(configPath);
     }
 }
@@ -273,7 +284,7 @@ bool VoiceManager::loadFromJsonFile(const QString &path)
     m_asrUrl = xfyun["asr_url"].toString();
     m_ttsUrl = xfyun["tts_url"].toString();
 
-    m_voiceType = config["voice_type"].toString("x6_wumeinv_pro");
+    m_voiceType = config["voice_type"].toString("x6_lingxiaoxuan_pro");
     m_enableVoiceOutput = config["enable_voice_output"].toBool(true);
 
     qDebug() << "VoiceManager: AppId:" << m_appId << "ApiKey:" << m_apiKey.left(8) + "...";
@@ -295,12 +306,15 @@ void VoiceManager::setVoiceType(const QString &voiceType)
 
 QString VoiceManager::generateAsrAuthUrl()
 {
-    return generateAuthUrl(ASR_HOST, ASR_PATH);
+    // Parse configured URL, fall back to defaults
+    QUrl url(m_asrUrl.isEmpty() ? QString("wss://%1%2").arg(ASR_DEFAULT_HOST, ASR_DEFAULT_PATH) : m_asrUrl);
+    return generateAuthUrl(url.host(), url.path());
 }
 
 QString VoiceManager::generateTtsAuthUrl()
 {
-    return generateAuthUrl(TTS_HOST, TTS_PATH);
+    QUrl url(m_ttsUrl.isEmpty() ? QString("wss://%1%2").arg(TTS_DEFAULT_HOST, TTS_DEFAULT_PATH) : m_ttsUrl);
+    return generateAuthUrl(url.host(), url.path());
 }
 
 QString VoiceManager::generateAuthUrl(const QString &host, const QString &path)
@@ -1164,7 +1178,7 @@ void VoiceManager::sendTtsRequest(const QString &text)
 
     // tts 合成参数
     QJsonObject tts;
-    tts["vcn"] = m_voiceType;        // 发音人：x6_wumeinv_pro
+    tts["vcn"] = m_voiceType;        // 发音人：x6_lingxiaoxuan_pro
     tts["speed"] = 50;               // 语速 0-100
     tts["volume"] = 50;              // 音量 0-100
     tts["pitch"] = 50;               // 语调 0-100

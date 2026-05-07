@@ -17,16 +17,16 @@ cd "$PROJECT_ROOT"
 pause_if_interactive() {
     if [ -t 0 ]; then
         echo ""
-        read -p "按 Enter 键退出..." -r
+        read -p "Press Enter to exit..." -r
     fi
 }
 
 # Trap errors to pause before exit
-trap 'echo ""; echo "❌ 脚本执行出错"; pause_if_interactive; exit 1' ERR
+trap 'echo ""; echo "❌ Script execution error"; pause_if_interactive; exit 1' ERR
 
 echo ""
 echo "==================================="
-echo "  LocalAIAssistant - 初始化设置"
+echo "  LocalAIAssistant - Initial Setup"
 echo "==================================="
 echo ""
 
@@ -34,27 +34,27 @@ echo ""
 # Step 1: Create .env file from template
 # ------------------------------------------------------------
 
-echo "[Step 1] 配置讯飞语音凭证"
+echo "[Step 1] Configure iFLYTEK voice credentials"
 echo ""
 
 if [ -f ".env" ]; then
-    echo "  ✅ .env 文件已存在"
+    echo "  ✅ .env file already exists"
 else
     if [ -f ".env.example" ]; then
-        echo "  正在复制 .env.example -> .env"
+        echo "  Copying .env.example -> .env"
         cp .env.example .env
         echo ""
-        echo "  ⚠️  请编辑 .env 文件，填入你的讯飞语音凭证："
+        echo "  ⚠️  Edit .env file and fill in your iFLYTEK voice credentials:"
         echo ""
-        echo "      XFYUN_APP_ID=你的APPID"
-        echo "      XFYUN_API_KEY=你的APIKey"
-        echo "      XFYUN_API_SECRET=你的APISecret"
+        echo "      XFYUN_APP_ID=your_app_id"
+        echo "      XFYUN_API_KEY=your_api_key"
+        echo "      XFYUN_API_SECRET=your_api_secret"
         echo ""
-        echo "  获取凭证: https://www.xfyun.cn"
-        echo "  开通服务: 语音听写(流式版) + 超拟人语音合成"
+        echo "  Get credentials: https://www.xfyun.cn"
+        echo "  Required services: Voice Dictation (streaming) + Ultra-realistic TTS"
         echo ""
     else
-        echo "  ❌ .env.example 文件不存在，请检查项目完整性"
+        echo "  ❌ .env.example file not found, check project integrity"
     fi
 fi
 
@@ -62,7 +62,7 @@ fi
 # Step 2: Check build dependencies
 # ------------------------------------------------------------
 
-echo "[Step 2] 检查构建依赖"
+echo "[Step 2] Check build dependencies"
 echo ""
 
 missing_deps=()
@@ -72,7 +72,7 @@ if command -v cmake &> /dev/null; then
     cmake_version=$(cmake --version | head -1)
     echo "  ✅ CMake: $cmake_version"
 else
-    echo "  ❌ CMake 未安装"
+    echo "  ❌ CMake not installed"
     missing_deps+=("cmake")
 fi
 
@@ -88,14 +88,14 @@ found_compiler=false
 
 if command -v g++ &> /dev/null; then
     gpp_version=$(g++ --version | head -1)
-    echo "  ✅ 编译器: $gpp_version"
+    echo "  ✅ Compiler: $gpp_version"
     found_compiler=true
 elif command -v clang++ &> /dev/null; then
     clang_version=$(clang++ --version | head -1)
-    echo "  ✅ 编译器: $clang_version"
+    echo "  ✅ Compiler: $clang_version"
     found_compiler=true
 elif command -v cl &> /dev/null; then
-    echo "  ✅ 编译器: MSVC cl"
+    echo "  ✅ Compiler: MSVC cl"
     found_compiler=true
 fi
 
@@ -106,9 +106,9 @@ if [ "$found_compiler" = false ] && [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cyg
         for ver in "${mingw_versions[@]}"; do
             mingw_path="/$drive/Qt/Tools/mingw${ver}_64/bin/g++.exe"
             if [ -f "$mingw_path" ]; then
-                echo "  ✅ 编译器: MinGW g++ (检测到但未加入 PATH)"
-                echo "     位置: $mingw_path"
-                echo "     提示: build.sh 会自动添加到 PATH"
+                echo "  ✅ Compiler: MinGW g++ (detected but not in PATH)"
+                echo "     Location: $mingw_path"
+                echo "     Note: build.sh will auto-add it to PATH"
                 found_compiler=true
                 break 2
             fi
@@ -117,17 +117,17 @@ if [ "$found_compiler" = false ] && [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cyg
 fi
 
 if [ "$found_compiler" = false ]; then
-    echo "  ❌ C++ 编译器未安装"
-    echo "     注: Qt Creator 是 IDE，不是编译器"
+    echo "  ❌ C++ compiler not installed"
+    echo "     Note: Qt Creator is an IDE, not a compiler"
     case "$OSTYPE" in
         msys*|cygwin*|win32*)
-            echo "     Windows: 安装 MinGW 版 Qt 会自带 g++，或安装 Visual Studio"
+            echo "     Windows: Install MinGW Qt (includes g++) or Visual Studio"
             ;;
         darwin*)
-            echo "     macOS: 运行 xcode-select --install"
+            echo "     macOS: Run xcode-select --install"
             ;;
         linux*)
-            echo "     Linux: 运行 sudo apt install build-essential"
+            echo "     Linux: Run sudo apt install build-essential"
             ;;
     esac
     missing_deps+=("C++ compiler")
@@ -135,61 +135,61 @@ fi
 
 # Check Qt (basic check)
 echo ""
-echo "  Qt 6 检查:"
+echo "  Qt 6 check:"
 
 # macOS/Linux: Check ~/Qt directory (official Qt installation)
 if [ -d "$HOME/Qt" ]; then
     qt_versions=$(ls -1 "$HOME/Qt" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+' | head -3)
     if [ -n "$qt_versions" ]; then
-        echo "  ✅ Qt 已安装在 ~/Qt/"
-        echo "     版本: $qt_versions"
-        echo "  ⚠️  请确保已勾选 Multimedia 和 WebSockets 模块（语音功能必需）"
+        echo "  ✅ Qt installed at ~/Qt/"
+        echo "     Versions: $qt_versions"
+        echo "  ⚠️  Ensure Multimedia and WebSockets modules are installed (required for voice)"
     else
-        echo "  ⚠️  ~/Qt 目录存在但未找到 Qt 版本"
+        echo "  ⚠️  ~/Qt directory exists but no Qt versions found"
     fi
 # macOS/Linux: Check system package manager
 elif command -v qmake6 &> /dev/null || command -v qmake &> /dev/null; then
-    echo "  ✅ Qt 已安装 (系统包管理器)"
+    echo "  ✅ Qt installed (system package manager)"
     # Check Multimedia and WebSockets on Linux
     if [[ "$OSTYPE" == "linux"* ]]; then
         # Debian/Ubuntu (dpkg)
         if command -v dpkg &> /dev/null; then
             if dpkg -l qt6-multimedia-dev &> /dev/null 2>&1; then
-                echo "  ✅ Multimedia 模块已安装"
+                echo "  ✅ Multimedia module installed"
             else
-                echo "  ⚠️  请安装 qt6-multimedia-dev（语音功能必需）"
+                echo "  ⚠️  Install qt6-multimedia-dev (required for voice)"
             fi
             if dpkg -l qt6-websockets-dev &> /dev/null 2>&1; then
-                echo "  ✅ WebSockets 模块已安装"
+                echo "  ✅ WebSockets module installed"
             else
-                echo "  ⚠️  请安装 qt6-websockets-dev（语音功能必需）"
+                echo "  ⚠️  Install qt6-websockets-dev (required for voice)"
             fi
         # Fedora/RHEL (rpm)
         elif command -v rpm &> /dev/null; then
             if rpm -q qt6-qtmultimedia-devel &> /dev/null 2>&1; then
-                echo "  ✅ Multimedia 模块已安装"
+                echo "  ✅ Multimedia module installed"
             else
-                echo "  ⚠️  请安装 qt6-qtmultimedia-devel（语音功能必需）"
+                echo "  ⚠️  Install qt6-qtmultimedia-devel (required for voice)"
             fi
             if rpm -q qt6-qtwebsockets-devel &> /dev/null 2>&1; then
-                echo "  ✅ WebSockets 模块已安装"
+                echo "  ✅ WebSockets module installed"
             else
-                echo "  ⚠️  请安装 qt6-qtwebsockets-devel（语音功能必需）"
+                echo "  ⚠️  Install qt6-qtwebsockets-devel (required for voice)"
             fi
         # Arch Linux (pacman)
         elif command -v pacman &> /dev/null; then
             if pacman -Q qt6-multimedia &> /dev/null 2>&1; then
-                echo "  ✅ Multimedia 模块已安装"
+                echo "  ✅ Multimedia module installed"
             else
-                echo "  ⚠️  请安装 qt6-multimedia（语音功能必需）"
+                echo "  ⚠️  Install qt6-multimedia (required for voice)"
             fi
             if pacman -Q qt6-websockets &> /dev/null 2>&1; then
-                echo "  ✅ WebSockets 模块已安装"
+                echo "  ✅ WebSockets module installed"
             else
-                echo "  ⚠️  请安装 qt6-websockets（语音功能必需）"
+                echo "  ⚠️  Install qt6-websockets (required for voice)"
             fi
         else
-            echo "  ⚠️  无法检测 Qt 模块，请手动确认 Multimedia 和 WebSockets 已安装"
+            echo "  ⚠️  Cannot detect Qt modules, manually verify Multimedia and WebSockets"
         fi
     fi
 # Windows: Check Qt installation directory
@@ -209,11 +209,11 @@ elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
                         for compiler in "${qt_compilers[@]}"; do
                             qt_path="$version_dir/$compiler"
                             if [ -d "$qt_path" ]; then
-                                echo "  ✅ Qt 已安装在 /$drive/Qt/"
-                                echo "     版本: $version_name"
-                                echo "     编译器: $compiler"
-                                echo "     位置: $qt_path"
-                                echo "  ⚠️  请确保在 Qt Maintenance Tool 中已勾选 Multimedia 和 WebSockets"
+                                echo "  ✅ Qt installed at /$drive/Qt/"
+                                echo "     Version: $version_name"
+                                echo "     Compiler: $compiler"
+                                echo "     Path: $qt_path"
+                                echo "  ⚠️  Ensure Multimedia and WebSockets are selected in Qt Maintenance Tool"
                                 found_qt=true
                                 break 3
                             fi
@@ -225,32 +225,141 @@ elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
     done
 
     if [ "$found_qt" = false ]; then
-        echo "  ❌ Qt 6 未安装"
+        echo "  ❌ Qt 6 not installed"
         missing_deps+=("Qt 6 (+ Multimedia + WebSockets)")
     fi
 else
-    echo "  ❌ Qt 6 未安装"
+    echo "  ❌ Qt 6 not installed"
     missing_deps+=("Qt 6 (+ Multimedia + WebSockets)")
 fi
 
 # Check Poppler (optional)
 echo ""
-echo "  Poppler (PDF支持，可选):"
+echo "  Poppler (PDF support, optional):"
 poppler_installed=false
 if command -v pkg-config &> /dev/null && pkg-config --exists poppler-cpp 2>/dev/null; then
-    echo "  ✅ Poppler 已安装"
+    echo "  ✅ Poppler installed"
     poppler_installed=true
 elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
     # Windows: Check MSYS2 poppler
     if command -v pacman &> /dev/null && pacman -Q poppler &> /dev/null 2>&1; then
-        echo "  ✅ Poppler 已安装 (MSYS2)"
+        echo "  ✅ Poppler installed (MSYS2)"
         poppler_installed=true
     fi
 fi
 
 if [ "$poppler_installed" = false ]; then
-    echo "  ⚠️  Poppler 未安装，PDF功能将被禁用"
-    echo "     说明: Poppler 是可选依赖，不安装不影响其他功能"
+    echo "  ⚠️  Poppler not installed, PDF support will be disabled"
+    echo "     Note: Poppler is optional, other features work without it"
+fi
+
+# Check libzip (optional, enables DOCX parsing)
+echo ""
+echo "  libzip (DOCX support, optional):"
+libzip_installed=false
+if command -v pkg-config &> /dev/null && pkg-config --exists libzip 2>/dev/null; then
+    echo "  ✅ libzip installed"
+    libzip_installed=true
+elif [ -f "/usr/local/lib/libzip.dylib" ] || [ -f "/opt/homebrew/lib/libzip.dylib" ]; then
+    echo "  ✅ libzip installed (Homebrew)"
+    libzip_installed=true
+elif [ -f "/usr/lib/x86_64-linux-gnu/libzip.so" ] || [ -f "/usr/lib/libzip.so" ]; then
+    echo "  ✅ libzip installed (system)"
+    libzip_installed=true
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+    if command -v pacman &> /dev/null && pacman -Q libzip &> /dev/null 2>&1; then
+        echo "  ✅ libzip installed (MSYS2)"
+        libzip_installed=true
+    fi
+fi
+
+if [ "$libzip_installed" = false ]; then
+    echo "  ⚠️  libzip not installed, DOCX support will be disabled"
+    echo "     Install: brew install libzip (macOS)"
+    echo "              sudo apt install libzip-dev (Linux)"
+    echo "              MSYS2: pacman -S mingw-w64-x86_64-libzip (Windows)"
+    echo "     Note: libzip is optional, other features work without it"
+fi
+
+# Check pugixml (optional, enables DOCX XML parsing)
+echo ""
+echo "  pugixml (DOCX/XML support, optional):"
+pugixml_installed=false
+if command -v pkg-config &> /dev/null && pkg-config --exists pugixml 2>/dev/null; then
+    echo "  ✅ pugixml installed"
+    pugixml_installed=true
+elif [ -f "/usr/local/lib/libpugixml.dylib" ] || [ -f "/opt/homebrew/lib/libpugixml.dylib" ]; then
+    echo "  ✅ pugixml installed (Homebrew)"
+    pugixml_installed=true
+elif [ -f "/usr/lib/x86_64-linux-gnu/libpugixml.so" ] || [ -f "/usr/lib/libpugixml.so" ]; then
+    echo "  ✅ pugixml installed (system)"
+    pugixml_installed=true
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
+    if command -v pacman &> /dev/null && pacman -Q pugixml &> /dev/null 2>&1; then
+        echo "  ✅ pugixml installed (MSYS2)"
+        pugixml_installed=true
+    fi
+fi
+
+if [ "$pugixml_installed" = false ]; then
+    echo "  ⚠️  pugixml not installed, DOCX support will be disabled"
+    echo "     Install: brew install pugixml (macOS)"
+    echo "              sudo apt install libpugixml-dev (Linux)"
+    echo "              MSYS2: pacman -S mingw-w64-x86_64-pugixml (Windows)"
+    echo "     Note: pugixml is optional, other features work without it"
+fi
+
+# Check readline/libedit (optional, improves CLI input experience)
+echo ""
+echo "  Readline/libedit (CLI input, optional):"
+readline_found=false
+if [ -f "/usr/include/readline/readline.h" ] || [ -f "/usr/local/include/readline/readline.h" ]; then
+    echo "  ✅ readline installed"
+    readline_found=true
+elif [ -f "/usr/include/editline/readline.h" ] || [ -f "/usr/local/include/editline/readline.h" ]; then
+    echo "  ✅ libedit installed (readline-compatible)"
+    readline_found=true
+# macOS: libedit is built into the system
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    if [ -f "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/readline/readline.h" ]; then
+        echo "  ✅ libedit installed (macOS built-in)"
+        readline_found=true
+    else
+        echo "  ✅ libedit (macOS built-in, no header check needed)"
+        readline_found=true
+    fi
+fi
+
+if [ "$readline_found" = false ]; then
+    echo "  ⚠️  readline/libedit not installed, CLI uses basic input mode"
+    echo "     Install: sudo apt install libreadline-dev (Linux)"
+    echo "     Note: Optional, but recommended for better CLI experience"
+fi
+
+# Check ONNX Runtime (optional, enables real embedding for knowledge base)
+echo ""
+echo "  ONNX Runtime (embedding model, optional):"
+onnx_found=false
+if command -v pkg-config &> /dev/null && pkg-config --exists libonnxruntime 2>/dev/null; then
+    echo "  ✅ ONNX Runtime installed"
+    onnx_found=true
+elif [ -f "/usr/local/lib/libonnxruntime.so" ] || [ -f "/usr/lib/libonnxruntime.so" ]; then
+    echo "  ✅ ONNX Runtime installed (found shared library)"
+    onnx_found=true
+elif [ -d "/usr/local/include/onnxruntime" ] || [ -d "/usr/include/onnxruntime" ]; then
+    echo "  ✅ ONNX Runtime installed (found headers)"
+    onnx_found=true
+# macOS Homebrew
+elif [ -f "/usr/local/lib/libonnxruntime.dylib" ] || [ -f "/opt/homebrew/lib/libonnxruntime.dylib" ]; then
+    echo "  ✅ ONNX Runtime installed (Homebrew)"
+    onnx_found=true
+fi
+
+if [ "$onnx_found" = false ]; then
+    echo "  ⚠️  ONNX Runtime not installed, using placeholder embedding"
+    echo "     Install: brew install onnxruntime (macOS)"
+    echo "              sudo apt install libonnxruntime-dev (Linux)"
+    echo "     Note: Optional, knowledge base works without it (returns dummy vectors)"
 fi
 
 # ------------------------------------------------------------
@@ -261,115 +370,120 @@ echo ""
 echo "==================================="
 
 if [ ${#missing_deps[@]} -gt 0 ]; then
-    echo "  ❌ 缺少依赖:"
+    echo "  ❌ Missing dependencies:"
     for dep in "${missing_deps[@]}"; do
         echo "     - $dep"
     done
     echo ""
     echo "  ================================================"
-    echo "  安装指南 (当前系统: $OSTYPE)"
+    echo "  Installation Guide (current OS: $OSTYPE)"
     echo "  ================================================"
     echo ""
     case "$OSTYPE" in
         darwin*)
-            echo "  【macOS】"
+            echo "  [macOS]"
             echo ""
-            echo "  1. 安装 Xcode 命令行工具（编译器）"
-            echo "     命令: xcode-select --install"
+            echo "  1. Install Xcode Command Line Tools (compiler)"
+            echo "     Command: xcode-select --install"
             echo ""
-            echo "  2. 安装 Homebrew（包管理器）"
-            echo "     网址: https://brew.sh"
-            echo "     命令: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            echo "  2. Install Homebrew (package manager)"
+            echo "     URL: https://brew.sh"
+            echo "     Command: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
             echo ""
-            echo "  3. 安装依赖"
-            echo "     命令: brew install cmake qt@6 poppler"
-            echo "     说明: Homebrew 的 qt@6 已包含 Multimedia 和 WebSockets"
+            echo "  3. Install dependencies"
+            echo "     Command: brew install cmake qt@6 poppler libzip pugixml"
+            echo "     Optional: brew install onnxruntime"
+            echo "     Note: Homebrew qt@6 includes Multimedia and WebSockets"
             echo ""
-            echo "  【备选方案: 官网安装 Qt】"
-            echo "     网址: https://www.qt.io/download"
-            echo "     安装后运行 Maintenance Tool 勾选 Multimedia 和 WebSockets"
+            echo "  [Alternative: Qt official installer]"
+            echo "     URL: https://www.qt.io/download"
+            echo "     After install, run Maintenance Tool and select Multimedia + WebSockets"
             ;;
         linux*)
-            echo "  【Linux】"
+            echo "  [Linux]"
             echo ""
             if command -v apt &> /dev/null; then
                 echo "  Ubuntu/Debian:"
                 echo "     sudo apt update"
-                echo "     sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev"
+                echo "     sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev"
+                echo "     Optional: sudo apt install libonnxruntime-dev libreadline-dev"
             elif command -v dnf &> /dev/null; then
                 echo "  Fedora/RHEL:"
-                echo "     sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel poppler-cpp-devel"
+                echo "     sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel poppler-cpp-devel libzip-devel pugixml-devel"
+                echo "     Optional: sudo dnf install onnxruntime-devel readline-devel"
             elif command -v pacman &> /dev/null; then
                 echo "  Arch Linux:"
-                echo "     sudo pacman -S base-devel cmake qt6-base qt6-multimedia qt6-websockets poppler"
+                echo "     sudo pacman -S base-devel cmake qt6-base qt6-multimedia qt6-websockets poppler libzip pugixml"
+                echo "     Optional: sudo pacman -S onnxruntime readline"
             else
-                echo "  请使用您的包管理器安装以下依赖:"
-                echo "     - C++ 编译器 (GCC 9+ 或 Clang 10+)"
+                echo "  Install the following using your package manager:"
+                echo "     - C++ compiler (GCC 9+ or Clang 10+)"
                 echo "     - CMake 3.16+"
                 echo "     - Qt 6 (base + multimedia + websockets)"
-                echo "     - Poppler (可选，PDF 支持)"
+                echo "     - Poppler (optional, for PDF support)"
+                echo "     - libzip + pugixml (optional, for DOCX support)"
             fi
             echo ""
-            echo "  【备选方案: 官网安装 Qt】"
-            echo "     网址: https://www.qt.io/download"
-            echo "     安装后运行 Maintenance Tool 勾选 Multimedia 和 WebSockets"
+            echo "  [Alternative: Qt official installer]"
+            echo "     URL: https://www.qt.io/download"
+            echo "     After install, run Maintenance Tool and select Multimedia + WebSockets"
             ;;
         msys*|cygwin*|win32*)
-            echo "  【Windows】"
+            echo "  [Windows]"
             echo ""
-            echo "  方式一: MinGW（推荐，无需 Visual Studio）"
+            echo "  Option 1: MinGW (recommended, no Visual Studio required)"
             echo "  ─────────────────────────────────────────────"
             echo ""
-            echo "  1. Git for Windows（包含 Git Bash）"
-            echo "     网址: https://git-scm.com/download/win"
+            echo "  1. Git for Windows (includes Git Bash)"
+            echo "     URL: https://git-scm.com/download/win"
             echo ""
             echo "  2. CMake"
-            echo "     网址: https://cmake.org/download/"
-            echo "     选择: cmake-x.x.x-windows-x86_64.msi"
-            echo "     安装时勾选 'Add CMake to system PATH'"
+            echo "     URL: https://cmake.org/download/"
+            echo "     Select: cmake-x.x.x-windows-x86_64.msi"
+            echo "     During install, check 'Add CMake to system PATH'"
             echo ""
             echo "  3. Qt 6"
-            echo "     网址: https://www.qt.io/download"
-            echo "     选择: Qt 6.x.x for MinGW 11.2 64-bit"
-            echo "     ⚠️ 重要: 在 Maintenance Tool 中勾选:"
-            echo "        - Qt Multimedia（语音功能必需）"
-            echo "        - Qt WebSockets（语音功能必需）"
+            echo "     URL: https://www.qt.io/download"
+            echo "     Select: Qt 6.x.x for MinGW 11.2 64-bit"
+            echo "     ⚠️ Important: In Maintenance Tool, select:"
+            echo "        - Qt Multimedia (required for voice)"
+            echo "        - Qt WebSockets (required for voice)"
             echo ""
-            echo "  4. Poppler（可选，PDF 支持）"
-            echo "     网址: https://www.msys2.org"
-            echo "     安装 MSYS2 后运行: pacman -S poppler"
-            echo "     说明: 不安装不影响其他功能，仅 PDF 上传不可用"
+            echo "  4. Poppler / libzip / pugixml (optional, for PDF/DOCX support)"
+            echo "     URL: https://www.msys2.org"
+            echo "     After installing MSYS2: pacman -S mingw-w64-x86_64-poppler mingw-w64-x86_64-libzip mingw-w64-x86_64-pugixml"
+            echo "     Note: Only needed for PDF/DOCX import feature"
             echo ""
-            echo "  方式二: MSVC（需 Visual Studio）"
+            echo "  Option 2: MSVC (requires Visual Studio)"
             echo "  ─────────────────────────────────────────────"
             echo ""
             echo "  1. Visual Studio 2019+"
-            echo "     网址: https://visualstudio.microsoft.com/downloads"
-            echo "     选择: Visual Studio Community（免费）"
-            echo "     安装时勾选 'Desktop development with C++'"
+            echo "     URL: https://visualstudio.microsoft.com/downloads"
+            echo "     Select: Visual Studio Community (free)"
+            echo "     During install, select 'Desktop development with C++'"
             echo ""
             echo "  2. CMake"
-            echo "     网址: https://cmake.org/download/"
+            echo "     URL: https://cmake.org/download/"
             echo ""
             echo "  3. Qt 6"
-            echo "     网址: https://www.qt.io/download"
-            echo "     选择: Qt 6.x.x for MSVC 2019 64-bit"
-            echo "     ⚠️ 重要: 在 Maintenance Tool 中勾选 Multimedia 和 WebSockets"
+            echo "     URL: https://www.qt.io/download"
+            echo "     Select: Qt 6.x.x for MSVC 2019 64-bit"
+            echo "     ⚠️ Important: In Maintenance Tool, select Multimedia + WebSockets"
             echo ""
-            echo "  4. Poppler（可选）"
-            echo "     同上，通过 MSYS2 安装"
+            echo "  4. Poppler / libzip / pugixml (optional)"
+            echo "     Same as above, install via MSYS2"
             ;;
     esac
     echo ""
     echo "  ================================================"
-    echo "  安装依赖后重新运行此脚本验证"
+    echo "  After installing dependencies, re-run this script"
     echo "  ================================================"
 else
-    echo "  ✅ 所有必需依赖已安装"
+    echo "  ✅ All required dependencies installed"
     if [ "$poppler_installed" = false ]; then
         echo ""
         echo "  ================================================"
-        echo "  Poppler 安装指南（可选，PDF 支持）"
+        echo "  Poppler Installation Guide (optional, PDF support)"
         echo "  ================================================"
         case "$OSTYPE" in
             darwin*)
@@ -385,20 +499,20 @@ else
                 fi
                 ;;
             msys*|cygwin*|win32*)
-                echo "  Windows: 安装 MSYS2 后运行 pacman -S poppler"
-                echo "  网址: https://www.msys2.org"
+                echo "  Windows: Install MSYS2 then run pacman -S poppler"
+                echo "  URL: https://www.msys2.org"
                 ;;
         esac
-        echo "  说明: Poppler 是可选依赖，不安装不影响其他功能"
+        echo "  Note: Poppler is optional, other features work without it"
     fi
 fi
 
 echo "==================================="
 echo ""
-echo "下一步:"
+echo "Next steps:"
 echo ""
-echo "  1. 编辑 .env 文件配置讯飞凭证（如需语音功能）"
-echo "  2. 运行构建: ./scripts/build.sh"
+echo "  1. Edit .env file to configure iFLYTEK credentials (if voice features needed)"
+echo "  2. Run build: ./scripts/build.sh"
 echo ""
 
 # Pause before exit (interactive terminal only)

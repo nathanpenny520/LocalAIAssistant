@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef GIRLFRIEND_TRANSLATIONS_H
 #define GIRLFRIEND_TRANSLATIONS_H
 
@@ -201,8 +203,56 @@ public:
         return tr("Voice Output: Off");
     }
 
+    static QString configureVoice() {
+        return tr("Configure Voice...");
+    }
+
     static QString clearHistory() {
         return tr("Clear History");
+    }
+
+    // Voice configuration dialog
+    static QString voiceConfigTitle() {
+        return tr("Voice Configuration");
+    }
+    static QString voiceConfigDescription() {
+        return tr("Configure Xunfei (iFlytek) voice service credentials. Register at https://www.xfyun.cn to get your APP ID, API Key, and API Secret.");
+    }
+    static QString voiceConfigAppId() {
+        return tr("APP ID");
+    }
+    static QString voiceConfigApiKey() {
+        return tr("API Key");
+    }
+    static QString voiceConfigApiSecret() {
+        return tr("API Secret");
+    }
+    static QString voiceConfigAsrUrl() {
+        return tr("ASR URL (optional)");
+    }
+    static QString voiceConfigTtsUrl() {
+        return tr("TTS URL (optional)");
+    }
+    static QString voiceConfigVoiceType() {
+        return tr("Voice Type (optional)");
+    }
+    static QString voiceConfigSave() {
+        return tr("Save");
+    }
+    static QString voiceConfigCancel() {
+        return tr("Cancel");
+    }
+    static QString voiceConfigSaved() {
+        return tr("Voice credentials saved successfully.");
+    }
+    static QString voiceConfigMissingFields() {
+        return tr("APP ID, API Key, and API Secret are required.");
+    }
+    static QString voiceConfigTestHint() {
+        return tr("After saving, restart voice interaction to apply new credentials.");
+    }
+    static QString voiceConfigOptionalHint() {
+        return tr("URL and Voice Type are optional — leave blank to use built-in defaults.");
     }
 
     // Session management
@@ -278,9 +328,32 @@ public:
         return tr("✈️ Travelling");
     }
 
+    // Manage conversations dialog
+    static QString manageConversations() {
+        return tr("Manage Conversations");
+    }
+    static QString selectSessionToManage() {
+        return tr("Select session to manage:");
+    }
+    static QString renameLabel() {
+        return tr("Rename");
+    }
+    static QString pinLabel() {
+        return tr("Pin");
+    }
+    static QString unpinLabel() {
+        return tr("Unpin");
+    }
+    static QString deleteLabel() {
+        return tr("Delete");
+    }
+    static QString closeButton() {
+        return tr("Close");
+    }
+
 private:
     static QString tr(const char *text) {
-        return QCoreApplication::translate("GirlfriendModule", text);
+        return QCoreApplication::translate("GTr", text);
     }
 };
 

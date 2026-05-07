@@ -20,7 +20,7 @@ Gitee repo: https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **Session Management** — Multi-session switching, history persistence
 - **Multi-language** — Simplified Chinese / English switching
 - **Theme Switching** — Light / Dark / Follow System
-- **Cross-platform** — macOS / Windows / Linux (Linux not tested)
+- **Cross-platform** — macOS / Windows / Linux
 
 ### AI Girlfriend Module 🎀
 - **Independent Window** — Immersive full-screen avatar background, 9:16 window ratio
@@ -39,19 +39,36 @@ Gitee repo: https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **Video Sound Toggle** — Enable/disable background sound in Level 3 video mode
 - **Shortcut Key** — Command/Ctrl+G to quickly open/close girlfriend window
 
+### Knowledge Base Module 📚
+- **Document Import** — Supports TXT/MD/PDF/DOCX file import with automatic chunking and vectorization
+- **Semantic Search** — Intelligent search based on vector similarity
+- **Embedding Model** — Supports ONNX Runtime local inference, no internet required
+- **HNSW Index** — High-performance approximate nearest neighbor search
+- **Async Import** — Background thread processing, non-blocking UI
+- **Memory Enhancement** — Cross-session memory extraction, semantic retrieval, context injection
+
+### Task Execution Module 🔧
+- **File Operations** — AI can execute file creation, modification, and other operations
+- **Safety Checker** — Pre-execution validation of dangerous paths (system directory protection)
+- **Operation Undo** — Supports undoing executed file operations
+- **User Confirmation** — High-risk operations require user confirmation before execution
+
 > ⚠️ **Platform Compatibility**:
 > - **macOS**: Full voice input/output support ✅
 > - **Windows**: Voice output (TTS) works normally, voice input (ASR) not supported ⚠️
-> - **Linux**: Author has no Linux laptop, not tested yet
+> - **Linux**: Voice output (TTS) works, voice input (ASR) depends on system audio device, not yet fully tested
 
 ## Tech Stack
 
 | Item | Technology |
 |------|------------|
 | Language | C++17 |
-| Framework | [Qt 6.x](https://www.qt.io) (Widgets, Network, Multimedia, WebSockets) |
+| Framework | [Qt 6.x](https://www.qt.io) (Widgets, Network, Multimedia, WebSockets, Sql, Concurrent) |
 | Build | [CMake](https://cmake.org) 3.16+ |
-| PDF Parsing | [Poppler](https://poppler.freedesktop.org) 26.x (PDF upload not supported if not installed) |
+| PDF Parsing | [Poppler](https://poppler.freedesktop.org) 26.x (PDF parsing disabled if not installed) |
+| DOCX Parsing | [libzip](https://libzip.org) + [pugixml](https://pugixml.org) (DOCX parsing disabled if not installed) |
+| Embedding Model | [ONNX Runtime](https://onnxruntime.ai) ≥1.16 (optional, uses placeholder vectors if not installed) |
+| Vector Search | [hnswlib](https://github.com/nmslib/hnswlib) (header-only, auto-included) |
 | Voice Service | [iFlytek Open Platform](https://www.xfyun.cn) (WebSocket API) |
 
 ## Project Structure
@@ -63,6 +80,19 @@ sourcecode-ai-assistant/
 │   │   └── datamodels.h    # Data model definitions
 │   ├── ui/             # GUI interface (main window, settings dialog)
 │   ├── cli/            # CLI command line interface
+│   ├── tasks/          # Task execution module (file ops, safety checks, undo)
+│   │   ├── taskengine.cpp/h       # Task execution engine
+│   │   ├── fileoperations.cpp/h   # File operation executor
+│   │   ├── safetychecker.cpp/h    # Safety checker
+│   │   ├── operationplan.cpp/h    # Operation plan definition
+│   │   └── operationundo.cpp/h    # Operation undo
+│   ├── knowledge/      # Knowledge management (chunking, embedding, search, import, memory)
+│   │   ├── textchunker.cpp/h      # Text chunker
+│   │   ├── embedder.cpp/h         # Text to vector
+│   │   ├── vectordb.cpp/h         # Vector database
+│   │   ├── docimporter.cpp/h      # Document importer (TXT/MD/PDF/DOCX)
+│   │   ├── knowledgebase.cpp/h    # Knowledge base manager
+│   │   └── memoryenhancer.cpp/h   # Conversation memory enhancer
 │   └── girlfriend/     # AI Girlfriend module
 │       ├── girlfriendwindow.cpp   # Girlfriend window
 │       ├── girlfriendwindow.h     # Girlfriend window header
@@ -92,7 +122,12 @@ sourcecode-ai-assistant/
 │   ├── setup.sh        # First-time clone initialization script
 │   └── cli-wrapper.sh  # macOS CLI launcher (detects iTerm2)
 ├── translations/       # Internationalization translation files
-├── resources/          # Resource files (icons, configs)
+├── resources/          # Resource files
+│   ├── icons/          # App icons (icns, ico, png)
+│   ├── models/         # ONNX embedding model files
+│   └── *.lproj/        # macOS localization strings
+├── third_party/        # Third-party libraries
+│   └── hnswlib/        # High-performance vector search (header-only)
 ├── cmake/              # CMake configuration templates
 │   ├── Info.plist.in   # GUI .app bundle configuration
 │   └── CLI-Info.plist.in # CLI .app bundle configuration
@@ -117,7 +152,7 @@ After cloning the project, run the initialization script to check your environme
 
 This script will:
 1. Copy `.env.example` → `.env` (iFlytek voice credential template)
-2. Check build dependencies (CMake, compiler, Qt, Poppler)
+2. Check build dependencies (CMake, compiler, Qt, Poppler, Readline, ONNX Runtime)
 3. Show missing dependencies and installation guides
 
 > **Tip**: Run this script to quickly verify if your environment meets build requirements.
@@ -135,9 +170,14 @@ This script will:
 | Qt Multimedia | ⚠️ Extra selection | Homebrew auto-install | Qt Maintenance Tool select | `qt6-multimedia-dev` |
 | Qt WebSockets | ⚠️ Extra selection | Homebrew auto-install | Qt Maintenance Tool select | `qt6-websockets-dev` |
 | CMake | 3.16+ | `brew install cmake` | [Official Download](https://cmake.org/download/) | `sudo apt install cmake` |
-| Poppler | 26.x | `brew install poppler` | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io) | `sudo apt install poppler` |
+| Readline | — | System built-in | N/A | `sudo apt install libreadline-dev` |
+| Poppler | 26.x | `brew install poppler` | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io) | `sudo apt install libpoppler-cpp-dev` |
+| libzip | ≥1.5 (optional) | `brew install libzip` | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io) | `sudo apt install libzip-dev` |
+| pugixml | ≥1.11 (optional) | `brew install pugixml` | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io) | `sudo apt install libpugixml-dev` |
+| ONNX Runtime | ≥1.16 (optional) | `brew install onnxruntime` | [GitHub Release](https://github.com/microsoft/onnxruntime/releases) | `sudo apt install libonnxruntime-dev` |
 
 > **Qt Module Note**: Multimedia and WebSockets need to be manually selected in Qt Maintenance Tool (required for voice features)
+> **Optional Dependencies**: Readline (CLI input enhancement), Poppler (PDF parsing), libzip+pugixml (DOCX parsing), ONNX Runtime (knowledge base embedding) — core features work without them
 
 #### macOS Quick Install
 
@@ -149,7 +189,10 @@ xcode-select --install
 # See: https://brew.sh
 
 # Install dependencies (qt@6 includes Multimedia and WebSockets)
-brew install cmake qt@6 poppler
+brew install cmake qt@6 poppler libzip pugixml
+
+# Optional: Install ONNX Runtime for real embedding inference
+brew install onnxruntime
 
 # Note: For official Qt installation, manually select Multimedia and WebSockets in Maintenance Tool
 ```
@@ -158,7 +201,8 @@ brew install cmake qt@6 poppler
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev
+sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev libreadline-dev
+# Optional: sudo apt install libonnxruntime-dev
 ```
 
 #### Windows Quick Install
@@ -170,7 +214,7 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multi
 3. Install **[Qt 6](https://www.qt.io/download)**:
    - Select `Qt 6.x.x for MinGW 11.2 64-bit` (Qt bundles compiler, no extra Visual Studio needed)
    - ⚠️ **Important**: Manually select **Qt Multimedia** and **Qt WebSockets** in Qt Maintenance Tool (required for voice features)
-4. Install **Poppler**: via [MSYS2](https://www.msys2.org) (`pacman -S poppler`) or [vcpkg](https://vcpkg.io)
+4. Install **Poppler / libzip / pugixml** (optional, for PDF/DOCX parsing): via [MSYS2](https://www.msys2.org) (`pacman -S mingw-w64-x86_64-poppler mingw-w64-x86_64-libzip mingw-w64-x86_64-pugixml`) or [vcpkg](https://vcpkg.io)
 
 **Option 2: MSVC (Requires Visual Studio)**
 
@@ -179,7 +223,7 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multi
 3. Install **[Qt 6](https://www.qt.io/download)**:
    - Select `Qt 6.x.x for MSVC 2019 64-bit`
    - ⚠️ **Important**: Manually select **Qt Multimedia** and **Qt WebSockets** in Qt Maintenance Tool (required for voice features)
-4. Install **Poppler**: via [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)
+4. Install **Poppler / libzip / pugixml** (optional): via [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)
 
 > **Tip**: MinGW version is lighter, Qt installer bundles compiler; MSVC version has better debugging experience.
 
@@ -203,6 +247,12 @@ cd scripts
 # Debug build
 ./build.sh -d
 
+# Build and create distributable package
+./build.sh build -p
+
+# Package existing build artifacts only
+./build.sh package
+
 # Specify Qt path
 ./build.sh -q /path/to/qt
 
@@ -225,6 +275,28 @@ cd scripts
 | Linux | `build/LocalAIAssistant` | `build/LocalAIAssistant-CLI` |
 
 > **macOS CLI .app**: Double-click `LocalAIAssistant-CLI.app` auto-detects iTerm2 and prefers to open with it, solving Chinese input deletion issues.
+
+### Packaging for Distribution
+
+Use the `package` command to generate user-installable release packages:
+
+```bash
+# Build + package in one step
+./build.sh build -p
+
+# Or package existing build artifacts
+./build.sh package
+```
+
+| Platform | Format | Output Path |
+|----------|--------|-------------|
+| macOS | **DMG** (drag to Applications) | `release/LocalAIAssistant-x.x.x-macOS.dmg` |
+| Windows | **ZIP** (extract and run) | `release/LocalAIAssistant-x.x.x-Windows.zip` |
+| Linux | **tar.gz** (includes install.sh) | `release/LocalAIAssistant-x.x.x-Linux.tar.gz` |
+
+> **Note**: This is free software without code signing. macOS users must right-click the app → "Open" to bypass Gatekeeper on first launch. Windows users will see a SmartScreen warning — click "More info" → "Run anyway" to proceed.
+> 
+> Release packages do **NOT** include the developer's `.env` credentials. Users can configure iFlytek voice credentials directly via the AI Girlfriend window's settings menu, or copy `.env.example` to create their own `.env` file.
 
 ---
 
@@ -334,6 +406,14 @@ The program needs to connect to an AI service to work.
 
 The AI Girlfriend module provides voice interaction experience, requires iFlytek voice service configuration.
 
+### Method 1: In-App Configuration (Recommended)
+
+Open the AI Girlfriend window, click the ⚙️ button in the top-right corner, select "Configure Voice...", and fill in your iFlytek credentials in the dialog. Settings are saved automatically — no file editing needed.
+
+### Method 2: .env File Configuration (Advanced Users)
+
+Create a `.env` file in the project root or user data directory. The app will detect and load it automatically.
+
 ### Step 1: Register [iFlytek Open Platform](https://www.xfyun.cn) Account
 
 1. Visit iFlytek Open Platform: https://www.xfyun.cn
@@ -361,7 +441,9 @@ API Secret - API Secret
 
 ### Step 4: Configure Credentials
 
-Create `.env` file in project root:
+**Recommended: In-App Configuration** — Click ⚙️ in the AI Girlfriend window and select "Configure Voice..." to enter credentials directly in the UI and save.
+
+**Alternative: .env File** — Create a `.env` file in the project root:
 
 ```bash
 # Copy template
@@ -377,7 +459,7 @@ XFYUN_API_KEY=your_api_key
 XFYUN_API_SECRET=your_api_secret
 ```
 
-> **Security Note**: `.env` file is in `.gitignore`, won't be committed to Git.
+> **Security Note**: `.env` file is in `.gitignore`, won't be committed to Git. Release packages exclude developer `.env` and only include `.env.example` as a template.
 
 ### TTS Voice Selection
 
@@ -385,7 +467,8 @@ Modify `.env` to select different voice tones:
 
 | Voice Parameter | Name | Characteristics |
 |-----------------|------|-----------------|
-| `x6_wumeinv_pro` | Wumei Sister | Natural, rich emotion ⭐Recommended, needs manual addition |
+| `x6_lingxiaoxuan_pro` | Ling Xiaoxuan | Ultra-realistic female voice ⭐Default |
+| `x6_wumeinv_pro` | Wumei Sister | Natural, rich emotion, needs manual addition |
 | `x6_lingfeiyi_pro` | Lingfeiyi | Youthful warm, male voice ⭐Recommended, included after enabling |
 
 ---
@@ -455,7 +538,7 @@ Same as macOS, select Multimedia and WebSockets in Qt Maintenance Tool.
 
 ### Qt Version Requirements
 
-- Minimum: Qt 6.10.3
+- Minimum: Qt 6.x
 - Recommended: Qt 6.10.3
 
 ### Compiler Requirements
@@ -469,15 +552,15 @@ Same as macOS, select Multimedia and WebSockets in Qt Maintenance Tool.
 
 ## Data Storage Location
 
-AI girlfriend data files are stored in the `girlfriend/` subdirectory of user data directory:
+All data files are stored under the user data directory:
 
 | Platform | Data Directory Path |
 |----------|---------------------|
-| macOS | `~/Library/Application Support/LocalAIAssistant/girlfriend/` |
-| Windows | `%APPDATA%\LocalAIAssistant\girlfriend\` |
-| Linux | `~/.local/share/LocalAIAssistant/girlfriend/` |
+| macOS | `~/Library/Application Support/LocalAIAssistant/` |
+| Windows | `%APPDATA%\LocalAIAssistant\` |
+| Linux | `~/.local/share/LocalAIAssistant/` |
 
-Files in subdirectory:
+### AI Girlfriend Data (`girlfriend/` subdirectory)
 
 | File | Content |
 |------|---------|
@@ -485,6 +568,14 @@ Files in subdirectory:
 | `sessions.json` | Session metadata list (ID, name, creation time) |
 | `session_<id>.json` | Single session data (conversation history, emotion state) |
 | `memory.md` | User memory archive (basic info, preferences, events) |
+
+### Knowledge Base Data (`knowledge/` subdirectory)
+
+| File | Content |
+|------|---------|
+| `chunks.db` | SQLite database storing document text chunks and metadata |
+| `vectors.bin` | Binary vector index file |
+| `memories.json` | Cross-session memory entries (MemoryEnhancer persistence) |
 
 ---
 
@@ -495,10 +586,10 @@ Files in subdirectory:
 **Problem**: Voice button shows "Voice not configured"
 
 **Solution**:
-1. Check if `.env` file exists and credentials are correct
-2. Confirm "Voice Dictation" and "Ultra-realistic Voice Synthesis" services are enabled in iFlytek console
-3. Confirm Qt Multimedia and WebSockets modules are installed
-4. Rebuild application
+1. In AI Girlfriend window, click ⚙️ → "Configure Voice..." to enter iFlytek credentials (recommended)
+2. Or check if `.env` file exists and credentials are correct
+3. Confirm "Voice Dictation" and "Ultra-realistic Voice Synthesis" services are enabled in iFlytek console
+4. Confirm Qt Multimedia and WebSockets modules are installed
 
 **Windows Voice Input Issue**:
 

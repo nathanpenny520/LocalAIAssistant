@@ -220,6 +220,29 @@ bool GirlfriendSessionManager::renameSession(const QString &sessionId, const QSt
     return false;
 }
 
+bool GirlfriendSessionManager::setSessionPinned(const QString &sessionId, bool pinned)
+{
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (m_sessions[i].id == sessionId) {
+            m_sessions[i].pinned = pinned;
+            saveSessionsList();
+            return true;
+        }
+    }
+    return false;
+}
+
+void GirlfriendSessionManager::markSessionAutoNamed(const QString &sessionId)
+{
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (m_sessions[i].id == sessionId) {
+            m_sessions[i].autoNamed = true;
+            saveSessionsList();
+            return;
+        }
+    }
+}
+
 void GirlfriendSessionManager::saveAll()
 {
     saveSessionsList();
@@ -284,6 +307,8 @@ void GirlfriendSessionManager::saveSessionsList()
         obj["name"] = meta.name;
         obj["createdAt"] = meta.createdAt;
         obj["lastUsedAt"] = meta.lastUsedAt;
+        obj["pinned"] = meta.pinned;
+        obj["autoNamed"] = meta.autoNamed;
         sessionsArray.append(obj);
     }
 
@@ -342,6 +367,8 @@ void GirlfriendSessionManager::loadSessionsList()
         meta.name = obj["name"].toString();
         meta.createdAt = obj["createdAt"].toString();
         meta.lastUsedAt = obj["lastUsedAt"].toString();
+        meta.pinned = obj["pinned"].toBool(false);
+        meta.autoNamed = obj["autoNamed"].toBool(false);
         m_sessions.append(meta);
     }
 

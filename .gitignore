@@ -1,5 +1,6 @@
 # Build directories
 build/
+release/
 cmake-build-*/
 out/
 .worktrees/
@@ -27,6 +28,7 @@ Makefile
 .vscode/
 .idea/
 .claude/
+superpowers/
 *.pro.user
 *.pro.user.*
 *.autosave

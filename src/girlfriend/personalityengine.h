@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef PERSONALITYENGINE_H
 #define PERSONALITYENGINE_H
 
@@ -15,7 +17,7 @@ public:
     explicit PersonalityEngine(QObject *parent = nullptr);
 
     QString loadPersonalityPrompt();
-    QString buildSystemPrompt();
+    QString buildSystemPrompt(const QString &memoryContent = {});
 
     QString detectEmotion(const QString &text, double mood = 0.6) const;
     QString emotionToDisplayName(const QString &emotion) const;
@@ -46,10 +48,12 @@ private:
     double m_mood = 0.6;           // 当前心情值 (0-1)
     double m_moodDecay = 0.05;     // 每次对话衰减
 
-    QString getMoodHint() const;   // 根据心情生成提示语
+    QString getMoodHint() const;
+    void parseTemplateConfig();     // 从 personality.md 提取提示词配置 QMap
+    QString templateValue(const QString &key, const QString &fallback) const;
 
     void loadFromFile();
-    QStringList findPossiblePaths() const;
+    QMap<QString, QString> m_templateConfig;  // key=value from <!-- CONFIG_START --> block
 };
 
 #endif // PERSONALITYENGINE_H
