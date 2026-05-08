@@ -53,7 +53,7 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **安全检查** — 操作前自动校验危险路径（系统目录保护），覆盖 Unix + Windows 危险命令
 - **命令注入防护** — 检测 PowerShell 注入、Unix 命令替换、Living-off-the-Land 攻击等
 - **操作撤销** — 支持撤销已执行的文件操作
-- **用户确认** — 高风险操作需用户确认后执行
+- **用户确认** — 所有任务计划执行前均需用户审查确认（CLI 交互模式 `/confirm`，ask 模式内联 `[Y/n]` 提示，GUI 确认对话框），`--yes` 标志可跳过确认
 
 > ⚠️ **平台兼容性说明**：
 > - **macOS**: 语音输入/输出完整支持 ✅
@@ -361,6 +361,9 @@ build\LocalAIAssistant-CLI.exe
 # 配置管理
 ./build/LocalAIAssistant-CLI config --show-config
 ./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
+
+# 任务执行（自动确认）
+./build/LocalAIAssistant-CLI ask --yes "帮我在 ~/test 创建 hello.txt"
 ```
 
 ### CLI 交互命令
@@ -378,6 +381,9 @@ build\LocalAIAssistant-CLI.exe
 | `/file <path>` | 添加文件附件 |
 | `/listfiles` | 查看待发送文件 |
 | `/clearfiles` | 清空文件列表 |
+| `/confirm` | 确认执行待定任务计划 |
+| `/cancel` | 取消待定任务计划 |
+| `/undo` | 撤销上次执行的操作 |
 | `/exit` | 退出程序 |
 
 ---

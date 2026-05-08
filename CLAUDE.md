@@ -43,7 +43,7 @@ LocalAIAssistantCore  (src/core/, src/prompts/)   — network, sessions, file I/
 ```
 
 - **Core**: `NetworkManager` (OpenAI/Ollama/LlamaCpp/Anthropic APIs via Provider pattern), `SessionManager` (JSON persistence), `FileManager`, `PromptManager`
-- **TaskModule**: `TaskEngine` (AI response parsing), `CommandExecutor` (native file ops via Qt + shell commands with auto-detection), `SafetyChecker` (cross-platform dangerous command/path validation), `OperationUndo`
+- **TaskModule**: `TaskEngine` (AI response parsing, TASK_PLAN extraction), `CommandExecutor` (native file ops via Qt + shell commands with auto-detection), `SafetyChecker` (cross-platform dangerous command/path validation), `OperationUndo`. Task prompt merged into system prompt — AI self-judges when to generate TASK_PLAN. All plans require user confirmation before execution (CLI: `/confirm` or inline `[Y/n]`, GUI: dialog). `--yes` flag auto-confirms for scripting.
 - **GirlfriendModule** (single-file `girlfriendwindow.cpp`, 1,937 lines — split deferred per ROADMAP)
 - **CLI**: links Core + TaskModule only (no Girlfriend, no Knowledge)
 - **GUI**: links GirlfriendModule → transitively pulls in Core

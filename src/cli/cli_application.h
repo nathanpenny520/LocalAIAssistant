@@ -37,6 +37,7 @@ private:
     // Task execution
     bool extractAndHandleTaskPlan(const QString &response);
     void showPlanPreview(const OperationPlan &plan);
+    void executePlanNow(const OperationPlan &plan);
     void executeConfirmedPlan();
     QString formatCommandResult(int index, const CommandResult &result) const;
 
@@ -65,6 +66,7 @@ private:
     // Pending task plan (awaiting confirmation)
     OperationPlan m_pendingPlan;
     bool m_hasPendingPlan = false;
+    bool m_autoConfirm = false;
 };
 
 #endif

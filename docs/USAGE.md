@@ -292,6 +292,9 @@ Run the command-line interface:
 | `/file <path>` | Attach a file |
 | `/listfiles` | List attached files |
 | `/clearfiles` | Clear file list |
+| `/confirm` | Confirm pending task plan |
+| `/cancel` | Cancel pending task plan |
+| `/undo` | Undo last operation |
 | `/exit` | Exit program |
 
 ### One-shot Queries
@@ -309,6 +312,35 @@ Run the command-line interface:
 ./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
 ```
 
+### Task Execution
+
+When the AI generates a task plan (file operations, shell commands), the CLI always shows the plan and waits for confirmation before executing:
+
+```bash
+# Interactive mode: plan is shown, type /confirm to execute
+> Create a hello.txt in /tmp/test
+*** Command plan requires confirmation ***
+Commands (2):
+  1. create_dir → /tmp/test
+  2. write_file → /tmp/test/hello.txt
+Type /confirm to execute, /cancel to abort.
+> /confirm
+Executing...
+--- Command plan finished: 2/2 succeeded ---
+
+# Ask mode: inline confirmation prompt
+$ ./build/LocalAIAssistant-CLI ask "Create /tmp/test/hello.txt"
+*** Command plan requires confirmation ***
+...
+Execute? [Y/n]: y
+Executing...
+
+# Ask mode with --yes for scripting (auto-confirm)
+$ ./build/LocalAIAssistant-CLI ask --yes "Create /tmp/test/hello.txt"
+Auto-confirming (--yes)...
+Executing...
+```
+
 ---
 
 ## Security
@@ -319,7 +351,7 @@ In Settings → **Security**, you can configure a path whitelist. When the AI pe
 
 ### Operation Confirmation
 
-Enable **Operation Confirmation** in Security settings to require your approval before the AI executes high-risk file operations.
+**All task plans require user confirmation before execution.** In CLI interactive mode, type `/confirm` or `/cancel`. In CLI ask mode, respond to the inline `[Y/n]` prompt. In GUI, a confirmation dialog is shown. Use the `--yes` flag to auto-confirm in CLI ask mode for scripting.
 
 ---
 

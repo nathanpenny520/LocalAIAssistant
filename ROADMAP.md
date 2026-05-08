@@ -12,6 +12,8 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 ### What was completed (2026-05-08)
 - [x] **Tier 2.1: Windows command execution** — Native Qt file ops, shell auto-detection, Windows safety patterns. 10 files, +1221/-125 lines. All tests pass.
+- [x] **AI self-judgment for task detection** — Replaced keyword-based `isTaskRequest()` (~50 hardcoded keywords) with task prompt merged into system prompt. AI decides when to generate TASK_PLAN. Added 7 detailed examples to task.md prompts. Removed dead keyword matching code from CLI/GUI.
+- [x] **CLI confirmation safety** — Removed auto-execute path: all task plans now require user confirmation before execution. Ask mode uses inline `[Y/n]` prompt. Added `--yes` flag for scripting. Fixed ask mode hang after TASK_PLAN handling.
 
 ### What to do next (优先级排序)
 **按照风险（低→高）和重要性（高→低）重新规划**

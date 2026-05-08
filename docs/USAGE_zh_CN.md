@@ -292,6 +292,9 @@ AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `
 | `/file <path>` | 添加文件附件 |
 | `/listfiles` | 查看待发送文件 |
 | `/clearfiles` | 清空文件列表 |
+| `/confirm` | 确认执行待定任务计划 |
+| `/cancel` | 取消待定任务计划 |
+| `/undo` | 撤销上次操作 |
 | `/exit` | 退出程序 |
 
 ### 单次查询
@@ -309,6 +312,35 @@ AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `
 ./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
 ```
 
+### 任务执行
+
+当 AI 生成任务计划（文件操作、Shell 命令等）时，CLI 始终先展示计划并等待确认后才执行：
+
+```bash
+# 交互模式：展示计划，输入 /confirm 执行
+> 帮我在 /tmp/test 创建 hello.txt
+*** Command plan requires confirmation ***
+Commands (2):
+  1. create_dir → /tmp/test
+  2. write_file → /tmp/test/hello.txt
+Type /confirm to execute, /cancel to abort.
+> /confirm
+Executing...
+--- Command plan finished: 2/2 succeeded ---
+
+# ask 模式：内联确认提示
+$ ./build/LocalAIAssistant-CLI ask "在 /tmp/test 创建 hello.txt"
+*** Command plan requires confirmation ***
+...
+Execute? [Y/n]: y
+Executing...
+
+# ask 模式 + --yes 自动确认（适合脚本）
+$ ./build/LocalAIAssistant-CLI ask --yes "在 /tmp/test 创建 hello.txt"
+Auto-confirming (--yes)...
+Executing...
+```
+
 ---
 
 ## 安全设置
@@ -319,7 +351,7 @@ AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `
 
 ### 操作确认
 
-在安全设置中启用 **操作确认**，AI 执行高风险文件操作前需要您的批准。
+**所有任务计划均需用户确认后才执行。** CLI 交互模式输入 `/confirm` 或 `/cancel`，CLI ask 模式响应内联 `[Y/n]` 提示，GUI 弹出确认对话框。CLI ask 模式可用 `--yes` 标志跳过确认（适合脚本）。
 
 ---
 

@@ -53,7 +53,7 @@ Gitee repo: https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **Safety Checker** — Pre-execution validation of dangerous paths (system directory protection), covering Unix + Windows
 - **Command Injection Prevention** — Detect PowerShell injection, Unix command substitution, Living-off-the-Land attacks
 - **Operation Undo** — Supports undoing executed file operations
-- **User Confirmation** — High-risk operations require user confirmation before execution
+- **User Confirmation** — All task plans require user review before execution (CLI interactive `/confirm`, ask mode inline `[Y/n]` prompt, GUI confirmation dialog), `--yes` flag to skip confirmation
 
 > ⚠️ **Platform Compatibility**:
 > - **macOS**: Full voice input/output support ✅
@@ -361,6 +361,9 @@ build\LocalAIAssistant-CLI.exe
 # Configuration management
 ./build/LocalAIAssistant-CLI config --show-config
 ./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
+
+# Task execution (auto-confirm)
+./build/LocalAIAssistant-CLI ask --yes "Create ~/test/hello.txt for me"
 ```
 
 ### CLI Interactive Commands
@@ -378,6 +381,9 @@ Available in CLI chat mode:
 | `/file <path>` | Add file attachment |
 | `/listfiles` | View pending files |
 | `/clearfiles` | Clear file list |
+| `/confirm` | Confirm pending task plan |
+| `/cancel` | Cancel pending task plan |
+| `/undo` | Undo last executed operation |
 | `/exit` | Exit program |
 
 ---

@@ -2,6 +2,7 @@
 #include "filemanager.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
+#include <QTextStream>
 #include <QTimer>
 #include <QSettings>
 #include <QFileInfo>
@@ -146,6 +147,8 @@ int CLIApplication::run(int argc, char *argv[])
         "Set max context messages (1-100)", "value");
     QCommandLineOption apiTypeOpt(QStringList() << "api-type",
         "Set API type (openai, ollama, llamacpp, anthropic)", "type");
+    QCommandLineOption yesOpt(QStringList() << "y" << "yes",
+        "Auto-confirm task plans (skip confirmation prompt)");
 
     parser.addOption(sessionOpt);
     parser.addOption(newSessionOpt);
@@ -165,8 +168,11 @@ int CLIApplication::run(int argc, char *argv[])
     parser.addOption(seedOpt);
     parser.addOption(maxContextOpt);
     parser.addOption(apiTypeOpt);
+    parser.addOption(yesOpt);
 
     parser.process(app);
+
+    m_autoConfirm = parser.isSet("yes");
 
     // Load sessions before any mode (shared with GUI)
     SessionManager::instance()->loadSessionsFromFile();
@@ -1011,53 +1017,37 @@ bool CLIApplication::extractAndHandleTaskPlan(const QString &response)
         std::cout << "\n*** Command blocked: "
                   << m_taskEngine->safetyChecker().lastBlockReason().toStdString()
                   << " ***" << std::endl;
-        return true; // handled, don't show normal prompt
+        // In ask mode, quit after showing block reason
+        if (!m_interactiveMode)
+            QTimer::singleShot(0, this, &CLIApplication::quit);
+        return true;
     }
 
-    if (safetyResult == SafetyChecker::Approved) {
-        // Safe plan, execute immediately
-        std::cout << "\nExecuting command plan..." << std::endl;
-        showPlanPreview(plan);
+    // Always require confirmation (matching GUI behavior)
+    std::cout << "\n*** Command plan requires confirmation ***" << std::endl;
+    showPlanPreview(plan);
 
-        // Connect for real-time output
-        connect(m_taskEngine->executor(), &CommandExecutor::stdoutLineReceived,
-                this, [](const QString &line, int) {
-                    std::cout << "  " << line.toStdString() << std::endl;
-                });
-        connect(m_taskEngine->executor(), &CommandExecutor::stderrLineReceived,
-                this, [](const QString &line, int) {
-                    std::cerr << "  [stderr] " << line.toStdString() << std::endl;
-                });
-
-        QVector<CommandResult> results = m_taskEngine->executePlan(plan);
-
-        // Disconnect signals
-        m_taskEngine->executor()->disconnect(this);
-
-        int successCount = 0;
-        for (const auto &r : results) {
-            if (r.success)
-                successCount++;
-        }
-
-        std::cout << "\n--- Command plan finished: "
-                  << successCount << "/" << results.size()
-                  << " succeeded ---" << std::endl;
-
-        for (int i = 0; i < results.size(); ++i) {
-            std::cout << formatCommandResult(i, results[i]).toStdString() << std::endl;
-        }
-
-        if (m_taskEngine->canUndo())
-            std::cout << "Tip: type /undo to revert the last operation" << std::endl;
-    } else {
-        // Needs confirmation
-        std::cout << "\n*** Command plan requires confirmation ***" << std::endl;
-        showPlanPreview(plan);
+    if (m_interactiveMode) {
         std::cout << "Type /confirm to execute, /cancel to abort." << std::endl;
-
         m_pendingPlan = plan;
         m_hasPendingPlan = true;
+    } else {
+        // Ask mode: inline confirmation prompt
+        if (m_autoConfirm) {
+            std::cout << "Auto-confirming (--yes)..." << std::endl;
+            executePlanNow(plan);
+        } else {
+            std::cout << "Execute? [Y/n]: " << std::flush;
+            QTextStream in(stdin);
+            QString line = in.readLine().trimmed().toLower();
+            if (line.isEmpty() || line == QStringLiteral("y") || line == QStringLiteral("yes")) {
+                executePlanNow(plan);
+            } else {
+                std::cout << "Cancelled." << std::endl;
+            }
+        }
+        // Ask mode: always quit after handling plan
+        QTimer::singleShot(0, this, &CLIApplication::quit);
     }
 
     return true; // task plan handled
@@ -1084,16 +1074,10 @@ void CLIApplication::showPlanPreview(const OperationPlan &plan)
     }
 }
 
-void CLIApplication::executeConfirmedPlan()
+void CLIApplication::executePlanNow(const OperationPlan &plan)
 {
-    if (!m_hasPendingPlan || m_pendingPlan.isEmpty()) {
-        std::cout << "No pending command plan." << std::endl;
-        return;
-    }
-
     std::cout << "Executing..." << std::endl;
 
-    // Connect for real-time output
     connect(m_taskEngine->executor(), &CommandExecutor::stdoutLineReceived,
             this, [](const QString &line, int) {
                 std::cout << "  " << line.toStdString() << std::endl;
@@ -1103,11 +1087,8 @@ void CLIApplication::executeConfirmedPlan()
                 std::cerr << "  [stderr] " << line.toStdString() << std::endl;
             });
 
-    QVector<CommandResult> results = m_taskEngine->executePlan(m_pendingPlan);
-    m_hasPendingPlan = false;
-    m_pendingPlan = OperationPlan();
+    QVector<CommandResult> results = m_taskEngine->executePlan(plan);
 
-    // Disconnect signals
     m_taskEngine->executor()->disconnect(this);
 
     int successCount = 0;
@@ -1126,6 +1107,20 @@ void CLIApplication::executeConfirmedPlan()
 
     if (m_taskEngine->canUndo())
         std::cout << "Tip: type /undo to revert the last operation" << std::endl;
+}
+
+void CLIApplication::executeConfirmedPlan()
+{
+    if (!m_hasPendingPlan || m_pendingPlan.isEmpty()) {
+        std::cout << "No pending command plan." << std::endl;
+        return;
+    }
+
+    OperationPlan plan = m_pendingPlan;
+    m_hasPendingPlan = false;
+    m_pendingPlan = OperationPlan();
+
+    executePlanNow(plan);
 }
 
 QString CLIApplication::formatCommandResult(int index, const CommandResult &result) const
