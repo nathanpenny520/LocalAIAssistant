@@ -478,8 +478,53 @@ bool VectorDB::load()
 
             m_activeChunks = static_cast<int>(m_index->getCurrentElementCount());
 
-            qInfo() << "VectorDB: loaded hnsw index," << m_activeChunks
-                      << "vectors, dimension:" << m_dimension;
+            // Detect stale HNSW index: vector count != SQLite chunk count
+            if (m_activeChunks != m_chunks.size()) {
+                qWarning() << "VectorDB: HNSW/chunk mismatch detected —"
+                           << m_activeChunks << "vectors vs"
+                           << m_chunks.size() << "chunks, reinitializing...";
+
+                delete m_index;
+                m_index = nullptr;
+                delete m_space;
+                m_space = nullptr;
+                m_chunks.clear();
+                m_activeChunks = 0;
+
+                // Transactionally clear SQLite
+                {
+                    QSqlDatabase db = QSqlDatabase::database(connName);
+                    if (db.isOpen()) {
+                        db.transaction();
+                        QSqlQuery q(db);
+                        bool ok = q.exec(QStringLiteral("DELETE FROM chunks"));
+                        ok &= q.exec(QStringLiteral("DELETE FROM documents"));
+                        if (ok) {
+                            db.commit();
+                            qInfo() << "VectorDB: database cleared successfully";
+                        } else {
+                            db.rollback();
+                            qCritical() << "VectorDB: failed to clear database:"
+                                        << q.lastError().text();
+                        }
+                    }
+                }
+
+                // Delete stale HNSW index file from disk
+                QFile hnswFile(m_storageDir + QStringLiteral("/hnsw.index"));
+                if (hnswFile.exists())
+                    hnswFile.remove();
+
+                // Create fresh empty index, let flow continue
+                if (m_dimension > 0) {
+                    m_space = new hnswlib::InnerProductSpace(m_dimension);
+                    m_index = new hnswlib::HierarchicalNSW<float>(
+                        m_space, 1000, 16, 200, 100, false);
+                }
+            } else {
+                qInfo() << "VectorDB: loaded hnsw index," << m_activeChunks
+                          << "vectors, dimension:" << m_dimension;
+            }
         } catch (const std::exception &e) {
             qWarning() << "VectorDB: failed to load hnsw index:" << e.what()
                         << "— creating new index, re-embedding needed";
