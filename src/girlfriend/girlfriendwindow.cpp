@@ -1,6 +1,7 @@
 #include "girlfriendwindow.h"
 #include "girlfriend_translations.h"
 #include "translationmanager.h"
+#include "apptheme.h"
 #include <QDebug>
 #include <QScrollBar>
 #include <QTimer>
@@ -312,38 +313,29 @@ void GirlfriendWindow::resizeEvent(QResizeEvent *event)
 
 void GirlfriendWindow::applyTheme()
 {
-    // Detect theme from StyleSheetManager
-    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-    bool isDark = (theme == StyleSheetManager::DarkTheme);
-    // Also check system theme
-    if (theme == StyleSheetManager::SystemTheme) {
-        QPalette palette = QApplication::palette();
-        QColor windowColor = palette.color(QPalette::Window);
-        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-        isDark = brightness < 128;
-    }
-    m_isDarkTheme = isDark;
+    const AppTheme& t = AppTheme::current();
+    m_isDarkTheme = t.windowBg.lightness() < 128;
 
-    // Derive theme colors
-    QString bg         = isDark ? QStringLiteral("#1e1e1e") : QStringLiteral("#ffffff");
-    QString surface    = isDark ? QStringLiteral("#2d2d2d") : QStringLiteral("#f5f5f5");
-    QString text       = isDark ? QStringLiteral("#e0e0e0") : QStringLiteral("#333333");
-    QString textInv    = isDark ? QStringLiteral("#333333") : QStringLiteral("#ffffff");
-    QString secondary  = isDark ? QStringLiteral("#999999") : QStringLiteral("#666666");
-    QString hintColor  = isDark ? QStringLiteral("#888888") : QStringLiteral("#999999");
-    QString border     = isDark ? QStringLiteral("#3d3d3d") : QStringLiteral("#cccccc");
-    QString hoverBg    = isDark ? QStringLiteral("#3d3d3d") : QStringLiteral("#f0f0f0");
-    QString inputBg    = isDark ? QStringLiteral("rgba(233, 30, 99, 0.12)") : QStringLiteral("rgba(255, 182, 193, 0.5)");
-    QString userBubble = isDark ? QStringLiteral("rgba(255, 255, 255, 0.06)") : QStringLiteral("rgba(100, 100, 100, 0.1)");
-    QString gfBubble   = isDark ? QStringLiteral("rgba(233, 30, 99, 0.12)") : QStringLiteral("rgba(233, 30, 99, 0.15)");
-    QString pink       = QStringLiteral("#e91e63");
-    QString pinkHover  = QStringLiteral("#c2185b");
-    QString pinkDarker = QStringLiteral("#d81b60");
+    // Derive theme colors from AppTheme tokens
+    QString bg         = t.windowBg.name();
+    QString surface    = t.surfaceBg.name();
+    QString text       = t.textPrimary.name();
+    QString textInv    = m_isDarkTheme ? QStringLiteral("#333333") : QStringLiteral("#ffffff");
+    QString secondary  = t.textSecondary.name();
+    QString hintColor  = m_isDarkTheme ? QStringLiteral("#888888") : QStringLiteral("#999999");
+    QString border     = t.border.name();
+    QString hoverBg    = t.hoverBg.name();
+    QString inputBg    = m_isDarkTheme ? QStringLiteral("rgba(233, 30, 99, 0.12)") : QStringLiteral("rgba(255, 182, 193, 0.5)");
+    QString userBubble = m_isDarkTheme ? QStringLiteral("rgba(255, 255, 255, 0.06)") : QStringLiteral("rgba(100, 100, 100, 0.1)");
+    QString gfBubble   = m_isDarkTheme ? QStringLiteral("rgba(233, 30, 99, 0.12)") : QStringLiteral("rgba(233, 30, 99, 0.15)");
+    QString pink       = t.girlfriendAccent.name();
+    QString pinkHover  = t.girlfriendAccentHover.name();
+    QString pinkDarker = t.girlfriendAccentPressed.name();
     QString red        = QStringLiteral("#f44336");
     QString redHover   = QStringLiteral("#d32f2f");
     QString grayBg     = QStringLiteral("#9e9e9e");
-    QString cancelBg   = isDark ? QStringLiteral("#555555") : QStringLiteral("#555555");
-    QString cancelHov  = isDark ? QStringLiteral("#777777") : QStringLiteral("#777777");
+    QString cancelBg   = QStringLiteral("#555555");
+    QString cancelHov  = QStringLiteral("#777777");
 
     // Base stylesheet for the window
     setStyleSheet(QString());
@@ -396,7 +388,7 @@ void GirlfriendWindow::applyTheme()
                 .arg(pink, pinkHover));
     }
 
-    qDebug() << "GirlfriendWindow: Theme applied -" << (isDark ? "dark" : "light");
+    qDebug() << "GirlfriendWindow: Theme applied -" << (m_isDarkTheme ? "dark" : "light");
 }
 
 void GirlfriendWindow::changeEvent(QEvent *event)

@@ -1,6 +1,7 @@
 #include "avatarwidget.h"
 #include "girlfriend_translations.h"
 #include "girlfriendsettings.h"
+#include "apptheme.h"
 #include <QDebug>
 #include <QDir>
 #include <QCoreApplication>
@@ -50,9 +51,12 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     m_avatarLabel->setScaledContents(true);
 
     // Emotion tag label
+    QColor pink = AppTheme::current().girlfriendAccent;
+    pink.setAlpha(217); // 0.85 * 255
     m_emotionTagLabel->setStyleSheet(
-        "QLabel { background: rgba(233, 30, 99, 0.85); color: white; "
-        "padding: 4px 12px; font-size: 12px; border-radius: 6px; }"
+        QString("QLabel { background: rgba(%1, %2, %3, %4); color: white; "
+                "padding: 4px 12px; font-size: 12px; border-radius: 6px; }")
+            .arg(pink.red()).arg(pink.green()).arg(pink.blue()).arg(pink.alphaF(), 0, 'f', 2)
     );
     m_emotionTagLabel->setText(GTr::emotionDefault());
     m_emotionTagLabel->move(12, 12);
