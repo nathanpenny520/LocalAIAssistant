@@ -1202,5 +1202,78 @@
         <source>帮助文档未找到。请确认 docs/USAGE.md 存在。</source>
         <translation>帮助文档未找到。请确认 docs/USAGE.md 存在。</translation>
     </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="389"/>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="221"/>
+        <source>删除失败</source>
+        <translation>删除失败</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="221"/>
+        <source>无法删除所选文档，请重试。</source>
+        <translation>无法删除所选文档，请重试。</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="223"/>
+        <source>部分删除</source>
+        <translation>部分删除</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="224"/>
+        <source>成功删除 %1 个文档，%2 个文档删除失败。</source>
+        <translation>成功删除 %1 个文档，%2 个文档删除失败。</translation>
+    </message>
 </context>
+    <context>
+        <name>OperationConfirmDialog</name>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="16"/>
+            <source>Confirm Command Plan</source>
+            <translation>确认命令计划</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="26"/>
+            <source>Command Plan (%1 command(s))</source>
+            <translation>📋 命令计划（共 %1 条命令）</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="40"/>
+            <source>Operation Summary:</source>
+            <translation>操作摘要：</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="54"/>
+            <source>Commands to execute:</source>
+            <translation>将执行的命令：</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="68"/>
+            <source>Commands will execute in a real terminal</source>
+            <translation>⚠️ 命令将在真实终端中执行</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="78"/>
+            <source>Modify Plan</source>
+            <translation>修改计划</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="79"/>
+            <source>Return to conversation to add details</source>
+            <translation>返回对话，补充说明</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="81"/>
+            <source>Cancel</source>
+            <translation>取消</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="83"/>
+            <source>Confirm Execute</source>
+            <translation>确认执行</translation>
+        </message>
+    </context>
 </TS>

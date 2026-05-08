@@ -221,6 +221,13 @@ SettingsDialog::SettingsDialog(QWidget *parent)
                 removed++;
         }
 
+        if (removed == 0) {
+            QMessageBox::warning(this, tr("删除失败"), tr("无法删除所选文档，请重试。"));
+        } else if (removed < paths.size()) {
+            QMessageBox::information(this, tr("部分删除"),
+                tr("成功删除 %1 个文档，%2 个文档删除失败。").arg(removed).arg(paths.size() - removed));
+        }
+
         updateKbStatus();
     });
 
@@ -386,7 +393,7 @@ void SettingsDialog::showUsageHelp()
     QHBoxLayout *btnLayout = new QHBoxLayout();
     btnLayout->setContentsMargins(12, 8, 12, 12);
     btnLayout->addStretch();
-    QPushButton *closeBtn = new QPushButton(tr("关闭"), dialog);
+    QPushButton *closeBtn = new QPushButton(tr("Close"), dialog);
     connect(closeBtn, &QPushButton::clicked, dialog, &QDialog::accept);
     btnLayout->addWidget(closeBtn);
     layout->addLayout(btnLayout);

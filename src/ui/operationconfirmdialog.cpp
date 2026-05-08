@@ -13,7 +13,7 @@ OperationConfirmDialog::OperationConfirmDialog(const OperationPlan &plan, QWidge
 
 void OperationConfirmDialog::setupUI(const OperationPlan &plan)
 {
-    setWindowTitle(QStringLiteral("确认命令计划"));
+    setWindowTitle(tr("Confirm Command Plan"));
     setMinimumSize(560, 440);
     resize(600, 520);
     setModal(true);
@@ -23,7 +23,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
 
     // 标题
     m_titleLabel = new QLabel(this);
-    m_titleLabel->setText(QStringLiteral("📋 命令计划（共 %1 条命令）").arg(plan.totalOperations()));
+    m_titleLabel->setText(tr("Command Plan (%1 command(s))").arg(plan.totalOperations()));
     QFont titleFont;
     titleFont.setPointSize(14);
     titleFont.setBold(true);
@@ -37,7 +37,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     mainLayout->addWidget(separator);
 
     // 操作摘要
-    auto *summaryLabel = new QLabel(tr("操作摘要："), this);
+    auto *summaryLabel = new QLabel(tr("Operation Summary:"), this);
     QFont sectionFont;
     sectionFont.setPointSize(11);
     sectionFont.setBold(true);
@@ -51,7 +51,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     mainLayout->addWidget(m_planPreview);
 
     // Shell 命令预览
-    auto *shellLabel = new QLabel(tr("将执行的命令："), this);
+    auto *shellLabel = new QLabel(tr("Commands to execute:"), this);
     shellLabel->setFont(sectionFont);
     mainLayout->addWidget(shellLabel);
 
@@ -65,7 +65,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
 
     // 警告
     auto *warningLabel = new QLabel(
-        QStringLiteral("⚠️ 命令将在真实终端中执行"), this);
+        tr("Commands will execute in a real terminal"), this);
     QFont warnFont;
     warnFont.setPointSize(11);
     warningLabel->setFont(warnFont);
@@ -75,12 +75,12 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     // 按钮行
     auto *btnLayout = new QHBoxLayout();
 
-    m_modifyBtn = new QPushButton(QStringLiteral("修改计划"), this);
-    m_modifyBtn->setToolTip(QStringLiteral("返回对话，补充说明"));
+    m_modifyBtn = new QPushButton(tr("Modify Plan"), this);
+    m_modifyBtn->setToolTip(tr("Return to conversation to add details"));
 
-    m_cancelBtn = new QPushButton(QStringLiteral("取消"), this);
+    m_cancelBtn = new QPushButton(tr("Cancel"), this);
 
-    m_confirmBtn = new QPushButton(QStringLiteral("确认执行"), this);
+    m_confirmBtn = new QPushButton(tr("Confirm Execute"), this);
     m_confirmBtn->setDefault(true);
     QFont btnFont = m_confirmBtn->font();
     btnFont.setBold(true);

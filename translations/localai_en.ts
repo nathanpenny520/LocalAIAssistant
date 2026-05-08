@@ -1202,5 +1202,78 @@ I will regenerate the plan based on your feedback.</translation>
         <source>帮助文档未找到。请确认 docs/USAGE.md 存在。</source>
         <translation>Help document not found. Please verify docs/USAGE.md exists.</translation>
     </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="389"/>
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="221"/>
+        <source>删除失败</source>
+        <translation>Delete Failed</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="221"/>
+        <source>无法删除所选文档，请重试。</source>
+        <translation>Unable to delete selected document(s), please try again.</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="223"/>
+        <source>部分删除</source>
+        <translation>Partial Deletion</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="224"/>
+        <source>成功删除 %1 个文档，%2 个文档删除失败。</source>
+        <translation>%1 document(s) deleted, %2 failed.</translation>
+    </message>
 </context>
+    <context>
+        <name>OperationConfirmDialog</name>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="16"/>
+            <source>Confirm Command Plan</source>
+            <translation>Confirm Command Plan</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="26"/>
+            <source>Command Plan (%1 command(s))</source>
+            <translation>Command Plan (%1 command(s))</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="40"/>
+            <source>Operation Summary:</source>
+            <translation>Operation Summary:</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="54"/>
+            <source>Commands to execute:</source>
+            <translation>Commands to execute:</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="68"/>
+            <source>Commands will execute in a real terminal</source>
+            <translation>Commands will execute in a real terminal</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="78"/>
+            <source>Modify Plan</source>
+            <translation>Modify Plan</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="79"/>
+            <source>Return to conversation to add details</source>
+            <translation>Return to conversation to add details</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="81"/>
+            <source>Cancel</source>
+            <translation>Cancel</translation>
+        </message>
+        <message>
+            <location filename="../src/ui/operationconfirmdialog.cpp" line="83"/>
+            <source>Confirm Execute</source>
+            <translation>Confirm Execute</translation>
+        </message>
+    </context>
 </TS>

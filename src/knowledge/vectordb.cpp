@@ -203,6 +203,9 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
         m_chunks.append(chunk);
 #endif
     }
+
+    // Persist HNSW index after adding vectors so data survives restarts
+    save();
 }
 
 QVector<SearchResult> VectorDB::search(const QVector<float> &queryVector, int topK) const

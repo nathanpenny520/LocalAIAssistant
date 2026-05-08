@@ -551,29 +551,22 @@ QVector<float> Embedder::placeholderEmbed(const QString &text) const
 
     QString normalized = text.toLower().trimmed();
 
-    // Character trigram hashing
-    for (int i = 0; i < normalized.length() - 2; ++i) {
-        QString trigram = normalized.mid(i, 3);
-        QByteArray hash = QCryptographicHash::hash(
-            trigram.toUtf8(), QCryptographicHash::Md5);
+    // Character-level n-grams (not byte-level) so CJK text gets proper matching.
+    // A CJK character is 3 UTF-8 bytes; byte-level trigrams span char boundaries
+    // and produce near-zero semantic overlap. Character bigrams capture adjacent
+    // character pairs for phrase-level matching (e.g. "三创" in "三创赛").
+    const int len = normalized.length();
 
-        quint32 hashVal = (static_cast<quint32>(static_cast<quint8>(hash[0])) << 24)
-                        | (static_cast<quint32>(static_cast<quint8>(hash[1])) << 16)
-                        | (static_cast<quint32>(static_cast<quint8>(hash[2])) << 8)
-                        | static_cast<quint32>(static_cast<quint8>(hash[3]));
-
-        int idx = hashVal % m_dimension;
-        vec[idx] += 1.0f;
+    // Unigrams (single characters) — term-level matching
+    for (int i = 0; i < len; ++i) {
+        int h = qHash(normalized[i]) % m_dimension;
+        vec[h >= 0 ? h : -h] += 1.0f;
     }
 
-    // Unigram and bigram features
-    for (int i = 0; i < normalized.length(); ++i) {
-        QByteArray hash = QCryptographicHash::hash(
-            QString(normalized[i]).toUtf8(), QCryptographicHash::Md5);
-        quint32 hashVal = (static_cast<quint32>(static_cast<quint8>(hash[0])) << 8)
-                        | static_cast<quint32>(static_cast<quint8>(hash[1]));
-        int idx = hashVal % m_dimension;
-        vec[idx] += 0.5f;
+    // Bigrams (adjacent character pairs) — phrase-level matching
+    for (int i = 0; i < len - 1; ++i) {
+        int h = qHash(QStringView(normalized).mid(i, 2)) % m_dimension;
+        vec[h >= 0 ? h : -h] += 0.5f;
     }
 
     // L2 normalization
