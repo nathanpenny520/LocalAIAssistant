@@ -31,6 +31,156 @@ cmake --build build --parallel 4
 
 **Note**: `build.sh` has an interactive prompt at line 870 asking "[G]ui / [C]li". Use `--gui` or `--cli` flags, or `--no-run` to skip the prompt. For background/CI builds, use direct cmake commands.
 
+## Git Commit Principles (Mandatory)
+
+**Core Principle**: Commit immediately after each change to prevent irreversible mistakes. Small commits are easier to review, test, and rollback.
+
+### Commit Workflow
+
+**1. Before Committing**
+```bash
+# Verify changes compile and work
+cmake --build build --parallel 4
+./scripts/build.sh run --gui  # or --cli
+
+# Check what changed
+git status
+git diff
+```
+
+**2. Commit Immediately After Each Change**
+- One feature/fix/refactor = ONE commit
+- Never accumulate multiple unrelated changes
+- Commit even if change is small (10-50 lines)
+- Better to have many small commits than one large commit
+
+**3. Commit Message Format**
+```
+<type>(<scope>): <brief description>
+
+<body - explain what changed and why>
+
+<footer - reference issues/breaking changes>
+```
+
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `refactor`: Code restructuring (no behavior change)
+- `docs`: Documentation updates
+- `test`: Adding tests
+- `chore`: Build/config changes
+
+**Example**:
+```
+refactor(core): Extract FileParser to remove duplicate code
+
+- Create src/parsers/fileparser.h/cpp (400 lines)
+- Update filemanager.cpp to delegate parsing
+- Update docimporter.cpp to delegate parsing
+- Remove ~100 lines of duplicate PDF parsing logic
+
+Verified: cmake --build succeeds, all tests pass.
+```
+
+**4. Local Commit First, Push Later**
+```bash
+# Commit locally (can rollback)
+git add <files>
+git commit -m "..."
+
+# Test the commit
+cmake --build build --parallel 4
+./scripts/build.sh run --gui
+
+# Only push after confirming no issues
+git push origin main
+```
+
+**5. Rollback Strategy**
+```bash
+# View recent commits
+git log --oneline -10
+
+# Rollback last commit (keep changes in working directory)
+git reset --soft HEAD~1
+
+# Rollback last commit (discard changes permanently)
+git reset --hard HEAD~1
+
+# Rollback to specific commit
+git reset --hard <commit-hash>
+
+# View what changed in a commit
+git show <commit-hash>
+git diff <commit-hash>~1 <commit-hash>
+```
+
+### Commit Rules
+
+✅ **DO**:
+- Commit after every successful change
+- Write clear commit messages explaining WHY
+- Test before committing
+- Keep commits small and focused
+- Commit locally first for safety
+
+❌ **DON'T**:
+- Accumulate multiple changes in one commit
+- Skip testing before commit
+- Push without local verification
+- Commit half-finished work
+- Make large refactoring commits without tests
+
+### Example Scenarios
+
+**Scenario 1: Safe Refactoring**
+```bash
+# Step 1: Make change
+# (extract FileParser)
+
+# Step 2: Test
+cmake --build build --parallel 4
+ctest
+
+# Step 3: Commit
+git add src/parsers/fileparser.h src/parsers/fileparser.cpp
+git add src/core/filemanager.cpp src/knowledge/docimporter.cpp
+git commit -m "refactor(parsers): Extract FileParser module"
+
+# Step 4: Verify commit
+git show HEAD
+cmake --build build --parallel 4
+
+# Step 5: Push (optional, later)
+git push origin main
+```
+
+**Scenario 2: Bug Found After Commit**
+```bash
+# Bug discovered after commit but before push
+git log --oneline -5
+git show HEAD  # Review what changed
+
+# Option A: Fix with new commit
+# (make fix, test, commit)
+
+# Option B: Rollback if severe
+git reset --soft HEAD~1  # Keep changes, fix them
+# (fix issues)
+git commit -m "fix(core): Correct FileParser implementation"
+
+# If already pushed, create fix commit
+git commit -m "fix(core): Fix FileParser PDF handling"
+git push origin main
+```
+
+**Why This Matters**: 
+- Phase 1.1 (girlfriendwindow split) failed after 1 hour of work without commits
+- Had to rollback using `git reset --hard HEAD~1` (lost all work)
+- If we committed after each file, we could identify which file broke functionality
+- Small commits = easy debugging + easy rollback
+
 ## Architecture
 
 The project is a **Qt 6 C++17 desktop app** with GUI and CLI dual-mode. It is split into four CMake libraries and two executables, linked in a dependency chain:
