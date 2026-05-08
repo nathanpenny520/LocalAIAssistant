@@ -1,4 +1,5 @@
 #include "operationconfirmdialog.h"
+#include "stylesheetmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFont>
@@ -17,6 +18,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     setMinimumSize(560, 440);
     resize(600, 520);
     setModal(true);
+    setStyleSheet(StyleSheetManager::instance()->currentStyleSheet());
 
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(12);
@@ -69,7 +71,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     QFont warnFont;
     warnFont.setPointSize(11);
     warningLabel->setFont(warnFont);
-    warningLabel->setStyleSheet(QStringLiteral("color: #ff9500;"));
+    warningLabel->setObjectName(QStringLiteral("warningLabel"));
     mainLayout->addWidget(warningLabel);
 
     // 按钮行

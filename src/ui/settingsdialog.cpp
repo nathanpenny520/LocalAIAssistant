@@ -1,6 +1,7 @@
 #include "settingsdialog.h"
 #include "translationmanager.h"
 #include "knowledgebase.h"
+#include "stylesheetmanager.h"
 #include "../knowledge/embedder.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -32,6 +33,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 {
     setWindowTitle(tr("设置"));
     setMinimumWidth(460);
+    setStyleSheet(StyleSheetManager::instance()->currentStyleSheet());
 
     QSettings settings("LocalAIAssistant", "Settings");
 
@@ -130,9 +132,9 @@ SettingsDialog::SettingsDialog(QWidget *parent)
         if (!hasModel) {
             kbStatusLabel->setText(kbStatusLabel->text()
                 + QStringLiteral("\n") + SettingsDialog::tr("（警告：嵌入模型未找到，搜索准确性较低）"));
-            kbStatusLabel->setStyleSheet(QStringLiteral("QLabel { color: #ff9500; }"));
+            kbStatusLabel->setObjectName(QStringLiteral("warningLabel"));
         } else {
-            kbStatusLabel->setStyleSheet(QString());
+            kbStatusLabel->setObjectName(QString());
         }
 
         m_kbDocList->clear();
@@ -352,7 +354,6 @@ void SettingsDialog::showUsageHelp()
 
     QStringList searchPaths;
     searchPaths << QDir::cleanPath(appDir + "/../Resources/docs/" + docName);
-    searchPaths << QDir::cleanPath(appDir + "/docs/" + docName);
     searchPaths << QDir::cleanPath(appDir + "/docs/" + docName);
 
     QString docPath;
