@@ -8,6 +8,7 @@
 # Commands:
 #   build    - Build the project (default)
 #   run      - Run compiled executable directly
+#   test     - Build and run unit tests (ctest)
 #   help     - Show this help message
 #
 # Build options:
@@ -971,6 +972,37 @@ run_program() {
 }
 
 # ============================================================
+# Test Command (build and run unit tests)
+# ============================================================
+
+cmd_test() {
+    echo ""
+    echo "Running unit tests (ctest)..."
+    echo ""
+
+    local build_dir="${BUILD_DIR:-build}"
+
+    if [ ! -d "$build_dir" ]; then
+        echo "Build directory not found. Running build first..."
+        if ! cmd_build; then
+            echo "Build failed, cannot run tests."
+            return 1
+        fi
+    fi
+
+    cd "$build_dir"
+    if ctest --output-on-failure "$@"; then
+        echo ""
+        echo "All tests passed."
+    else
+        echo ""
+        echo "Some tests failed. Check output above for details."
+        return 1
+    fi
+    cd "$PROJECT_ROOT"
+}
+
+# ============================================================
 # Run Command (directly run without rebuild)
 # ============================================================
 
@@ -1027,7 +1059,7 @@ parse_args() {
     # First argument might be a command
     if [[ $# -gt 0 ]]; then
         case $1 in
-            build|run|help|package)
+            build|run|test|help|package)
                 COMMAND="$1"
                 shift
                 ;;
@@ -1115,6 +1147,7 @@ Usage: ./build.sh [command] [options] [target]
 Commands:
   build    Build the project (default command)
   run      Run compiled executable directly
+  test     Build and run unit tests (ctest)
   package  Package build artifacts for distribution
   help     Show this help message
 
@@ -1146,6 +1179,7 @@ Run Options:
 Examples:
   ./build.sh                        # Build all, prompt to open
   ./build.sh build -c -d            # Clean debug build
+  ./build.sh test                   # Build and run unit tests
   ./build.sh build -p               # Build and create platform package
   ./build.sh package                # Package existing build artifacts
   ./build.sh LocalAIAssistant-CLI   # Build CLI only
@@ -1205,6 +1239,11 @@ main() {
 
     if [ "$COMMAND" == "run" ]; then
         cmd_run
+        exit $?
+    fi
+
+    if [ "$COMMAND" == "test" ]; then
+        cmd_test
         exit $?
     fi
 

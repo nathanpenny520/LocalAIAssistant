@@ -6,9 +6,13 @@
 ## Build Commands
 
 ```bash
+# CMakeLists.txt auto-prepends ~/Qt/6.10.3/macos to CMAKE_PREFIX_PATH.
+# Override with: cmake -B build -DQT_PATH=/custom/qt/path
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel 4                    # Fast build (preferred)
 ./scripts/build.sh                                  # Full release build
 ./scripts/build.sh -c -d --no-run                   # Clean debug, no prompt
+./scripts/build.sh test                             # Build and run unit tests
 ./scripts/build.sh run --gui                        # Run GUI
 ./scripts/build.sh run --cli                        # Run CLI
 ./scripts/build.sh build -p                         # Package (DMG/zip)

@@ -1,4 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
+
+# Prioritize official Qt over Homebrew Qt cmake stubs.
+# Set QT_PATH env var or edit this line to match your Qt installation.
+if(NOT DEFINED QT_PATH)
+    set(QT_PATH "$ENV{HOME}/Qt/6.10.3/macos")
+endif()
+list(PREPEND CMAKE_PREFIX_PATH "${QT_PATH}")
+
 project(LocalAIAssistant VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -10,7 +18,8 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools Multimedia MultimediaWidgets WebSockets Sql)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Network LinguistTools Multimedia MultimediaWidgets WebSockets Sql Test)
+enable_testing()
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
     pkg_check_modules(POPPLER poppler-cpp)
@@ -306,6 +315,8 @@ elseif(EDIT_LIBRARY)
 else()
     message(STATUS "readline/libedit not found, using basic std::getline")
 endif()
+
+add_subdirectory(tests)
 
 if(APPLE)
     # Copy icon to bundle Resources
