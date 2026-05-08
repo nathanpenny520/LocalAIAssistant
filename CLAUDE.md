@@ -1,5 +1,8 @@
 # CLAUDE.md
 
+<!-- PROJECT_ROOT: /Users/nathanpenny/Projects/locai/sourcecode-ai-assistant -->
+<!-- NOTE: Bash tool may start in parent directory. Always use git -C PROJECT_ROOT for git commands. -->
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Build Commands
