@@ -60,6 +60,9 @@ AppTheme AppTheme::light()
     t.syntaxPreprocessor = QColor(QStringLiteral("#af00db"));
     t.syntaxVariable     = QColor(QStringLiteral("#001080"));
 
+    // Widget-specific
+    t.disabledButtonBg = QColor(QStringLiteral("#b0d0ff"));
+
     // Girlfriend (theme-independent pink)
     t.girlfriendAccent        = QColor(QStringLiteral("#e91e63"));
     t.girlfriendAccentHover   = QColor(QStringLiteral("#c2185b"));
@@ -124,6 +127,9 @@ AppTheme AppTheme::dark()
     t.syntaxOperator     = QColor(QStringLiteral("#d4d4d4"));
     t.syntaxPreprocessor = QColor(QStringLiteral("#c586c0"));
     t.syntaxVariable     = QColor(QStringLiteral("#9cdcfe"));
+
+    // Widget-specific
+    t.disabledButtonBg = QColor(QStringLiteral("#1a3a5c"));
 
     // Girlfriend (theme-independent pink — same as light)
     t.girlfriendAccent        = QColor(QStringLiteral("#e91e63"));
