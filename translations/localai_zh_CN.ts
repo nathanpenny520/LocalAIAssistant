@@ -963,11 +963,6 @@
 <context>
     <name>SettingsDialog</name>
     <message>
-        <location filename="../src/ui/settingsdialog.cpp" line="23"/>
-        <source>使用本地模式</source>
-        <translation>使用本地模式</translation>
-    </message>
-    <message>
         <location filename="../src/ui/settingsdialog.cpp" line="26"/>
         <source>启用流式输出</source>
         <translation>启用流式输出</translation>
@@ -981,6 +976,16 @@
         <location filename="../src/ui/settingsdialog.cpp" line="77"/>
         <source>OpenAI 兼容 (llama.cpp, vLLM 等)</source>
         <translation>OpenAI 兼容 (llama.cpp, vLLM 等)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="79"/>
+        <source>llama.cpp (本地 OpenAI 兼容)</source>
+        <translation>llama.cpp (本地 OpenAI 兼容)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="80"/>
+        <source>Anthropic 兼容</source>
+        <translation>Anthropic 兼容</translation>
     </message>
     <message>
         <location filename="../src/ui/settingsdialog.cpp" line="94"/>

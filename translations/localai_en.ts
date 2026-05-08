@@ -963,11 +963,6 @@ I will regenerate the plan based on your feedback.</translation>
 <context>
     <name>SettingsDialog</name>
     <message>
-        <location filename="../src/ui/settingsdialog.cpp" line="23"/>
-        <source>使用本地模式</source>
-        <translation>Use Local Mode</translation>
-    </message>
-    <message>
         <location filename="../src/ui/settingsdialog.cpp" line="26"/>
         <source>启用流式输出</source>
         <translation>Enable Streaming Output</translation>
@@ -981,6 +976,16 @@ I will regenerate the plan based on your feedback.</translation>
         <location filename="../src/ui/settingsdialog.cpp" line="77"/>
         <source>OpenAI 兼容 (llama.cpp, vLLM 等)</source>
         <translation>OpenAI-compatible (llama.cpp, vLLM, etc.)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="79"/>
+        <source>llama.cpp (本地 OpenAI 兼容)</source>
+        <translation>llama.cpp (local OpenAI-compatible)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/settingsdialog.cpp" line="80"/>
+        <source>Anthropic 兼容</source>
+        <translation>Anthropic-compatible</translation>
     </message>
     <message>
         <location filename="../src/ui/settingsdialog.cpp" line="94"/>
