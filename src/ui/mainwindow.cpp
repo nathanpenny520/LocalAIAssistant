@@ -65,16 +65,7 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     QString userLabel = tr("用户");
     QString aiLabel = tr("AI");
 
-    // Get current theme for color-aware rendering
-    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-    if (theme == StyleSheetManager::SystemTheme) {
-        QPalette palette = QApplication::palette();
-        QColor windowColor = palette.color(QPalette::Window);
-        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-        isDarkTheme = (brightness < 128);
-    }
-    MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
+    const AppTheme& t = AppTheme::current();
 
     if (role == "user") {
         // User message in a <table> — Qt rich-text handles tables more reliably than <div>
@@ -84,16 +75,17 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedContent.replace(">", "&gt;");
         escapedContent.replace("\n", "<br>");
 
-        QString boxBg    = isDarkTheme ? "#1e2a3a" : "#f6f7fa";
-        QString boxBorder = isDarkTheme ? "#334"      : "#d8dce6";
+        bool isDark = t.windowBg.lightness() < 128;
+        QString boxBg    = isDark ? "#1e2a3a" : "#f6f7fa";
+        QString boxBorder = isDark ? "#334"      : "#d8dce6";
 
         return QString(
             "<table width='100%%' cellpadding='0' cellspacing='0' "
             "style='background:%1; border:1px solid %2; margin-top:18px; margin-bottom:4px;'>"
             "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
-            "<b style='color:#007aff; font-size:18px;'>%4</b><br>%5"
+            "<b style='color:%4; font-size:18px;'>%5</b><br>%6"
             "</td></tr></table>"
-        ).arg(boxBg, boxBorder, colors.text, userLabel, escapedContent);
+        ).arg(boxBg, boxBorder, t.textPrimary.name(), t.accent.name(), userLabel, escapedContent);
     }
 
     // AI message
@@ -104,8 +96,8 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     QString html;
 
     // AI label
-    html += QString("<p style='margin:0 0 8px 0;'><b style='color:#007aff; font-size:18px;'>%1</b></p>")
-            .arg(aiLabel);
+    html += QString("<p style='margin:0 0 8px 0;'><b style='color:%1; font-size:18px;'>%2</b></p>")
+            .arg(t.accent.name(), aiLabel);
 
     // Thinking content: collapsible, no enclosing box, left accent line only
     if (!thinking.isEmpty()) {
@@ -115,7 +107,8 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedThinking.replace(">", "&gt;");
         escapedThinking.replace("\n", "<br>");
 
-        QString accentColor = isDarkTheme ? "#555" : "#d0d0d0";
+        bool isDark = t.windowBg.lightness() < 128;
+        QString accentColor = isDark ? "#555" : "#d0d0d0";
 
         html += QString(
             "<details open style='margin-bottom:14px; color:%1; font-size:13px;'>"
@@ -124,15 +117,15 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
             "<div style='margin-top:6px; padding-left:12px; "
             "  border-left:2px solid %4; color:%5; line-height:1.6;'>%6</div>"
             "</details>"
-        ).arg(colors.secondary, colors.secondary, thinkingLabel,
-              accentColor, colors.secondary, escapedThinking);
+        ).arg(t.textSecondary.name(), t.textSecondary.name(), thinkingLabel,
+              accentColor, t.textSecondary.name(), escapedThinking);
     }
 
     // AI response: pure markdown
     if (!response.isEmpty()) {
-        html += MarkdownRenderer::toHtml(response, isDarkTheme);
+        html += MarkdownRenderer::toHtml(response);
     } else if (thinking.isEmpty()) {
-        html += MarkdownRenderer::toHtml(content, isDarkTheme);
+        html += MarkdownRenderer::toHtml(content);
     }
 
     return html;
@@ -520,16 +513,7 @@ void MainWindow::appendUserMessageToDisplay(const QString &text, const QVector<F
     QTextCursor cursor = m_chatDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
 
-    // Detect theme
-    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-    if (theme == StyleSheetManager::SystemTheme) {
-        QPalette palette = QApplication::palette();
-        QColor windowColor = palette.color(QPalette::Window);
-        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-        isDarkTheme = (brightness < 128);
-    }
-    MarkdownColors colors = MarkdownRenderer::getColors(isDarkTheme);
+    const AppTheme& t = AppTheme::current();
 
     // Escape HTML in user text
     QString escaped = text;
@@ -539,16 +523,17 @@ void MainWindow::appendUserMessageToDisplay(const QString &text, const QVector<F
     escaped.replace(QLatin1String("\n"), QLatin1String("<br>"));
 
     // User message: table-based box (Qt handles tables reliably)
-    QString boxBg    = isDarkTheme ? "#1e2a3a" : "#f6f7fa";
-    QString boxBorder = isDarkTheme ? "#334"      : "#d8dce6";
+    bool isDark = t.windowBg.lightness() < 128;
+    QString boxBg    = isDark ? "#1e2a3a" : "#f6f7fa";
+    QString boxBorder = isDark ? "#334"      : "#d8dce6";
 
     cursor.insertHtml(QString(
         "<table width='100%%' cellpadding='0' cellspacing='0' "
         "style='background:%1; border:1px solid %2; margin-top:18px; margin-bottom:4px;'>"
         "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
-        "<b style='color:#007aff; font-size:18px;'>%4</b><br>%5"
+        "<b style='color:%4; font-size:18px;'>%5</b><br>%6"
         "</td></tr></table>"
-    ).arg(boxBg, boxBorder, colors.text, tr("用户"), escaped));
+    ).arg(boxBg, boxBorder, t.textPrimary.name(), t.accent.name(), tr("用户"), escaped));
 
     // Append attachment info if any
     for (const auto &attachment : attachments) {
