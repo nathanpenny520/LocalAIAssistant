@@ -55,15 +55,16 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 - 易于测试（Phase 0.2 的 test_fileparser 可验证）
 - 无破坏风险
 
-#### 1.2 NetworkManager → Provider Pattern 🟢 **低风险**
+#### 1.2 NetworkManager → Provider Pattern 🟢 **DONE**
 **风险**: 低（已有清晰边界，无 UI 依赖）  
 **重要性**: 中高（扩展性提升，代码更清晰）
 
-- [ ] `src/core/apiprovider.h` — abstract base class with virtual methods (~80 lines)
-- [ ] `src/core/openai_provider.cpp/h` — OpenAI /v1/chat/completions (~150 lines)
-- [ ] `src/core/ollama_provider.cpp/h` — Ollama /api/chat (~150 lines)
-- [ ] `src/core/llamacpp_provider.cpp/h` — LlamaCpp OpenAI-compatible (~120 lines)
-- [ ] Update `networkmanager.cpp/h` — thin facade, delegates to active provider (~200 lines)
+- [x] `src/core/apiprovider.h/cpp` — abstract base with shared network logic (97 + 270 lines)
+- [x] `src/core/openai_provider.cpp/h` — OpenAI /v1/chat/completions (25 + 141 lines)
+- [x] `src/core/ollama_provider.cpp/h` — Ollama /api/chat (24 + 121 lines)
+- [x] `src/core/llamacpp_provider.cpp/h` — LlamaCpp extends OpenAIProvider (18 + 7 lines)
+- [x] Update `networkmanager.cpp/h` — thin facade, delegates to active provider (72 + 240 lines)
+- [x] Add `<QSettings>` include to `mainwindow.cpp` (was transitively included via old networkmanager.h)
 
 **收益**:
 - 易于添加新 provider（如 Anthropic）
@@ -275,7 +276,7 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 | `src/ui/markdownrenderer.cpp` | 855 | 🟡 Phase 3.2 (if needed) |
 | `CMakeLists.txt` | 788 | 🟢 Phase 7.1 (optional) |
 | `src/knowledge/embedder.cpp` | 591 | 🟢 Phase 3.1 |
-| `src/core/networkmanager.cpp` | 581 | ✅ **Phase 1.2** |
+| `src/core/networkmanager.cpp` | ~~581~~ 240 | ✅ **Phase 1.2 done** — split into ApiProvider + 3 providers |
 | `src/ui/stylesheetmanager.cpp` | 575 | 🟡 Phase 3.2 |
 | `src/knowledge/vectordb.cpp` | 555 | 🟢 Phase 3.1 |
 | `scripts/setup.sh` | 519 | 🟢 Phase 7.3 |

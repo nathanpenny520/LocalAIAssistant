@@ -125,6 +125,14 @@ add_custom_command(TARGET translations_target POST_BUILD
 add_library(LocalAIAssistantCore
     src/core/networkmanager.cpp
     src/core/networkmanager.h
+    src/core/apiprovider.cpp
+    src/core/apiprovider.h
+    src/core/openai_provider.cpp
+    src/core/openai_provider.h
+    src/core/ollama_provider.cpp
+    src/core/ollama_provider.h
+    src/core/llamacpp_provider.cpp
+    src/core/llamacpp_provider.h
     src/core/sessionmanager.cpp
     src/core/sessionmanager.h
     src/core/datamodels.h

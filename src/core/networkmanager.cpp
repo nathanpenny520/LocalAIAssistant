@@ -1,22 +1,19 @@
 #include "networkmanager.h"
-#include "datamodels.h"
-#include "../prompts/promptmanager.h"
+#include "apiprovider.h"
+#include "openai_provider.h"
+#include "ollama_provider.h"
+#include "llamacpp_provider.h"
+#include <QSettings>
 #include <QDebug>
-#include <QBuffer>
-#include <QDir>
-#include <QStandardPaths>
-#include <QFile>
 
 NetworkManager::NetworkManager(QObject *parent)
     : QObject(parent)
-    , m_networkManager(new QNetworkAccessManager(this))
-    , m_currentReply(nullptr)
-    , m_apiBaseUrl()
-    , m_apiKey()
-    , m_modelName()
-    , m_isLocalMode(true)
+    , m_provider(nullptr)
     , m_apiType(ApiType::OpenAI)
-    , m_systemPrompt()
+    , m_apiBaseUrl("http://127.0.0.1:8080")
+    , m_apiKey()
+    , m_modelName("local-model")
+    , m_isLocalMode(true)
     , m_temperature(0.4)
     , m_topP(1.0)
     , m_maxContext(20)
@@ -25,44 +22,91 @@ NetworkManager::NetworkManager(QObject *parent)
     , m_frequencyPenalty(0.0)
     , m_seed(std::nullopt)
     , m_streamingEnabled(true)
-    , m_streamBuffer()
 {
-    m_apiBaseUrl = "http://127.0.0.1:8080";
-    m_apiKey = "";
-    m_modelName = "local-model";
-
-    m_systemPrompt = loadSystemPrompt();
-
     loadSettings();
+    ensureProvider(m_apiType);
+    applySettingsToProvider();
+}
+
+NetworkManager::~NetworkManager()
+{
+    if (m_provider) {
+        m_provider->disconnect(this);
+        m_provider->deleteLater();
+        m_provider = nullptr;
+    }
+}
+
+// --- Public API (delegates to provider) ---
+
+void NetworkManager::sendChatRequest(const QString &userMessage)
+{
+    QVector<ChatMessage> singleMessage;
+    singleMessage.append(ChatMessage("user", userMessage));
+    sendChatRequestWithContext(singleMessage);
+}
+
+void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &messages)
+{
+    if (m_provider)
+        m_provider->sendChatRequest(messages);
+}
+
+void NetworkManager::abortCurrentRequest()
+{
+    if (m_provider)
+        m_provider->abortCurrentRequest();
 }
 
 bool NetworkManager::isStreamingEnabled() const
 {
-    return m_streamingEnabled;
+    return m_provider ? m_provider->isStreamingEnabled() : m_streamingEnabled;
 }
 
 void NetworkManager::setStreamingEnabled(bool enabled)
 {
     m_streamingEnabled = enabled;
+    if (m_provider)
+        m_provider->setStreamingEnabled(enabled);
     QSettings settings("LocalAIAssistant", "Settings");
-    settings.setValue("streamingEnabled", m_streamingEnabled);
+    settings.setValue("streamingEnabled", enabled);
 }
 
 void NetworkManager::setSystemPrompt(const QString &prompt)
 {
-    m_systemPrompt = prompt;
+    if (m_provider)
+        m_provider->setSystemPrompt(prompt);
 }
 
-void NetworkManager::abortCurrentRequest()
+void NetworkManager::setApiType(ApiType type)
 {
-    if (m_currentReply) {
-        // Disconnect signals first to prevent abort-triggered finished signal from causing crash
-        m_currentReply->disconnect(this);
-        m_currentReply->abort();
-        m_currentReply->deleteLater();
-        m_currentReply = nullptr;
+    if (m_apiType != type) {
+        m_apiType = type;
+        ensureProvider(type);
+        applySettingsToProvider();
+        saveSettings();
     }
-    m_streamBuffer.clear();
+}
+
+// --- Settings ---
+
+void NetworkManager::updateSettings(const QString &apiBaseUrl, const QString &apiKey,
+                                    const QString &modelName, bool isLocalMode,
+                                    ApiType apiType)
+{
+    // Auto-detect Ollama via port 11434 for backward compatibility
+    if (apiType == ApiType::OpenAI && apiBaseUrl.contains(QStringLiteral("11434")))
+        apiType = ApiType::Ollama;
+
+    m_apiBaseUrl = apiBaseUrl.trimmed();
+    m_apiKey = apiKey.trimmed();
+    m_modelName = modelName.trimmed();
+    m_isLocalMode = isLocalMode;
+    m_apiType = apiType;
+
+    saveSettings();
+    ensureProvider(apiType);
+    applySettingsToProvider();
 }
 
 void NetworkManager::loadSettings()
@@ -81,7 +125,6 @@ void NetworkManager::loadSettings()
     m_topP = settings.value("topP", 1.0).toDouble();
     m_frequencyPenalty = settings.value("frequencyPenalty", 0.0).toDouble();
 
-    // API type: "openai" / "ollama" / "llamacpp"
     QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
     if (apiTypeStr == "ollama")
         m_apiType = ApiType::Ollama;
@@ -90,20 +133,10 @@ void NetworkManager::loadSettings()
     else
         m_apiType = ApiType::OpenAI;
 
-    // seed handling: -1 means not set (null)
     int seedValue = settings.value("seed", -1).toInt();
-    if (seedValue >= 0) {
-        m_seed = seedValue;
-    } else {
-        m_seed = std::nullopt;
-    }
+    m_seed = (seedValue >= 0) ? std::optional<int>(seedValue) : std::nullopt;
 
     m_streamingEnabled = settings.value("streamingEnabled", true).toBool();
-}
-
-QString NetworkManager::loadSystemPrompt()
-{
-    return PromptManager::instance()->systemPrompt();
 }
 
 void NetworkManager::saveSettings()
@@ -120,12 +153,9 @@ void NetworkManager::saveSettings()
     settings.setValue("presencePenalty", m_presencePenalty);
     settings.setValue("topP", m_topP);
     settings.setValue("frequencyPenalty", m_frequencyPenalty);
-
-    // seed save: -1 means null
     settings.setValue("seed", m_seed.has_value() ? m_seed.value() : -1);
     settings.setValue("streamingEnabled", m_streamingEnabled);
 
-    // Save API type
     switch (m_apiType) {
     case ApiType::Ollama:   settings.setValue("apiType", "ollama"); break;
     case ApiType::LlamaCpp: settings.setValue("apiType", "llamacpp"); break;
@@ -133,449 +163,78 @@ void NetworkManager::saveSettings()
     }
 }
 
-void NetworkManager::updateSettings(const QString &apiBaseUrl, const QString &apiKey,
-                                    const QString &modelName, bool isLocalMode,
-                                    ApiType apiType)
-{
-    m_apiBaseUrl = apiBaseUrl.trimmed();
-    m_apiKey = apiKey.trimmed();
-    m_modelName = modelName.trimmed();
-    m_isLocalMode = isLocalMode;
-    m_apiType = apiType;
+// --- Provider management ---
 
-    saveSettings();
-}
-
-bool NetworkManager::isOllamaFormat() const
+void NetworkManager::ensureProvider(ApiType type)
 {
-    // 显式设置了 Ollama
-    if (m_apiType == ApiType::Ollama)
-        return true;
-    // 未显式设置, 通过 URL 端口自动检测 (向后兼容)
-    if (m_apiType == ApiType::OpenAI && m_apiBaseUrl.contains(QStringLiteral("11434")))
-        return true;
-    return false;
-}
+    // Check if we already have the right type
+    if (m_provider) {
+        bool needsSwitch = false;
+        switch (type) {
+        case ApiType::OpenAI:
+            needsSwitch = (qobject_cast<OpenAIProvider*>(m_provider) == nullptr)
+                       || (qobject_cast<LlamaCppProvider*>(m_provider) != nullptr);
+            break;
+        case ApiType::Ollama:
+            needsSwitch = (qobject_cast<OllamaProvider*>(m_provider) == nullptr);
+            break;
+        case ApiType::LlamaCpp:
+            needsSwitch = (qobject_cast<LlamaCppProvider*>(m_provider) == nullptr);
+            break;
+        }
+        if (!needsSwitch)
+            return;
 
-void NetworkManager::sendChatRequest(const QString &userMessage)
-{
-    QVector<ChatMessage> singleMessage;
-    singleMessage.append(ChatMessage("user", userMessage));
-    sendChatRequestWithContext(singleMessage);
-}
-
-void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage> &messages)
-{
-    if (m_currentReply) {
-        m_currentReply->abort();
-        m_currentReply->deleteLater();
-        m_currentReply = nullptr;
+        m_provider->disconnect(this);
+        m_provider->deleteLater();
+        m_provider = nullptr;
     }
 
-    // Trim whitespace from URL
-    QString fullUrl = m_apiBaseUrl.trimmed();
+    switch (type) {
+    case ApiType::Ollama:
+        m_provider = new OllamaProvider(this);
+        break;
+    case ApiType::LlamaCpp:
+        m_provider = new LlamaCppProvider(this);
+        break;
+    default:
+        m_provider = new OpenAIProvider(this);
+        break;
+    }
 
-    if (fullUrl.isEmpty()) {
-        emit errorOccurred("API URL is empty");
+    connectProviderSignals();
+}
+
+void NetworkManager::applySettingsToProvider()
+{
+    if (!m_provider)
         return;
-    }
 
-    // 未指定协议前缀：本地模式默认 http，云端模式默认 https
-    if (!fullUrl.startsWith("http://", Qt::CaseInsensitive) &&
-        !fullUrl.startsWith("https://", Qt::CaseInsensitive)) {
-        fullUrl = (m_isLocalMode ? QStringLiteral("http://") : QStringLiteral("https://")) + fullUrl;
-    }
+    m_provider->setBaseUrl(m_apiBaseUrl);
+    m_provider->setApiKey(m_apiKey);
+    m_provider->setModelName(m_modelName);
+    m_provider->setIsLocalMode(m_isLocalMode);
+    m_provider->setStreamingEnabled(m_streamingEnabled);
+    m_provider->setTemperature(m_temperature);
+    m_provider->setTopP(m_topP);
+    m_provider->setMaxTokens(m_maxTokens);
+    m_provider->setMaxContext(m_maxContext);
+    m_provider->setPresencePenalty(m_presencePenalty);
+    m_provider->setFrequencyPenalty(m_frequencyPenalty);
+    m_provider->setSeed(m_seed);
+}
 
-    if (!fullUrl.endsWith("/")) {
-        fullUrl += "/";
-    }
-
-    // 根据 API 类型拼接端点: Ollama → /api/chat, 其余 → /v1/chat/completions
-    if (isOllamaFormat()) {
-        fullUrl += QStringLiteral("api/chat");
-    } else {
-        fullUrl += QStringLiteral("v1/chat/completions");
-    }
-
-    QUrl url(fullUrl);
-    
-    if (!url.isValid()) {
-        emit errorOccurred(QString("Invalid API URL: %1").arg(fullUrl));
+void NetworkManager::connectProviderSignals()
+{
+    if (!m_provider)
         return;
-    }
 
-    QJsonObject jsonPayload;
-    jsonPayload["model"] = m_modelName;
-    jsonPayload["temperature"] = m_temperature;                  // Use member variable instead of hardcoded
-    jsonPayload["top_p"] = m_topP;                               // Added
-    jsonPayload["max_tokens"] = m_maxTokens;
-    jsonPayload["presence_penalty"] = m_presencePenalty;
-    jsonPayload["frequency_penalty"] = m_frequencyPenalty;       // Added
-    jsonPayload["stream"] = m_streamingEnabled;
-
-    // seed only passed when has value
-    if (m_seed.has_value()) {
-        jsonPayload["seed"] = m_seed.value();
-    }
-
-    // 注入用户记忆到 system prompt（如果存在有效内容）
-    {
-        QString memoryPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                             + QStringLiteral("/girlfriend/memory.md");
-        QFile memoryFile(memoryPath);
-        QString memoryContent;
-        if (memoryFile.exists() && memoryFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            memoryContent = QString::fromUtf8(memoryFile.readAll());
-            memoryFile.close();
-        }
-        if (!memoryContent.isEmpty() && !memoryContent.contains(QStringLiteral("待记录"))) {
-            m_systemPrompt = loadSystemPrompt()
-                + QStringLiteral("\n\n## 用户记忆档案\n\n")
-                + memoryContent;
-        } else {
-            m_systemPrompt = loadSystemPrompt();
-        }
-    }
-
-    jsonPayload["messages"] = buildMessagesArray(messages, m_maxContext);
-
-    QJsonDocument doc(jsonPayload);
-    QByteArray postData = doc.toJson();
-
-    QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-
-    if (!m_isLocalMode && !m_apiKey.isEmpty()) {
-        QString authHeader = QString("Bearer %1").arg(m_apiKey);
-        request.setRawHeader("Authorization", authHeader.toUtf8());
-    }
-
-    m_streamBuffer.clear();
-    m_currentReply = m_networkManager->post(request, postData);
-
-    if (m_streamingEnabled) {
-        connect(m_currentReply, &QNetworkReply::readyRead, this, &NetworkManager::onStreamReadyRead);
-        connect(m_currentReply, &QNetworkReply::finished, this, &NetworkManager::onStreamFinished);
-    } else {
-        connect(m_currentReply, &QNetworkReply::finished, this, &NetworkManager::onReplyFinished);
-    }
-}
-
-QJsonArray NetworkManager::buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages)
-{
-    QJsonArray jsonMessages;
-
-    // System message
-    QJsonObject systemObj;
-    systemObj["role"] = "system";
-    systemObj["content"] = m_systemPrompt;
-    jsonMessages.append(systemObj);
-
-    int totalCount = messages.size();
-    int startIndex = qMax(0, totalCount - maxMessages);
-
-    for (int i = startIndex; i < totalCount; ++i) {
-        const ChatMessage &msg = messages[i];
-        QJsonObject msgObj;
-        msgObj["role"] = msg.role;
-
-        // Check for attachments
-        if (msg.attachments.isEmpty()) {
-            // No attachments, use simple string format
-            msgObj["content"] = msg.content;
-        } else if (isOllamaFormat()) {
-            // Ollama format: content as string, images as separate array
-            msgObj["content"] = msg.content;
-
-            QJsonArray imagesArray;
-            for (const FileAttachment &file : msg.attachments) {
-                if (file.type == "image") {
-                    // Ollama needs base64 without data URL prefix
-                    QString base64Data = file.content;
-                    if (base64Data.startsWith("data:")) {
-                        // Remove "data:image/png;base64," prefix
-                        int commaPos = base64Data.indexOf(',');
-                        if (commaPos > 0) {
-                            base64Data = base64Data.mid(commaPos + 1);
-                        }
-                    }
-                    imagesArray.append(base64Data);
-                } else {
-                    // Non-image files: append as text content
-                    QString currentContent = msgObj["content"].toString();
-                    currentContent += "\n\n" + file.content;
-                    msgObj["content"] = currentContent;
-                }
-            }
-            if (!imagesArray.isEmpty()) {
-                msgObj["images"] = imagesArray;
-            }
-        } else {
-            // OpenAI format: content as array with text and image_url types
-            QJsonArray contentArray;
-
-            // Add user text first (if any)
-            if (!msg.content.isEmpty()) {
-                contentArray.append(buildTextContentBlock(msg.content));
-            }
-
-            // Add all attachments
-            for (const FileAttachment &file : msg.attachments) {
-                if (file.type == "image") {
-                    contentArray.append(buildImageContentBlock(file.content, file.mimeType));
-                } else {
-                    contentArray.append(buildFileContentBlock(file));
-                }
-            }
-
-            msgObj["content"] = contentArray;
-        }
-
-        jsonMessages.append(msgObj);
-    }
-
-    return jsonMessages;
-}
-
-void NetworkManager::onReplyFinished()
-{
-    if (!m_currentReply) {
-        return;
-    }
-
-    if (m_currentReply->error() != QNetworkReply::NoError) {
-        QString errorMsg = m_currentReply->errorString();
-        emit errorOccurred(errorMsg);
-        m_currentReply->deleteLater();
-        m_currentReply = nullptr;
-        return;
-    }
-
-    QByteArray responseData = m_currentReply->readAll();
-    QString content = extractContentFromResponse(responseData);
-    emit responseReceived(content);
-
-    m_currentReply->deleteLater();
-    m_currentReply = nullptr;
-}
-
-void NetworkManager::onStreamReadyRead()
-{
-    if (!m_currentReply) {
-        return;
-    }
-
-    QByteArray newData = m_currentReply->readAll();
-    QString chunk = extractDeltaFromSSE(newData);
-    if (!chunk.isEmpty()) {
-        m_streamBuffer += chunk;
-        emit streamChunkReceived(chunk);
-    }
-}
-
-void NetworkManager::onStreamFinished()
-{
-    if (!m_currentReply) {
-        return;
-    }
-
-    if (m_currentReply->error() != QNetworkReply::NoError
-        && m_currentReply->error() != QNetworkReply::OperationCanceledError) {
-        QString errorMsg = m_currentReply->errorString();
-        emit errorOccurred(errorMsg);
-        m_currentReply->deleteLater();
-        m_currentReply = nullptr;
-        m_streamBuffer.clear();
-        return;
-    }
-
-    // 读取剩余数据
-    QByteArray remainingData = m_currentReply->readAll();
-    if (!remainingData.isEmpty()) {
-        QString chunk = extractDeltaFromSSE(remainingData);
-        if (!chunk.isEmpty()) {
-            m_streamBuffer += chunk;
-        }
-    }
-
-    if (!m_streamBuffer.isEmpty()) {
-        emit streamFinished(m_streamBuffer);
-        m_streamBuffer.clear();
-    }
-
-    m_currentReply->deleteLater();
-    m_currentReply = nullptr;
-}
-
-QString NetworkManager::extractDeltaFromSSE(const QByteArray &data)
-{
-    QString result;
-    QString text = QString::fromUtf8(data).trimmed();
-
-    if (text.isEmpty()) {
-        return result;
-    }
-
-    // 检查是否是 [DONE] 消息
-    if (text == "[DONE]") {
-        return result;
-    }
-
-    if (isOllamaFormat()) {
-        // For Ollama, parse JSON directly
-        QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
-        if (doc.isNull() || !doc.isObject()) {
-            return result;
-        }
-
-        QJsonObject root = doc.object();
-        if (root.contains("error")) {
-            QString errorMessage = root["error"].toString();
-            if (errorMessage.isEmpty()) {
-                QJsonObject errorObj = root["error"].toObject();
-                errorMessage = errorObj["message"].toString("Unknown error");
-            }
-            emit errorOccurred(errorMessage);
-            return result;
-        }
-
-        // Handle Ollama /api/generate streaming response format
-        if (root.contains("response")) {
-            result += root["response"].toString();
-        }
-        // Handle Ollama /api/chat response format
-        else if (root.contains("message")) {
-            QJsonObject message = root["message"].toObject();
-            if (message.contains("content")) {
-                result += message["content"].toString();
-            }
-        }
-    } else {
-        // For other servers, keep the original processing
-        QStringList lines = text.split('\n');
-        for (const QString &line : lines) {
-            if (!line.startsWith("data: ")) {
-                continue;
-            }
-
-            QString jsonStr = line.mid(6).trimmed();
-            if (jsonStr == "[DONE]") {
-                break;
-            }
-
-            QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-            if (doc.isNull() || !doc.isObject()) {
-                continue;
-            }
-
-            QJsonObject root = doc.object();
-            if (root.contains("error")) {
-                QJsonObject errorObj = root["error"].toObject();
-                emit errorOccurred(errorObj["message"].toString("Unknown error"));
-                break;
-            }
-
-            // Handle OpenAI response format
-            if (root.contains("choices") && root["choices"].isArray()) {
-                QJsonArray choices = root["choices"].toArray();
-                if (!choices.isEmpty()) {
-                    QJsonObject firstChoice = choices[0].toObject();
-                    QJsonObject delta = firstChoice["delta"].toObject();
-                    if (delta.contains("content")) {
-                        result += delta["content"].toString();
-                    }
-                }
-            }
-        }
-    }
-
-    return result;
-}
-
-QString NetworkManager::extractContentFromResponse(const QByteArray &data)
-{
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (doc.isNull() || !doc.isObject()) {
-        return "响应格式错误";
-    }
-
-    QJsonObject root = doc.object();
-
-    if (root.contains("error")) {
-        QJsonObject errorObj = root["error"].toObject();
-        QString errorMessage = errorObj["message"].toString("Unknown error");
-        return "API Error: " + errorMessage;
-    }
-
-    // Handle Ollama /api/generate response format
-    if (root.contains("response")) {
-        QString content = root["response"].toString();
-        content = content.trimmed();
-        return content;
-    }
-    // Handle Ollama /api/chat response format
-    else if (root.contains("message")) {
-        QJsonObject message = root["message"].toObject();
-        if (message.contains("content")) {
-            QString content = message["content"].toString();
-            content = content.trimmed();
-            return content;
-        }
-    }
-    // Handle OpenAI response format
-    else if (root.contains("choices") && root["choices"].isArray()) {
-        QJsonArray choices = root["choices"].toArray();
-        if (!choices.isEmpty()) {
-            QJsonObject firstChoice = choices[0].toObject();
-
-            if (firstChoice.contains("message")) {
-                QJsonObject message = firstChoice["message"].toObject();
-                if (message.contains("content")) {
-                    QString content = message["content"].toString();
-                    content = content.trimmed();
-                    return content;
-                }
-            }
-
-            if (firstChoice.contains("finish_reason")) {
-                QString finishReason = firstChoice["finish_reason"].toString();
-                if (finishReason == "length") {
-                    return "Warning: Response truncated due to length limit";
-                }
-            }
-        }
-    }
-
-    return "Failed to parse valid content";
-}
-
-QJsonObject NetworkManager::buildTextContentBlock(const QString &text)
-{
-    QJsonObject block;
-    block["type"] = "text";
-    block["text"] = text;
-    return block;
-}
-
-QJsonObject NetworkManager::buildImageContentBlock(const QString &base64Data, const QString &mime)
-{
-    QJsonObject block;
-    block["type"] = "image_url";
-
-    QJsonObject imageUrl;
-    imageUrl["url"] = base64Data;  // Already in data:mime;base64,... format
-    block["image_url"] = imageUrl;
-
-    return block;
-}
-
-QJsonObject NetworkManager::buildFileContentBlock(const FileAttachment &file)
-{
-    QJsonObject block;
-    block["type"] = "text";
-
-    // File content already formatted in FileManager
-    block["text"] = file.content;
-
-    return block;
+    connect(m_provider, &ApiProvider::responseReceived,
+            this, &NetworkManager::responseReceived);
+    connect(m_provider, &ApiProvider::streamChunkReceived,
+            this, &NetworkManager::streamChunkReceived);
+    connect(m_provider, &ApiProvider::streamFinished,
+            this, &NetworkManager::streamFinished);
+    connect(m_provider, &ApiProvider::errorOccurred,
+            this, &NetworkManager::errorOccurred);
 }

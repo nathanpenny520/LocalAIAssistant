@@ -4,22 +4,16 @@
 #define NETWORKMANAGER_H
 
 #include <QObject>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QSettings>
-#include <QCoreApplication>
-#include <QFile>
 #include <optional>
 #include "datamodels.h"
 
 enum class ApiType {
-    OpenAI,    // OpenAI / llama.cpp / vLLM 等兼容服务 (→ /v1/chat/completions)
-    Ollama,    // Ollama (→ /api/chat)
-    LlamaCpp   // llama.cpp server (同 OpenAI 协议, 单独列出方便用户选择)
+    OpenAI,
+    Ollama,
+    LlamaCpp
 };
+
+class ApiProvider;
 
 class NetworkManager : public QObject
 {
@@ -27,14 +21,15 @@ class NetworkManager : public QObject
 
 public:
     explicit NetworkManager(QObject *parent = nullptr);
+    ~NetworkManager() override;
 
     bool isStreamingEnabled() const;
     void setStreamingEnabled(bool enabled);
-    void setSystemPrompt(const QString &prompt);  // 设置自定义 system prompt
-    void abortCurrentRequest();  // 中止当前请求
+    void setSystemPrompt(const QString &prompt);
+    void abortCurrentRequest();
 
     ApiType apiType() const { return m_apiType; }
-    void setApiType(ApiType type) { m_apiType = type; }
+    void setApiType(ApiType type);
 
 signals:
     void responseReceived(const QString &content);
@@ -49,33 +44,21 @@ public slots:
                         const QString &modelName, bool isLocalMode,
                         ApiType apiType = ApiType::OpenAI);
 
-private slots:
-    void onReplyFinished();
-    void onStreamReadyRead();
-    void onStreamFinished();
-
 private:
     void loadSettings();
     void saveSettings();
-    QString loadSystemPrompt();
-    QString extractContentFromResponse(const QByteArray &data);
-    bool isOllamaFormat() const;
-    QString extractDeltaFromSSE(const QByteArray &data);
-    QJsonArray buildMessagesArray(const QVector<ChatMessage> &messages, int maxMessages);
-    QJsonObject buildTextContentBlock(const QString &text);
-    QJsonObject buildImageContentBlock(const QString &base64Data, const QString &mime);
-    QJsonObject buildFileContentBlock(const FileAttachment &file);
+    void applySettingsToProvider();
+    void ensureProvider(ApiType type);
+    void connectProviderSignals();
 
-    QNetworkAccessManager *m_networkManager;
-    QNetworkReply *m_currentReply;
+    ApiProvider *m_provider;
+    ApiType m_apiType;
 
+    // Cached settings (loaded/saved via QSettings)
     QString m_apiBaseUrl;
     QString m_apiKey;
     QString m_modelName;
     bool m_isLocalMode;
-    ApiType m_apiType = ApiType::OpenAI;
-
-    QString m_systemPrompt;
     double m_temperature;
     double m_topP;
     int m_maxContext;
@@ -83,9 +66,7 @@ private:
     double m_presencePenalty;
     double m_frequencyPenalty;
     std::optional<int> m_seed;
-
     bool m_streamingEnabled;
-    QString m_streamBuffer;
 };
 
 #endif

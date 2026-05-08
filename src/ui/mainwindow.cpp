@@ -5,6 +5,7 @@
 #include "filemanager.h"
 #include "operationconfirmdialog.h"
 #include <QApplication>
+#include <QSettings>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QWidget>
