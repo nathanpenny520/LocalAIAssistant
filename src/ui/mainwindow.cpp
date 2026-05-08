@@ -277,7 +277,7 @@ void MainWindow::setupUI()
     m_historyList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     // 设置左侧面板最小宽度，防止完全关闭
-    m_leftPanel->setMinimumWidth(120);
+    m_leftPanel->setMinimumWidth(140);
 
     QWidget *rightPanel = new QWidget(m_splitter);
     QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
@@ -311,7 +311,7 @@ void MainWindow::setupUI()
     m_fileButton->setFixedSize(40, 30);
     m_fileButton->setToolTip(tr("添加文件"));
 
-    m_splitter->setSizes({180, 600});
+    m_splitter->setSizes({200, 580});
 
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -578,15 +578,14 @@ void MainWindow::updateSessionList()
     });
 
     QString currentId = SessionManager::instance()->currentSessionId();
-    QColor pinColor = palette().color(QPalette::BrightText);
-    QColor defaultTextColor = palette().color(QPalette::WindowText);
+    const AppTheme& theme = AppTheme::current();
 
     for (const auto &session : sorted) {
         QListWidgetItem *item = new QListWidgetItem();
         item->setData(Qt::UserRole, session.id);
         item->setSizeHint(QSize(0, 44));
 
-        // Custom widget: [pin icon] title ...  [...]
+        // Custom widget: [pin icon] title  ⋮
         QWidget *itemWidget = new QWidget();
         itemWidget->setStyleSheet(QStringLiteral("background: transparent;"));
         itemWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -606,23 +605,18 @@ void MainWindow::updateSessionList()
             QFont f = titleLabel->font();
             f.setBold(true);
             titleLabel->setFont(f);
-            titleLabel->setStyleSheet(QStringLiteral("color: %1;").arg(pinColor.name()));
+            titleLabel->setStyleSheet(QStringLiteral("color: %1;").arg(theme.accent.name()));
             titleLabel->setText(QStringLiteral("📌 ") + displayTitle);
         }
 
-        QPushButton *menuBtn = new QPushButton(QStringLiteral("..."));
+        QPushButton *menuBtn = new QPushButton(QStringLiteral("⋮"));
         menuBtn->setFixedSize(28, 28);
         menuBtn->setCursor(Qt::PointingHandCursor);
         menuBtn->setToolTip(tr("更多操作"));
-        QString btnTextColor = palette().color(QPalette::Text).name();
-        QString btnBorderColor = palette().color(QPalette::Mid).name();
-        bool isDark = (StyleSheetManager::instance()->currentTheme() == StyleSheetManager::DarkTheme);
-        QString hoverBg = isDark ? QStringLiteral("#555555") : QStringLiteral("#d0d0d0");
-        QString hoverBorder = isDark ? QStringLiteral("#777777") : QStringLiteral("#a0a0a0");
         menuBtn->setStyleSheet(
-            QStringLiteral("QPushButton { border: 1px solid %1; border-radius: 4px; background: transparent; color: %2; font-size: 16px; font-weight: bold; }"
+            QStringLiteral("QPushButton { border: 1px solid %1; border-radius: 4px; background: transparent; color: %2; font-size: 18px; font-weight: bold; }"
                            "QPushButton:hover { background: %3; color: %2; border-color: %4; }")
-                .arg(btnBorderColor, btnTextColor, hoverBg, hoverBorder));
+                .arg(theme.border.name(), theme.textPrimary.name(), theme.hoverBg.name(), theme.textDisabled.name()));
 
         QString sid = session.id;
         connect(menuBtn, &QPushButton::clicked, this, [this, sid]() {
@@ -1173,36 +1167,24 @@ void MainWindow::updateFileListDisplay()
 
         QLabel *nameLabel = new QLabel(displayName, fileTag);
 
-        // Determine theme-appropriate colors
-        StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-        bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-        if (theme == StyleSheetManager::SystemTheme) {
-            QPalette palette = QApplication::palette();
-            QColor windowColor = palette.color(QPalette::Window);
-            int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-            isDarkTheme = (brightness < 128);
-        }
-
-        QString textColor = isDarkTheme ? "#e0e0e0" : "#333";
-        QString bgColor = isDarkTheme ? "#3a3a3a" : "#f5f5f5";
+        const AppTheme& t = AppTheme::current();
 
         nameLabel->setStyleSheet(QString(
             "QLabel { color: %1; font-size: 12px; padding: 2px 6px; "
             "border: 1px solid %2; border-radius: 4px; background: %3; }"
-        ).arg(textColor, borderColor, bgColor));
+        ).arg(t.textPrimary.name(), borderColor, t.surfaceBg.name()));
         tagLayout->addWidget(nameLabel);
 
         // 删除按钮 - 使用主题适配的关闭图标
         QPushButton *removeBtn = new QPushButton(fileTag);
-        // SP_TitleBarCloseButton 通常有更好的颜色适配
         QIcon closeIcon = QApplication::style()->standardIcon(QStyle::SP_TitleBarCloseButton);
         removeBtn->setIcon(closeIcon);
         removeBtn->setIconSize(QSize(16, 16));
         removeBtn->setFixedSize(24, 24);
 
-        // 根据主题设置按钮样式
+        bool isDark = t.windowBg.lightness() < 128;
         QString removeBtnStyle;
-        if (isDarkTheme) {
+        if (isDark) {
             removeBtnStyle = "QPushButton { border: none; background: transparent; padding: 2px; }"
                              "QPushButton:hover { background: rgba(255, 59, 48, 0.2); border-radius: 12px; }";
         } else {
@@ -1443,20 +1425,13 @@ void MainWindow::highlightAllMatches()
     // 使用 extraSelection 实现高亮效果
     QList<QTextEdit::ExtraSelection> extraSelections;
 
-    // 判断当前主题，选择合适的高亮颜色
-    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-    if (theme == StyleSheetManager::SystemTheme) {
-        QPalette palette = QApplication::palette();
-        QColor windowColor = palette.color(QPalette::Window);
-        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-        isDarkTheme = (brightness < 128);
-    }
+    const AppTheme& t = AppTheme::current();
+    bool isDark = t.windowBg.lightness() < 128;
 
     // 匹配项高亮颜色（黄色背景）
-    QColor matchColor = isDarkTheme ? QColor(255, 200, 50, 150) : QColor(255, 235, 130);
+    QColor matchColor = isDark ? QColor(255, 200, 50, 150) : QColor(255, 235, 130);
     // 当前匹配高亮颜色（橙色背景，更醒目）
-    QColor currentMatchColor = isDarkTheme ? QColor(255, 165, 0, 200) : QColor(255, 180, 60);
+    QColor currentMatchColor = isDark ? QColor(255, 165, 0, 200) : QColor(255, 180, 60);
 
     QTextDocument *doc = m_chatDisplay->document();
     QTextCursor cursor(doc);
@@ -1533,16 +1508,7 @@ void MainWindow::appendCommandOutput(const QString &line)
     monoFormat.setFontPointSize(11);
     monoFormat.setForeground(QColor(QStringLiteral("#4a4a4a")));
 
-    // 检测主题以适配暗色模式
-    StyleSheetManager::Theme theme = StyleSheetManager::instance()->currentTheme();
-    bool isDarkTheme = (theme == StyleSheetManager::DarkTheme);
-    if (theme == StyleSheetManager::SystemTheme) {
-        QPalette palette = QApplication::palette();
-        QColor windowColor = palette.color(QPalette::Window);
-        int brightness = (windowColor.red() * 299 + windowColor.green() * 587 + windowColor.blue() * 114) / 1000;
-        isDarkTheme = (brightness < 128);
-    }
-    if (isDarkTheme)
+    if (AppTheme::current().windowBg.lightness() < 128)
         monoFormat.setForeground(QColor(QStringLiteral("#a0a0a0")));
 
     // 空格缩进
