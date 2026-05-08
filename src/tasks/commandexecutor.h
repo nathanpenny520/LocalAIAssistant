@@ -10,6 +10,7 @@
 #include <QVector>
 #include <QElapsedTimer>
 #include <QCoreApplication>
+#include <QDir>
 #include "operationplan.h"
 
 struct CommandResult
@@ -42,6 +43,9 @@ public:
     // 路径展开
     static QString expandPath(const QString &path);
 
+    // 检测到的 shell 名称（供 prompt 使用）
+    QString shellName() const;
+
 signals:
     void stdoutLineReceived(const QString &line, int operationIndex);
     void stderrLineReceived(const QString &line, int operationIndex);
@@ -54,11 +58,19 @@ private:
                              int timeoutSecs,
                              const QStringList &extraEnv);
 
-    QString buildShell() const;
+    void detectAvailableShell();
+    CommandResult executeCreateDir(const ShellOperation &op);
+    CommandResult executeMoveFile(const ShellOperation &op);
+    CommandResult executeDeleteFile(const ShellOperation &op);
+    CommandResult executeCopyFile(const ShellOperation &op);
+    CommandResult executeWriteFile(const ShellOperation &op);
+    CommandResult executeSearchFiles(const ShellOperation &op);
 
     QProcess *m_currentProcess = nullptr;
     bool m_cancelled = false;
     int m_currentOpIndex = 0;
+    QString m_shellPath;
+    QStringList m_shellArgs;
 };
 
 #endif // COMMANDEXECUTOR_H

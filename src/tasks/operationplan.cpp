@@ -8,13 +8,24 @@ QString ShellOperation::typeName() const
     case ShellScript:  return tr("Shell 脚本");
     case WriteFile:    return tr("写入文件");
     case SearchFiles:  return tr("搜索文件");
+    case CreateDir:    return tr("创建目录");
+    case MoveFile:     return tr("移动文件");
+    case DeleteFile:   return tr("删除文件");
+    case CopyFile:     return tr("复制文件");
     }
     return tr("未知");
 }
 
 QString ShellOperation::dangerLabel() const
 {
-    // 检测命令危险级别
+    // Check type first — file deletion is always dangerous
+    if (type == DeleteFile)
+        return tr("危险");
+
+    // Other native file ops are safe
+    if (type == CreateDir || type == MoveFile || type == CopyFile)
+        return tr("安全");
+
     const QString cmd = command.trimmed();
 
     // 危险操作
@@ -73,16 +84,26 @@ QString OperationPlan::generateShellPreview() const
 
         switch (op.type) {
         case ShellOperation::ShellCommand:
-            lines.append(op.command);
-            break;
         case ShellOperation::ShellScript:
             lines.append(op.command);
             break;
         case ShellOperation::WriteFile:
-            lines.append(QStringLiteral("# (写入文件操作)"));
+            lines.append(QStringLiteral("# 写入文件: %1").arg(op.target));
             break;
         case ShellOperation::SearchFiles:
-            lines.append(QStringLiteral("# (搜索文件操作)"));
+            lines.append(QStringLiteral("# 搜索文件: %1 中的 %2").arg(op.source, op.command));
+            break;
+        case ShellOperation::CreateDir:
+            lines.append(QStringLiteral("# 创建目录: %1").arg(op.target));
+            break;
+        case ShellOperation::MoveFile:
+            lines.append(QStringLiteral("# 移动: %1 → %2").arg(op.source, op.target));
+            break;
+        case ShellOperation::DeleteFile:
+            lines.append(QStringLiteral("# 删除: %1").arg(op.source));
+            break;
+        case ShellOperation::CopyFile:
+            lines.append(QStringLiteral("# 复制: %1 → %2").arg(op.source, op.target));
             break;
         }
         lines.append(QString());

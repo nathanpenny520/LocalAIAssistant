@@ -15,6 +15,27 @@ OperationUndo::OperationUndo()
 
 QString OperationUndo::generateReverse(const ShellOperation &op)
 {
+    // ── Native file operations: generate appropriate reverse ──
+    switch (op.type) {
+    case ShellOperation::CreateDir:
+        return QStringLiteral("__script_reverse__");  // Can't auto-remove non-empty dirs
+    case ShellOperation::MoveFile:
+        // Reverse: move back
+        return QStringLiteral("__native_reverse_move__");
+    case ShellOperation::CopyFile:
+        // Reverse: delete the copy
+        return QStringLiteral("__native_reverse_delete__");
+    case ShellOperation::DeleteFile:
+        return QStringLiteral("__script_reverse__");  // Files are gone
+    case ShellOperation::WriteFile:
+        return QStringLiteral("__script_reverse__");  // Content overwritten
+    case ShellOperation::SearchFiles:
+        return QStringLiteral("__not_undoable__");    // Read-only
+    default:
+        break;
+    }
+
+    // ── Shell commands: parse command string ──
     const QString cmd = op.command.trimmed();
 
     // 检测 mkdir -p PATH → rmdir PATH
@@ -46,7 +67,7 @@ QString OperationUndo::generateReverse(const ShellOperation &op)
     // 检测 rm 操作 → ScriptReverse（无法自动恢复文件内容）
     static QRegularExpression rmRe(QStringLiteral("^rm\\b"));
     if (rmRe.match(cmd).hasMatch()) {
-        return QStringLiteral("__script_reverse__");  // 特殊标记
+        return QStringLiteral("__script_reverse__");
     }
 
     // 复杂操作（含管道、条件判断、循环）→ ScriptReverse
@@ -73,11 +94,26 @@ void OperationUndo::recordBefore(const ShellOperation &op)
 
     QString reverse = generateReverse(op);
     if (reverse == QStringLiteral("__not_undoable__")) {
-        return;  // 不记录不可撤销的操作
+        return;
+    } else if (reverse == QStringLiteral("__native_reverse_move__")) {
+        entry.strategy = UndoEntry::AutoReverse;
+        // Store source/dest swap as a native MoveFile reverse
+        entry.reverseCommand = QStringLiteral("__native_move:%1:%2").arg(op.target, op.source);
+        m_undoStack.append(entry);
+    } else if (reverse == QStringLiteral("__native_reverse_delete__")) {
+        entry.strategy = UndoEntry::AutoReverse;
+        // Reverse a CopyFile by deleting the target (original is still there)
+        entry.reverseCommand = QStringLiteral("__native_delete:%1").arg(op.target);
+        m_undoStack.append(entry);
     } else if (reverse == QStringLiteral("__script_reverse__")) {
         entry.strategy = UndoEntry::ScriptReverse;
-        // 生成撤销提示
-        if (op.command.contains(QRegularExpression("\\brm\\b"))) {
+        if (op.type == ShellOperation::DeleteFile) {
+            entry.undoHint = tr("文件已删除，无法自动恢复。请从备份恢复。");
+        } else if (op.type == ShellOperation::WriteFile) {
+            entry.undoHint = tr("文件内容已被覆盖，无法自动恢复。");
+        } else if (op.type == ShellOperation::CreateDir) {
+            entry.undoHint = tr("目录已创建，请手动删除空目录以撤销。");
+        } else if (op.command.contains(QRegularExpression("\\brm\\b"))) {
             entry.undoHint = tr("文件已删除，无法自动恢复。请从备份或 Time Machine 恢复。");
         } else if (op.command.contains(QLatin1Char('|')) || op.command.contains(QStringLiteral("&&"))) {
             entry.undoHint = tr("复杂命令，需手动撤销。建议确认操作结果。");
@@ -89,9 +125,7 @@ void OperationUndo::recordBefore(const ShellOperation &op)
         entry.strategy = UndoEntry::AutoReverse;
         entry.reverseCommand = reverse;
         m_undoStack.append(entry);
-    }
-    // 空字符串也视为 ScriptReverse（未知命令）
-    else {
+    } else {
         entry.strategy = UndoEntry::ScriptReverse;
         entry.undoHint = tr("无法自动生成逆向命令，请手动检查。");
         m_undoStack.append(entry);
@@ -126,11 +160,31 @@ QVector<CommandResult> OperationUndo::undoLastPlan()
 
         if (entry.strategy == UndoEntry::AutoReverse) {
             ShellOperation op;
-            op.type = ShellOperation::ShellCommand;
-            op.command = entry.reverseCommand;
             op.workingDir = QStringLiteral("~");
             op.description = tr("撤销: %1").arg(entry.description);
             op.timeoutSecs = 30;
+
+            // Check for native reverse markers
+            if (entry.reverseCommand.startsWith(QStringLiteral("__native_move:"))) {
+                // Format: __native_move:src:dest
+                QString payload = entry.reverseCommand.mid(14);  // after "__native_move:"
+                int colon = payload.indexOf(QLatin1Char(':'));
+                if (colon > 0) {
+                    op.type = ShellOperation::MoveFile;
+                    op.source = payload.left(colon);
+                    op.target = payload.mid(colon + 1);
+                } else {
+                    op.type = ShellOperation::ShellCommand;
+                    op.command = entry.reverseCommand;
+                }
+            } else if (entry.reverseCommand.startsWith(QStringLiteral("__native_delete:"))) {
+                // Format: __native_delete:target
+                op.type = ShellOperation::DeleteFile;
+                op.source = entry.reverseCommand.mid(16);
+            } else {
+                op.type = ShellOperation::ShellCommand;
+                op.command = entry.reverseCommand;
+            }
 
             r = executor.execute(op);
         } else if (entry.strategy == UndoEntry::ScriptReverse) {

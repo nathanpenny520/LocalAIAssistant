@@ -55,8 +55,16 @@ QMap<QString, QString> PromptManager::osTemplateValues()
             "文件系统支持 Unix 权限模型。你没有 sudo 权限，不要生成提权命令。\n"
             "包管理器通常是 Homebrew（`brew install`），安装在 `/opt/homebrew/` 或 `/usr/local/`。");
     } else if (os == QStringLiteral("windows")) {
+        // Detect actual shell for accurate prompt
+        QString detectedShell;
+        if (!QStandardPaths::findExecutable(QStringLiteral("pwsh.exe")).isEmpty())
+            detectedShell = QStringLiteral("PowerShell Core (pwsh.exe)");
+        else if (!QStandardPaths::findExecutable(QStringLiteral("powershell.exe")).isEmpty())
+            detectedShell = QStringLiteral("Windows PowerShell (powershell.exe)");
+        else
+            detectedShell = QStringLiteral("CMD (cmd.exe)");
         vars[QStringLiteral("shell_hint")] = QStringLiteral(
-            "当前运行在 PowerShell 或 CMD。");
+            "当前运行在 %1。请生成与该 shell 兼容的命令。").arg(detectedShell);
         vars[QStringLiteral("path_guide")] = QStringLiteral(
             "当前运行在 **Windows**。路径使用反斜杠 `\\`，也可以用正斜杠 `/`，不区分大小写。\n"
             "用户主目录简写为 `%USERPROFILE%`，实际路径为 `C:\\Users\\用户名\\`。\n"

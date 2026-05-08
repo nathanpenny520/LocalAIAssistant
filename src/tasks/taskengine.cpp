@@ -95,17 +95,23 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject &json) const
             op.type = ShellOperation::WriteFile;
         else if (typeStr == QStringLiteral("search_files") || typeStr == QStringLiteral("searchfiles"))
             op.type = ShellOperation::SearchFiles;
-        // 向后兼容旧类型名
-        else if (typeStr == QStringLiteral("createdir"))
-            op.type = ShellOperation::ShellCommand;
+        else if (typeStr == QStringLiteral("create_dir") || typeStr == QStringLiteral("createdir"))
+            op.type = ShellOperation::CreateDir;
+        else if (typeStr == QStringLiteral("move_file") || typeStr == QStringLiteral("movefile"))
+            op.type = ShellOperation::MoveFile;
+        else if (typeStr == QStringLiteral("delete_file") || typeStr == QStringLiteral("deletefile"))
+            op.type = ShellOperation::DeleteFile;
+        else if (typeStr == QStringLiteral("copy_file") || typeStr == QStringLiteral("copyfile"))
+            op.type = ShellOperation::CopyFile;
+        // 向后兼容旧类型名（仅单字类型名）
         else if (typeStr == QStringLiteral("move"))
-            op.type = ShellOperation::ShellCommand;
+            op.type = ShellOperation::MoveFile;
         else if (typeStr == QStringLiteral("rename"))
-            op.type = ShellOperation::ShellCommand;
+            op.type = ShellOperation::MoveFile;
         else if (typeStr == QStringLiteral("delete"))
-            op.type = ShellOperation::ShellCommand;
+            op.type = ShellOperation::DeleteFile;
         else if (typeStr == QStringLiteral("copy"))
-            op.type = ShellOperation::ShellCommand;
+            op.type = ShellOperation::CopyFile;
         else if (typeStr == QStringLiteral("write"))
             op.type = ShellOperation::WriteFile;
         else if (typeStr == QStringLiteral("search"))
@@ -114,45 +120,28 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject &json) const
             continue;
 
         op.command = opObj[QStringLiteral("command")].toString();
+        op.source = opObj[QStringLiteral("source")].toString();
+        op.target = opObj[QStringLiteral("target")].toString();
         op.workingDir = opObj[QStringLiteral("workingDir")].toString();
         op.description = opObj[QStringLiteral("description")].toString();
         op.timeoutSecs = opObj[QStringLiteral("timeout")].toInt(30);
 
-        // 向后兼容旧字段名
+        // 向后兼容旧字段名: content → command 映射
         if (op.command.isEmpty()) {
-            // 尝试从旧格式迁移：source + target → shell command
-            QString source = opObj[QStringLiteral("source")].toString();
-            QString target = opObj[QStringLiteral("target")].toString();
             QString content = opObj[QStringLiteral("content")].toString();
-
-            if (typeStr == QStringLiteral("createdir")) {
-                op.command = QStringLiteral("mkdir -p \"%1\"").arg(target);
-                op.workingDir = QStringLiteral("~");
-                op.description = QStringLiteral("创建目录: %1").arg(target);
-            } else if (typeStr == QStringLiteral("move") || typeStr == QStringLiteral("rename")) {
-                op.command = QStringLiteral("mv \"%1\" \"%2\"").arg(source, target);
-                op.workingDir = QStringLiteral("~");
-                op.description = QStringLiteral("移动: %1 → %2").arg(source, target);
-            } else if (typeStr == QStringLiteral("delete")) {
-                op.command = QStringLiteral("rm -rf \"%1\"").arg(source);
-                op.workingDir = QStringLiteral("~");
-                op.description = QStringLiteral("删除: %1").arg(source);
-                plan.requiresConfirmation = true;
-            } else if (typeStr == QStringLiteral("copy")) {
-                op.command = QStringLiteral("cp -r \"%1\" \"%2\"").arg(source, target);
-                op.workingDir = QStringLiteral("~");
-                op.description = QStringLiteral("复制: %1 → %2").arg(source, target);
-            } else if (typeStr == QStringLiteral("write")) {
+            if (!content.isEmpty()) {
                 op.command = content;
-                op.type = ShellOperation::WriteFile;
-            } else if (typeStr == QStringLiteral("search")) {
-                op.command = QStringLiteral("find \"%1\" -name \"%2\"").arg(source, target);
-                op.workingDir = QStringLiteral("~");
-                op.description = QStringLiteral("搜索: %1 中的 %2").arg(source, target);
             }
         }
 
-        if (!op.command.isEmpty())
+        // 向后兼容: search 旧格式 target 字段是搜索模式 → 映射到 command
+        if (op.type == ShellOperation::SearchFiles && op.command.isEmpty() && !op.target.isEmpty()) {
+            op.command = op.target;
+            op.target.clear();
+        }
+
+        // Native file ops use source/target; shell ops use command
+        if (!op.command.isEmpty() || !op.source.isEmpty() || !op.target.isEmpty())
             plan.operations.append(op);
     }
 

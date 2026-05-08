@@ -1,12 +1,16 @@
 #include "commandexecutor.h"
 #include <QDir>
+#include <QDirIterator>
+#include <QFile>
 #include <QFileInfo>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QEventLoop>
 
 CommandExecutor::CommandExecutor(QObject *parent)
     : QObject(parent)
 {
+    detectAvailableShell();
 }
 
 CommandExecutor::~CommandExecutor()
@@ -14,13 +18,53 @@ CommandExecutor::~CommandExecutor()
     cancel();
 }
 
-QString CommandExecutor::buildShell() const
+void CommandExecutor::detectAvailableShell()
 {
 #ifdef Q_OS_WIN
-    return QStringLiteral("cmd.exe");
+    // Try PowerShell Core first, then Windows PowerShell, fall back to cmd
+    QString pwsh = QStandardPaths::findExecutable(QStringLiteral("pwsh.exe"));
+    if (!pwsh.isEmpty()) {
+        m_shellPath = pwsh;
+        m_shellArgs = QStringList() << QStringLiteral("-NoProfile") << QStringLiteral("-Command");
+        return;
+    }
+    QString powershell = QStandardPaths::findExecutable(QStringLiteral("powershell.exe"));
+    if (!powershell.isEmpty()) {
+        m_shellPath = powershell;
+        m_shellArgs = QStringList() << QStringLiteral("-NoProfile") << QStringLiteral("-Command");
+        return;
+    }
+    m_shellPath = QStringLiteral("cmd.exe");
+    m_shellArgs = QStringList() << QStringLiteral("/c");
 #else
-    return QStringLiteral("/bin/zsh");
+    // Use $SHELL if set, otherwise fall back to zsh → bash → /bin/sh
+    QString shellEnv = qEnvironmentVariable("SHELL");
+    if (!shellEnv.isEmpty() && QFile::exists(shellEnv)) {
+        m_shellPath = shellEnv;
+        m_shellArgs = QStringList() << QStringLiteral("-c");
+        return;
+    }
+    QString zsh = QStandardPaths::findExecutable(QStringLiteral("zsh"));
+    if (!zsh.isEmpty()) {
+        m_shellPath = zsh;
+        m_shellArgs = QStringList() << QStringLiteral("-c");
+        return;
+    }
+    QString bash = QStandardPaths::findExecutable(QStringLiteral("bash"));
+    if (!bash.isEmpty()) {
+        m_shellPath = bash;
+        m_shellArgs = QStringList() << QStringLiteral("-c");
+        return;
+    }
+    m_shellPath = QStringLiteral("/bin/sh");
+    m_shellArgs = QStringList() << QStringLiteral("-c");
 #endif
+}
+
+QString CommandExecutor::shellName() const
+{
+    QFileInfo fi(m_shellPath);
+    return fi.baseName();  // "zsh", "bash", "pwsh", "powershell", "cmd"
 }
 
 QString CommandExecutor::expandPath(const QString &path)
@@ -39,33 +83,317 @@ QString CommandExecutor::expandPath(const QString &path)
     return QDir::cleanPath(expanded);
 }
 
-CommandResult CommandExecutor::execute(const ShellOperation &op)
+// ── Native file operations ──────────────────────────────────────
+
+CommandResult CommandExecutor::executeCreateDir(const ShellOperation &op)
 {
     CommandResult result;
+    QElapsedTimer timer;
+    timer.start();
 
-    // WriteFile 和 SearchFiles 作为便捷封装，内部转为 shell 命令
-    if (op.type == ShellOperation::WriteFile) {
-        // 将 WriteFile 转为 cat << 'EOF' > file 形式的 shell 命令
-        ShellOperation cmd;
-        cmd.type = ShellOperation::ShellCommand;
-        cmd.command = op.command;
-        cmd.workingDir = op.workingDir;
-        cmd.timeoutSecs = op.timeoutSecs;
-        result = runCommand(op.command, expandPath(op.workingDir),
-                            op.timeoutSecs, QStringList());
+    QString targetPath = expandPath(op.target);
+    if (targetPath.isEmpty()) {
+        result.success = false;
+        result.errorMessage = tr("创建目录: 目标路径为空");
+        result.elapsedMs = timer.elapsed();
         return result;
     }
 
-    if (op.type == ShellOperation::SearchFiles) {
-        result = runCommand(op.command, expandPath(op.workingDir),
-                            op.timeoutSecs, QStringList());
-        return result;
+    QDir dir;
+    if (dir.mkpath(targetPath)) {
+        result.success = true;
+        result.exitCode = 0;
+        result.stdoutOutput = tr("已创建目录: %1").arg(targetPath);
+    } else {
+        result.success = false;
+        result.exitCode = 1;
+        result.errorMessage = tr("创建目录失败: %1").arg(targetPath);
     }
-
-    result = runCommand(op.command, expandPath(op.workingDir),
-                        op.timeoutSecs, QStringList());
+    result.elapsedMs = timer.elapsed();
     return result;
 }
+
+CommandResult CommandExecutor::executeMoveFile(const ShellOperation &op)
+{
+    CommandResult result;
+    QElapsedTimer timer;
+    timer.start();
+
+    QString src = expandPath(op.source);
+    QString dst = expandPath(op.target);
+    if (src.isEmpty() || dst.isEmpty()) {
+        result.success = false;
+        result.errorMessage = tr("移动文件: 源或目标路径为空");
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    if (QFile::rename(src, dst)) {
+        result.success = true;
+        result.exitCode = 0;
+        result.stdoutOutput = tr("已移动: %1 → %2").arg(src, dst);
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    // Cross-device rename fails — try copy + delete
+    QFileInfo srcInfo(src);
+    if (srcInfo.isDir()) {
+        // Recursive copy then remove source
+        CommandResult copyResult = executeCopyFile(op);
+        if (!copyResult.success) {
+            result.success = false;
+            result.exitCode = 1;
+            result.errorMessage = tr("跨设备移动失败 (复制阶段): %1").arg(copyResult.errorMessage);
+            result.elapsedMs = timer.elapsed();
+            return result;
+        }
+        QDir srcDir(src);
+        if (srcDir.removeRecursively()) {
+            result.success = true;
+            result.exitCode = 0;
+            result.stdoutOutput = tr("已跨设备移动: %1 → %2").arg(src, dst);
+        } else {
+            result.success = true;  // copy succeeded, cleanup failed but not critical
+            result.exitCode = 0;
+            result.stdoutOutput = tr("已复制到: %2 (源目录清理失败)").arg(src, dst);
+        }
+    } else {
+        if (QFile::copy(src, dst)) {
+            QFile::remove(src);
+            result.success = true;
+            result.exitCode = 0;
+            result.stdoutOutput = tr("已跨设备移动: %1 → %2").arg(src, dst);
+        } else {
+            result.success = false;
+            result.exitCode = 1;
+            result.errorMessage = tr("移动文件失败: %1 → %2").arg(src, dst);
+        }
+    }
+    result.elapsedMs = timer.elapsed();
+    return result;
+}
+
+CommandResult CommandExecutor::executeDeleteFile(const ShellOperation &op)
+{
+    CommandResult result;
+    QElapsedTimer timer;
+    timer.start();
+
+    QString src = expandPath(op.source);
+    if (src.isEmpty()) {
+        result.success = false;
+        result.errorMessage = tr("删除: 路径为空");
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    QFileInfo info(src);
+    if (!info.exists()) {
+        result.success = false;
+        result.exitCode = 1;
+        result.errorMessage = tr("路径不存在: %1").arg(src);
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    bool ok = false;
+    if (info.isDir()) {
+        ok = QDir(src).removeRecursively();
+    } else {
+        ok = QFile::remove(src);
+    }
+
+    if (ok) {
+        result.success = true;
+        result.exitCode = 0;
+        result.stdoutOutput = tr("已删除: %1").arg(src);
+    } else {
+        result.success = false;
+        result.exitCode = 1;
+        result.errorMessage = tr("删除失败: %1").arg(src);
+    }
+    result.elapsedMs = timer.elapsed();
+    return result;
+}
+
+CommandResult CommandExecutor::executeCopyFile(const ShellOperation &op)
+{
+    CommandResult result;
+    QElapsedTimer timer;
+    timer.start();
+
+    QString src = expandPath(op.source);
+    QString dst = expandPath(op.target);
+    if (src.isEmpty() || dst.isEmpty()) {
+        result.success = false;
+        result.errorMessage = tr("复制文件: 源或目标路径为空");
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    QFileInfo srcInfo(src);
+    if (!srcInfo.exists()) {
+        result.success = false;
+        result.exitCode = 1;
+        result.errorMessage = tr("源路径不存在: %1").arg(src);
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    if (srcInfo.isDir()) {
+        // Recursive directory copy using QDirIterator
+        QDir srcDir(src);
+        int fileCount = 0;
+        QDir().mkpath(dst);  // ensure target root exists
+
+        QDirIterator it(src, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot,
+                        QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            QString relativePath = srcDir.relativeFilePath(it.filePath());
+            QString dstPath = dst + QStringLiteral("/") + relativePath;
+
+            if (it.fileInfo().isDir()) {
+                QDir().mkpath(dstPath);
+            } else {
+                QDir().mkpath(QFileInfo(dstPath).absolutePath());
+                if (QFile::copy(it.filePath(), dstPath))
+                    fileCount++;
+                else {
+                    result.success = false;
+                    result.exitCode = 1;
+                    result.errorMessage = tr("复制失败: %1 → %2").arg(it.filePath(), dstPath);
+                    result.elapsedMs = timer.elapsed();
+                    return result;
+                }
+            }
+        }
+        result.success = true;
+        result.exitCode = 0;
+        result.stdoutOutput = tr("已复制目录 (%1 个文件): %2 → %3").arg(fileCount).arg(src, dst);
+    } else {
+        QDir().mkpath(QFileInfo(dst).absolutePath());
+        if (QFile::copy(src, dst)) {
+            result.success = true;
+            result.exitCode = 0;
+            result.stdoutOutput = tr("已复制: %1 → %2").arg(src, dst);
+        } else {
+            result.success = false;
+            result.exitCode = 1;
+            result.errorMessage = tr("复制文件失败: %1 → %2").arg(src, dst);
+        }
+    }
+    result.elapsedMs = timer.elapsed();
+    return result;
+}
+
+CommandResult CommandExecutor::executeWriteFile(const ShellOperation &op)
+{
+    CommandResult result;
+    QElapsedTimer timer;
+    timer.start();
+
+    QString targetPath = expandPath(op.target);
+    if (targetPath.isEmpty()) {
+        result.success = false;
+        result.errorMessage = tr("写入文件: 目标路径为空");
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    QDir().mkpath(QFileInfo(targetPath).absolutePath());
+
+    QFile file(targetPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QByteArray content = op.command.toUtf8();
+        qint64 written = file.write(content);
+        file.close();
+        if (written == content.size()) {
+            result.success = true;
+            result.exitCode = 0;
+            result.stdoutOutput = tr("已写入文件: %1 (%2 字节)").arg(targetPath).arg(written);
+        } else {
+            result.success = false;
+            result.exitCode = 1;
+            result.errorMessage = tr("写入不完整: %1").arg(targetPath);
+        }
+    } else {
+        result.success = false;
+        result.exitCode = 1;
+        result.errorMessage = tr("无法打开文件: %1 — %2").arg(targetPath, file.errorString());
+    }
+    result.elapsedMs = timer.elapsed();
+    return result;
+}
+
+CommandResult CommandExecutor::executeSearchFiles(const ShellOperation &op)
+{
+    CommandResult result;
+    QElapsedTimer timer;
+    timer.start();
+
+    QString searchDir = expandPath(op.source);
+    QString pattern = op.command.trimmed();
+    if (searchDir.isEmpty()) {
+        searchDir = QDir::homePath();
+    }
+    if (pattern.isEmpty()) {
+        pattern = QStringLiteral("*");
+    }
+
+    QDir dir(searchDir);
+    if (!dir.exists()) {
+        result.success = false;
+        result.exitCode = 1;
+        result.errorMessage = tr("搜索目录不存在: %1").arg(searchDir);
+        result.elapsedMs = timer.elapsed();
+        return result;
+    }
+
+    QStringList results;
+    QDirIterator it(searchDir, QStringList() << pattern,
+                    QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot,
+                    QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        it.next();
+        results.append(dir.relativeFilePath(it.filePath()));
+    }
+
+    result.success = true;
+    result.exitCode = 0;
+    result.stdoutOutput = results.join(QStringLiteral("\n"));
+    result.elapsedMs = timer.elapsed();
+    return result;
+}
+
+// ── Main execution dispatch ─────────────────────────────────────
+
+CommandResult CommandExecutor::execute(const ShellOperation &op)
+{
+    switch (op.type) {
+    case ShellOperation::CreateDir:
+        return executeCreateDir(op);
+    case ShellOperation::MoveFile:
+        return executeMoveFile(op);
+    case ShellOperation::DeleteFile:
+        return executeDeleteFile(op);
+    case ShellOperation::CopyFile:
+        return executeCopyFile(op);
+    case ShellOperation::WriteFile:
+        return executeWriteFile(op);
+    case ShellOperation::SearchFiles:
+        return executeSearchFiles(op);
+    case ShellOperation::ShellCommand:
+    case ShellOperation::ShellScript:
+        return runCommand(op.command, expandPath(op.workingDir),
+                          op.timeoutSecs, QStringList());
+    }
+    return runCommand(op.command, expandPath(op.workingDir),
+                      op.timeoutSecs, QStringList());
+}
+
+// ── Batch execution ─────────────────────────────────────────────
 
 QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan &plan)
 {
@@ -84,7 +412,10 @@ QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan &plan)
 
         m_currentOpIndex = i;
         const auto &op = plan.operations[i];
-        emit operationStarted(i, op.command);
+
+        // Display description for native ops, command for shell ops
+        QString displayText = op.description.isEmpty() ? op.command : op.description;
+        emit operationStarted(i, displayText);
 
         CommandResult result = execute(op);
         results.append(result);
@@ -92,7 +423,6 @@ QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan &plan)
         emit operationFinished(i, result);
 
         if (!result.success) {
-            // 遇错即停，后续操作不再执行
             break;
         }
     }
@@ -109,6 +439,8 @@ void CommandExecutor::cancel()
         m_currentProcess->terminate();
     }
 }
+
+// ── Shell command execution ─────────────────────────────────────
 
 CommandResult CommandExecutor::runCommand(const QString &command,
                                            const QString &workingDir,
@@ -128,7 +460,6 @@ CommandResult CommandExecutor::runCommand(const QString &command,
     QProcess process;
     process.setProcessChannelMode(QProcess::SeparateChannels);
 
-    // 设置工作目录
     if (!workingDir.isEmpty()) {
         QDir dir(workingDir);
         if (dir.exists())
@@ -137,7 +468,6 @@ CommandResult CommandExecutor::runCommand(const QString &command,
             process.setWorkingDirectory(QDir::homePath());
     }
 
-    // 设置环境变量（继承当前环境，追加自定义变量）
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     for (const auto &kv : extraEnv) {
         int eq = kv.indexOf(QLatin1Char('='));
@@ -146,13 +476,9 @@ CommandResult CommandExecutor::runCommand(const QString &command,
     }
     process.setProcessEnvironment(env);
 
-#ifdef Q_OS_WIN
-    process.start(QStringLiteral("cmd.exe"),
-                  QStringList() << QStringLiteral("/c") << command);
-#else
-    process.start(QStringLiteral("/bin/zsh"),
-                  QStringList() << QStringLiteral("-c") << command);
-#endif
+    QStringList args = m_shellArgs;
+    args << command;
+    process.start(m_shellPath, args);
 
     if (!process.waitForStarted(5000)) {
         result.success = false;
@@ -161,7 +487,6 @@ CommandResult CommandExecutor::runCommand(const QString &command,
         return result;
     }
 
-    // 超时处理
     QTimer timeoutTimer;
     timeoutTimer.setSingleShot(true);
 

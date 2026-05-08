@@ -13,9 +13,12 @@ struct ShellOperation
     static inline QString tr(const char *s, const char *c = nullptr, int n = -1)
     { return QCoreApplication::translate("ShellOperation", s, c, n); }
 
-    enum Type { ShellCommand, ShellScript, WriteFile, SearchFiles };
+    enum Type { ShellCommand, ShellScript, WriteFile, SearchFiles,
+                CreateDir, MoveFile, DeleteFile, CopyFile };
     Type type = ShellCommand;
-    QString command;          // 命令/脚本内容
+    QString command;          // 命令/脚本内容 (ShellCommand/ShellScript/WriteFile/SearchFiles)
+    QString source;           // 源路径 (MoveFile/CopyFile/DeleteFile/SearchFiles)
+    QString target;           // 目标路径 (CreateDir/MoveFile/CopyFile/WriteFile)
     QString workingDir;       // 工作目录
     QString description;      // 人类可读描述（必须填写）
     int timeoutSecs = 30;     // 超时秒数
