@@ -625,6 +625,36 @@ if(WIN32)
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
         COMMENT "Copying translations to build directory"
     )
+
+    # Copy usage docs to build directory
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs/USAGE.md"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs/USAGE_zh_CN.md"
+        COMMENT "Copying usage docs to build directory"
+    )
+
+    # Copy ONNX models to build directory (if exists)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/all-MiniLM-L6-v2-arm64.onnx"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/all-MiniLM-L6-v2-avx2.onnx"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/tokenizer.json"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/tokenizer_config.json"
+        COMMENT "Copying model files to build directory"
+    )
 endif()
 
 if(UNIX AND NOT APPLE)
