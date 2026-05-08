@@ -36,7 +36,8 @@ else()
     message(STATUS "libzip not found, DOCX support disabled")
 endif()
 
-if(PUGIXML_FOUND)
+find_package(pugixml CONFIG QUIET)
+if(pugixml_FOUND OR PUGIXML_FOUND)
     message(STATUS "pugixml found, XML parsing enabled")
 else()
     message(STATUS "pugixml not found, using header-only fallback")
@@ -47,6 +48,59 @@ if(POPPLER_FOUND)
 else()
     message(STATUS "Poppler not found, PDF support disabled")
     add_definitions(-DNO_PDF_SUPPORT)
+endif()
+
+# ============================================================
+# FileParser — unified text/PDF/DOCX/image parsing
+# ============================================================
+add_library(FileParser
+    src/parsers/fileparser.cpp
+    src/parsers/fileparser.h
+)
+target_include_directories(FileParser PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/parsers
+)
+target_link_libraries(FileParser PUBLIC
+    Qt6::Core
+)
+
+if(POPPLER_FOUND)
+    target_include_directories(FileParser PUBLIC
+        ${POPPLER_INCLUDE_DIRS}
+    )
+    target_link_directories(FileParser PUBLIC
+        ${POPPLER_LIBRARY_DIRS}
+    )
+    target_link_libraries(FileParser PUBLIC
+        ${POPPLER_LIBRARIES}
+    )
+endif()
+
+# DOCX support (libzip + pugixml)
+if(libzip_FOUND)
+    if(TARGET libzip::zip)
+        target_link_libraries(FileParser PUBLIC libzip::zip)
+    else()
+        target_include_directories(FileParser PUBLIC ${libzip_INCLUDE_DIRS})
+        target_link_libraries(FileParser PUBLIC ${libzip_LIBRARIES})
+    endif()
+    target_compile_definitions(FileParser PUBLIC HAS_LIBZIP)
+endif()
+
+if(pugixml_FOUND)
+    target_link_libraries(FileParser PUBLIC pugixml::pugixml)
+    target_compile_definitions(FileParser PUBLIC HAS_PUGIXML)
+elseif(PUGIXML_FOUND)
+    target_include_directories(FileParser PUBLIC
+        ${PUGIXML_INCLUDE_DIRS}
+    )
+    target_link_directories(FileParser PUBLIC
+        ${PUGIXML_LIBRARY_DIRS}
+    )
+    target_link_libraries(FileParser PUBLIC
+        ${PUGIXML_LIBRARIES}
+    )
+    target_compile_definitions(FileParser PUBLIC HAS_PUGIXML)
 endif()
 
 set(TS_FILES
@@ -85,24 +139,10 @@ target_include_directories(LocalAIAssistantCore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts
 )
 
-if(POPPLER_FOUND)
-    target_include_directories(LocalAIAssistantCore PUBLIC
-        ${POPPLER_INCLUDE_DIRS}
-    )
-    target_link_directories(LocalAIAssistantCore PUBLIC
-        ${POPPLER_LIBRARY_DIRS}
-    )
-endif()
-
 target_link_libraries(LocalAIAssistantCore PUBLIC
+    FileParser
     Qt6::Network
 )
-
-if(POPPLER_FOUND)
-    target_link_libraries(LocalAIAssistantCore PUBLIC
-        ${POPPLER_LIBRARIES}
-    )
-endif()
 
 add_executable(${PROJECT_NAME}
     src/ui/main.cpp
@@ -219,37 +259,11 @@ target_include_directories(KnowledgeModule PUBLIC
 )
 target_link_libraries(KnowledgeModule PUBLIC
     LocalAIAssistantCore
+    FileParser
     Qt6::Widgets
     Qt6::Sql
     Qt6::Concurrent
 )
-
-# Phase 3: DOCX support (libzip + pugixml)
-if(libzip_FOUND)
-    target_include_directories(KnowledgeModule PUBLIC
-        ${libzip_INCLUDE_DIRS}
-    )
-    target_link_libraries(KnowledgeModule PUBLIC
-        ${libzip_LIBRARIES}
-    )
-    target_compile_definitions(KnowledgeModule PUBLIC LIBZIP_AVAILABLE)
-endif()
-
-# pugixml is found via pkg-config but we also check for its CMake config
-find_package(pugixml CONFIG QUIET)
-if(pugixml_FOUND)
-    target_link_libraries(KnowledgeModule PUBLIC pugixml::pugixml)
-elseif(PUGIXML_FOUND)
-    target_include_directories(KnowledgeModule PUBLIC
-        ${PUGIXML_INCLUDE_DIRS}
-    )
-    target_link_directories(KnowledgeModule PUBLIC
-        ${PUGIXML_LIBRARY_DIRS}
-    )
-    target_link_libraries(KnowledgeModule PUBLIC
-        ${PUGIXML_LIBRARIES}
-    )
-endif()
 
 # 如果 hnswlib 可用，启用 (header-only, 路径: third_party/hnswlib/hnswlib/hnswlib.h)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/hnswlib/hnswlib/hnswlib.h")

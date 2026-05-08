@@ -12,6 +12,7 @@ macro(add_unit_test TEST_NAME TEST_SOURCE)
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/prompts
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/ui
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/girlfriend
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/parsers
     )
     target_link_libraries(${TEST_NAME} PRIVATE
         Qt6::Test

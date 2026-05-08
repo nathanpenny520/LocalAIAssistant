@@ -39,16 +39,16 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 ### **Tier 1: 低风险 + 高价值重构**
 
-#### 1.1 Extract FileParser shared module 🟢 **最低风险**
+#### 1.1 Extract FileParser shared module 🟢 **DONE**
 **风险**: 极低（纯函数，无状态，无 UI 依赖）  
 **重要性**: 高（立即消除重复代码）  
 **位置**: Duplicate code in `src/core/filemanager.cpp:174-213` and `src/knowledge/docimporter.cpp:143-189`
 
-- [ ] Create `src/parsers/fileparser.h/cpp` — unified text/PDF/DOCX/image parsing (~400 lines)
-- [ ] Update `filemanager.cpp` — delegate to FileParser (256 → ~150 lines)
-- [ ] Update `docimporter.cpp` — delegate to FileParser (270 → ~180 lines)
-- [ ] Remove duplicate PDF extraction code (~100 lines eliminated)
-- [ ] Add `FileParser` library to CMakeLists.txt
+- [x] Create `src/parsers/fileparser.h/cpp` — unified text/PDF/DOCX/image parsing (266 lines)
+- [x] Update `filemanager.cpp` — delegate to FileParser (257 → 132 lines)
+- [x] Update `docimporter.cpp` — delegate to FileParser (271 → 80 lines)
+- [x] Remove duplicate PDF extraction code (~100 lines eliminated)
+- [x] Add `FileParser` library to CMakeLists.txt
 
 **收益**: 
 - 消除 ~100 行重复代码
@@ -273,7 +273,7 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 | `scripts/build.sh` | 1,278 | 🟡 Phase 3.3 (fix prompt) → Phase 7.2 (split) |
 | `src/cli/cli_application.cpp` | 1,165 | ⚠️ **DEFERRED** - Phase 4.4 |
 | `src/ui/markdownrenderer.cpp` | 855 | 🟡 Phase 3.2 (if needed) |
-| `CMakeLists.txt` | 763 | 🟢 Phase 7.1 (optional) |
+| `CMakeLists.txt` | 788 | 🟢 Phase 7.1 (optional) |
 | `src/knowledge/embedder.cpp` | 591 | 🟢 Phase 3.1 |
 | `src/core/networkmanager.cpp` | 581 | ✅ **Phase 1.2** |
 | `src/ui/stylesheetmanager.cpp` | 575 | 🟡 Phase 3.2 |
