@@ -142,16 +142,20 @@ add_library(LocalAIAssistantCore
     src/core/filemanager.h
     src/prompts/promptmanager.cpp
     src/prompts/promptmanager.h
+    src/ui/apptheme.cpp
+    src/ui/apptheme.h
 )
 
 target_include_directories(LocalAIAssistantCore PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
 )
 
 target_link_libraries(LocalAIAssistantCore PUBLIC
     FileParser
     Qt6::Network
+    Qt6::Widgets
 )
 
 add_executable(${PROJECT_NAME}
