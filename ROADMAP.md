@@ -10,6 +10,9 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 - [x] ROADMAP.md created (this file)
 - [x] **Phase 1.1 attempted then rolled back** — splitting girlfriendwindow.cpp caused feature loss, deferred until tests exist
 
+### What was completed (2026-05-08)
+- [x] **Tier 2.1: Windows command execution** — Native Qt file ops, shell auto-detection, Windows safety patterns. 10 files, +1221/-125 lines. All tests pass.
+
 ### What to do next (优先级排序)
 **按照风险（低→高）和重要性（高→低）重新规划**
 
@@ -79,15 +82,22 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 ### **Tier 2: 平台修复（解决功能缺陷）**
 
-#### 2.1 Windows command execution 🔴 **阻塞问题**
+#### 2.1 Windows command execution 🟢 **DONE**
 **风险**: 中等（影响核心功能，需仔细测试）  
 **重要性**: 高（Windows 用户无法使用）
 
-- [ ] Replace Unix shell commands in `src/tasks/taskengine.cpp:129-152` with `QDir`/`QFile` Qt APIs
-- [ ] Add PowerShell fallback in `src/tasks/commandexecutor.cpp`
-- [ ] Add Windows dangerous command patterns to `src/tasks/safetychecker.cpp`
+- [x] Add `CreateDir`/`MoveFile`/`DeleteFile`/`CopyFile` types + `source`/`target` fields to `ShellOperation` (operationplan.h)
+- [x] Replace Unix shell commands in `taskengine.cpp` with native operation types
+- [x] Implement native Qt file ops in `commandexecutor.cpp` (QDir::mkpath, QFile::rename/copy/remove, QDirIterator)
+- [x] Handle `WriteFile` and `SearchFiles` natively (previously shelled out via `cat`/`find`)
+- [x] Add shell auto-detection: pwsh→powershell→cmd on Windows, $SHELL→zsh→bash→sh on Unix
+- [x] Add comprehensive Windows dangerous patterns to `safetychecker.cpp`
+- [x] Update `operationundo.cpp` for native operation types
+- [x] Update `promptmanager.cpp` to detect actual Windows shell
+- [x] Add 23+ new tests (native file ops, Windows safety patterns)
+- [x] All 4 tests pass, committed and pushed
 
-**收益**: Windows 用户可正常使用任务执行功能
+**收益**: Windows 用户可正常使用任务执行功能，文件操作不再依赖 shell，安全性覆盖 Windows 平台
 
 #### 2.2 UI theme fixes 🟡 **可访问性问题**
 **风险**: 低（只修改颜色值）  
@@ -282,7 +292,9 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 | `src/knowledge/embedder.cpp` | 591 | 🟢 Phase 3.1 |
 | `src/core/networkmanager.cpp` | ~~581~~ 240 | ✅ **Phase 1.2 done** — split into ApiProvider + 3 providers |
 | `src/ui/stylesheetmanager.cpp` | 575 | 🟡 Phase 3.2 |
+| `src/tasks/safetychecker.cpp` | 562 | 🟡 Phase 2.1 added Windows safety patterns |
 | `src/knowledge/vectordb.cpp` | 555 | 🟢 Phase 3.1 |
+| `src/tasks/commandexecutor.cpp` | 551 | 🟡 Phase 2.1 added native file ops + shell detection |
 | `scripts/setup.sh` | 519 | 🟢 Phase 7.3 |
 
 ---
@@ -295,8 +307,9 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 3. ✅ **Tier 1.2**: NetworkManager Provider（低风险，架构改善）
 
 **近期（有基础测试后）**:
-4. 🟢 **Tier 2**: 平台修复（Windows 支持，theme fixes）
-5. 🟢 **Tier 3**: 中等风险重构（embedder, vectordb, stylesheetmanager）
+4. ✅ **Tier 2.1**: Windows command execution 已完成
+5. 🟢 **Tier 2.2-2.3**: UI theme fixes + Windows resource copying
+6. 🟢 **Tier 3**: 中等风险重构（embedder, vectordb, stylesheetmanager）
 
 **远期（有完整测试覆盖后）**:
 6. ⚠️ **Tier 4**: 高风险 UI 重构（girlfriendwindow, mainwindow, voicemanager）

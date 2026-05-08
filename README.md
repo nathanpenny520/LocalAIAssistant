@@ -48,8 +48,10 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **记忆增强** — 跨会话记忆提取、语义检索、上下文注入
 
 ### 任务执行模块 🔧
-- **文件操作** — AI 可执行文件创建、修改等操作
-- **安全检查** — 操作前自动校验危险路径（系统目录保护）
+- **原生文件操作** — 通过 Qt API 直接执行创建/移动/删除/复制/搜索文件，无需依赖 shell
+- **跨平台 Shell 支持** — 自动检测可用 Shell（Windows: pwsh→powershell→cmd，Unix: $SHELL→zsh→bash→sh）
+- **安全检查** — 操作前自动校验危险路径（系统目录保护），覆盖 Unix + Windows 危险命令
+- **命令注入防护** — 检测 PowerShell 注入、Unix 命令替换、Living-off-the-Land 攻击等
 - **操作撤销** — 支持撤销已执行的文件操作
 - **用户确认** — 高风险操作需用户确认后执行
 
@@ -81,10 +83,10 @@ sourcecode-ai-assistant/
 │   ├── ui/             # GUI 界面（主窗口、设置对话框）
 │   ├── cli/            # CLI 命令行界面
 │   ├── tasks/          # 任务执行模块（文件操作、安全检查、撤销）
-│   │   ├── taskengine.cpp/h       # 任务执行引擎
-│   │   ├── fileoperations.cpp/h   # 文件操作执行器
-│   │   ├── safetychecker.cpp/h    # 安全检查器
-│   │   ├── operationplan.cpp/h    # 操作计划定义
+│   │   ├── taskengine.cpp/h       # 任务执行引擎（AI响应解析、计划调度）
+│   │   ├── commandexecutor.cpp/h  # 命令执行器（原生文件操作 + Shell 命令执行）
+│   │   ├── safetychecker.cpp/h    # 安全检查器（跨平台危险命令/路径检测）
+│   │   ├── operationplan.cpp/h    # 操作计划定义（ShellOperation 类型）
 │   │   └── operationundo.cpp/h    # 操作撤销
 │   ├── knowledge/      # 知识管理模块（文本切分、向量化、检索、文档导入、记忆增强）
 │   │   ├── textchunker.cpp/h      # 文本切分器

@@ -48,8 +48,10 @@ Gitee repo: https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **Memory Enhancement** — Cross-session memory extraction, semantic retrieval, context injection
 
 ### Task Execution Module 🔧
-- **File Operations** — AI can execute file creation, modification, and other operations
-- **Safety Checker** — Pre-execution validation of dangerous paths (system directory protection)
+- **Native File Operations** — Execute create/move/delete/copy/search files via Qt APIs, no shell dependency
+- **Cross-platform Shell Support** — Auto-detect available shell (Windows: pwsh→powershell→cmd, Unix: $SHELL→zsh→bash→sh)
+- **Safety Checker** — Pre-execution validation of dangerous paths (system directory protection), covering Unix + Windows
+- **Command Injection Prevention** — Detect PowerShell injection, Unix command substitution, Living-off-the-Land attacks
 - **Operation Undo** — Supports undoing executed file operations
 - **User Confirmation** — High-risk operations require user confirmation before execution
 
@@ -81,10 +83,10 @@ sourcecode-ai-assistant/
 │   ├── ui/             # GUI interface (main window, settings dialog)
 │   ├── cli/            # CLI command line interface
 │   ├── tasks/          # Task execution module (file ops, safety checks, undo)
-│   │   ├── taskengine.cpp/h       # Task execution engine
-│   │   ├── fileoperations.cpp/h   # File operation executor
-│   │   ├── safetychecker.cpp/h    # Safety checker
-│   │   ├── operationplan.cpp/h    # Operation plan definition
+│   │   ├── taskengine.cpp/h       # Task execution engine (AI response parsing, plan dispatch)
+│   │   ├── commandexecutor.cpp/h  # Command executor (native file ops + shell command execution)
+│   │   ├── safetychecker.cpp/h    # Safety checker (cross-platform dangerous command/path detection)
+│   │   ├── operationplan.cpp/h    # Operation plan definition (ShellOperation types)
 │   │   └── operationundo.cpp/h    # Operation undo
 │   ├── knowledge/      # Knowledge management (chunking, embedding, search, import, memory)
 │   │   ├── textchunker.cpp/h      # Text chunker

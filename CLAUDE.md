@@ -42,7 +42,8 @@ LocalAIAssistantCore  (src/core/, src/prompts/)   — network, sessions, file I/
             └── LocalAIAssistant (GUI, src/ui/main.cpp → MainWindow)
 ```
 
-- **Core**: `NetworkManager` (OpenAI/Ollama/LlamaCpp APIs), `SessionManager` (JSON persistence), `FileManager`, `PromptManager`
+- **Core**: `NetworkManager` (OpenAI/Ollama/LlamaCpp/Anthropic APIs via Provider pattern), `SessionManager` (JSON persistence), `FileManager`, `PromptManager`
+- **TaskModule**: `TaskEngine` (AI response parsing), `CommandExecutor` (native file ops via Qt + shell commands with auto-detection), `SafetyChecker` (cross-platform dangerous command/path validation), `OperationUndo`
 - **GirlfriendModule** (single-file `girlfriendwindow.cpp`, 1,937 lines — split deferred per ROADMAP)
 - **CLI**: links Core + TaskModule only (no Girlfriend, no Knowledge)
 - **GUI**: links GirlfriendModule → transitively pulls in Core
