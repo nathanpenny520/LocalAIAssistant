@@ -65,9 +65,10 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 - [x] `src/core/llamacpp_provider.cpp/h` — LlamaCpp extends OpenAIProvider (18 + 7 lines)
 - [x] Update `networkmanager.cpp/h` — thin facade, delegates to active provider (72 + 240 lines)
 - [x] Add `<QSettings>` include to `mainwindow.cpp` (was transitively included via old networkmanager.h)
+- [x] `src/core/anthropic_provider.cpp/h` — Anthropic Messages API /v1/messages (30 + 168 lines)
 
 **收益**:
-- 易于添加新 provider（如 Anthropic）
+- 易于添加新 provider（Anthropic 已添加，验证了 Provider 模式的可扩展性）
 - 清晰的 API 边界
 - 易于单元测试每个 provider
 

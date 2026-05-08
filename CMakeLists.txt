@@ -133,6 +133,8 @@ add_library(LocalAIAssistantCore
     src/core/ollama_provider.h
     src/core/llamacpp_provider.cpp
     src/core/llamacpp_provider.h
+    src/core/anthropic_provider.cpp
+    src/core/anthropic_provider.h
     src/core/sessionmanager.cpp
     src/core/sessionmanager.h
     src/core/datamodels.h

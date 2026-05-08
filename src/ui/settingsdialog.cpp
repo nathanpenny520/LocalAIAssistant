@@ -77,11 +77,14 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     m_apiTypeComboBox->addItem(tr("OpenAI 兼容 (llama.cpp, vLLM 等)"), static_cast<int>(ApiType::OpenAI));
     m_apiTypeComboBox->addItem(QStringLiteral("Ollama"), static_cast<int>(ApiType::Ollama));
     m_apiTypeComboBox->addItem(QStringLiteral("llama.cpp"), static_cast<int>(ApiType::LlamaCpp));
+    m_apiTypeComboBox->addItem(QStringLiteral("Anthropic"), static_cast<int>(ApiType::Anthropic));
     QString savedApiType = settings.value("apiType", "openai").toString().toLower();
     if (savedApiType == "ollama")
         m_apiTypeComboBox->setCurrentIndex(1);
     else if (savedApiType == "llamacpp")
         m_apiTypeComboBox->setCurrentIndex(2);
+    else if (savedApiType == "anthropic")
+        m_apiTypeComboBox->setCurrentIndex(3);
     else
         m_apiTypeComboBox->setCurrentIndex(0);
 
@@ -295,7 +298,8 @@ SettingsDialog::SettingsDialog(QWidget *parent)
         settings.setValue("localMode", m_localModeCheckBox->isChecked());
         settings.setValue("apiType",
             m_apiTypeComboBox->currentData().toInt() == static_cast<int>(ApiType::Ollama) ? "ollama" :
-            m_apiTypeComboBox->currentData().toInt() == static_cast<int>(ApiType::LlamaCpp) ? "llamacpp" : "openai");
+            m_apiTypeComboBox->currentData().toInt() == static_cast<int>(ApiType::LlamaCpp) ? "llamacpp" :
+            m_apiTypeComboBox->currentData().toInt() == static_cast<int>(ApiType::Anthropic) ? "anthropic" : "openai");
         settings.setValue("streamingEnabled", m_streamingCheckBox->isChecked());
         settings.setValue("theme", m_themeComboBox->currentData().toInt());
         settings.setValue("language", newLanguage);

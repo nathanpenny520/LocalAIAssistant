@@ -60,10 +60,10 @@ protected:
     virtual QString extractDeltaFromSSE(const QByteArray &data) = 0;
     virtual QString extractContentFromResponse(const QByteArray &data) = 0;
     virtual void configureRequest(QNetworkRequest &request) const;
+    virtual QJsonObject buildBasePayload() const;
 
     // Shared helpers
     QString resolveFullUrl() const;
-    QJsonObject buildBasePayload() const;
     QJsonObject buildTextContentBlock(const QString &text) const;
     QJsonObject buildImageContentBlock(const QString &base64Data, const QString &mime) const;
     QJsonObject buildFileContentBlock(const FileAttachment &file) const;

@@ -3,6 +3,7 @@
 #include "openai_provider.h"
 #include "ollama_provider.h"
 #include "llamacpp_provider.h"
+#include "anthropic_provider.h"
 #include <QSettings>
 #include <QDebug>
 
@@ -130,6 +131,8 @@ void NetworkManager::loadSettings()
         m_apiType = ApiType::Ollama;
     else if (apiTypeStr == "llamacpp")
         m_apiType = ApiType::LlamaCpp;
+    else if (apiTypeStr == "anthropic")
+        m_apiType = ApiType::Anthropic;
     else
         m_apiType = ApiType::OpenAI;
 
@@ -157,9 +160,10 @@ void NetworkManager::saveSettings()
     settings.setValue("streamingEnabled", m_streamingEnabled);
 
     switch (m_apiType) {
-    case ApiType::Ollama:   settings.setValue("apiType", "ollama"); break;
-    case ApiType::LlamaCpp: settings.setValue("apiType", "llamacpp"); break;
-    default:                settings.setValue("apiType", "openai"); break;
+    case ApiType::Ollama:    settings.setValue("apiType", "ollama"); break;
+    case ApiType::LlamaCpp:  settings.setValue("apiType", "llamacpp"); break;
+    case ApiType::Anthropic: settings.setValue("apiType", "anthropic"); break;
+    default:                 settings.setValue("apiType", "openai"); break;
     }
 }
 
@@ -181,6 +185,9 @@ void NetworkManager::ensureProvider(ApiType type)
         case ApiType::LlamaCpp:
             needsSwitch = (qobject_cast<LlamaCppProvider*>(m_provider) == nullptr);
             break;
+        case ApiType::Anthropic:
+            needsSwitch = (qobject_cast<AnthropicProvider*>(m_provider) == nullptr);
+            break;
         }
         if (!needsSwitch)
             return;
@@ -196,6 +203,9 @@ void NetworkManager::ensureProvider(ApiType type)
         break;
     case ApiType::LlamaCpp:
         m_provider = new LlamaCppProvider(this);
+        break;
+    case ApiType::Anthropic:
+        m_provider = new AnthropicProvider(this);
         break;
     default:
         m_provider = new OpenAIProvider(this);

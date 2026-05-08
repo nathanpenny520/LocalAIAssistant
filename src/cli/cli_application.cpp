@@ -149,7 +149,7 @@ int CLIApplication::run(int argc, char *argv[])
     QCommandLineOption maxContextOpt(QStringList() << "max-context",
         "Set max context messages (1-100)", "value");
     QCommandLineOption apiTypeOpt(QStringList() << "api-type",
-        "Set API type (openai, ollama, llamacpp)", "type");
+        "Set API type (openai, ollama, llamacpp, anthropic)", "type");
 
     parser.addOption(sessionOpt);
     parser.addOption(newSessionOpt);
@@ -506,7 +506,8 @@ void CLIApplication::showConfig()
     QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
     std::cout << "API type: "
               << (apiTypeStr == "ollama" ? "Ollama" :
-                  apiTypeStr == "llamacpp" ? "llama.cpp" : "OpenAI-compatible")
+                  apiTypeStr == "llamacpp" ? "llama.cpp" :
+                  apiTypeStr == "anthropic" ? "Anthropic" : "OpenAI-compatible")
               << "\n";
     std::cout << "----------------------------------------\n";
     std::cout << "Model parameters:\n";
@@ -647,6 +648,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     ApiType apiType = ApiType::OpenAI;
     if (apiTypeStr == "ollama") apiType = ApiType::Ollama;
     else if (apiTypeStr == "llamacpp") apiType = ApiType::LlamaCpp;
+    else if (apiTypeStr == "anthropic") apiType = ApiType::Anthropic;
 
     if (parser.isSet("api-url")) {
         apiUrl = parser.value("api-url");
@@ -672,6 +674,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
         QString val = parser.value("api-type").toLower();
         if (val == "ollama") apiType = ApiType::Ollama;
         else if (val == "llamacpp") apiType = ApiType::LlamaCpp;
+        else if (val == "anthropic") apiType = ApiType::Anthropic;
         else apiType = ApiType::OpenAI;
         hasChanges = true;
     }

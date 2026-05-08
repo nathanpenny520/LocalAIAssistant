@@ -10,7 +10,8 @@
 enum class ApiType {
     OpenAI,
     Ollama,
-    LlamaCpp
+    LlamaCpp,
+    Anthropic
 };
 
 class ApiProvider;
