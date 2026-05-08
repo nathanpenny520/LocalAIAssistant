@@ -47,6 +47,24 @@ Gitee repo: https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **Async Import** — Background thread processing, non-blocking UI
 - **Memory Enhancement** — Cross-session memory extraction, semantic retrieval, context injection
 
+#### Known Limitation: Math PDF Support
+
+Math/formula-heavy PDFs (e.g., problem sets, academic papers) produce significantly worse search results than prose PDFs. Three compounding root causes:
+
+| Layer | File | Issue |
+|-------|------|-------|
+| **PDF Text Extraction** | `src/parsers/fileparser.cpp:111` | [Poppler](https://poppler.freedesktop.org)'s `page->text()` reads only the PDF text layer. Formulas rendered as vector graphics, embedded images, or fonts without Unicode mappings are completely lost (no OCR capability) |
+| **Text Chunking** | `src/knowledge/textchunker.cpp` | Paragraph splitting relies on `\n\n+` (double newlines), which math PDFs rarely produce; the fallback sentence splitter only recognizes `.?!。！？`, which math content lacks; token estimation treats math symbols as ~0.25 tokens (like ASCII letters), drastically undercounting, causing the entire document to fit in one oversized chunk |
+| **Embedding Model** | `src/knowledge/embedder.cpp` | `all-MiniLM-L6-v2` WordPiece vocabulary contains zero LaTeX commands (`\frac`, `\int`, `\sqrt`, etc. are all missing); the model was trained on natural language sentence similarity, not mathematical semantics |
+
+**Suitable knowledge base documents**: Business plans, technical docs, Markdown notes, tutorials, and other prose-heavy PDF/TXT/MD/DOCX files.
+
+**Future improvement directions**:
+- Add OCR (e.g., Tesseract) to recognize formulas from PDF image regions
+- Math-aware chunking strategies (split at section/equation boundaries, single-newline fallback)
+- Switch to a math-specialized embedding model (e.g., [MathBERT](https://github.com/tbs17/MathBERT)) or a multilingual model with LaTeX support
+- Fix token estimation for math symbols
+
 ### Task Execution Module 🔧
 - **Native File Operations** — Execute create/move/delete/copy/search files via Qt APIs, no shell dependency
 - **Cross-platform Shell Support** — Auto-detect available shell (Windows: pwsh→powershell→cmd, Unix: $SHELL→zsh→bash→sh)
