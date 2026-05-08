@@ -3,6 +3,7 @@
 #include "embedder.h"
 #include "docimporter.h"
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QtConcurrent>
 
@@ -151,8 +152,22 @@ QVector<SearchResult> KnowledgeBase::search(const QString &query, int topK) cons
 QString KnowledgeBase::generateContext(const QString &query, int topK) const
 {
     QVector<SearchResult> results = search(query, topK);
-    if (results.isEmpty())
-        return {};
+
+    if (results.isEmpty()) {
+        // No semantic match — tell AI what documents exist so it can guide the user
+        QStringList docs = allDocuments();
+        if (docs.isEmpty())
+            return {};
+
+        QString context;
+        context += tr("用户的知识库中有以下文档，但当前查询未匹配到具体内容：\n");
+        for (const auto &doc : docs) {
+            QFileInfo fi(doc);
+            context += QStringLiteral("- %1\n").arg(fi.fileName());
+        }
+        context += tr("\n如果用户的问题涉及这些文档，请告知用户相关文档名称，并建议具体提问方向。");
+        return context;
+    }
 
     // 构建检索到的文本块
     QString chunks;
@@ -175,13 +190,23 @@ QString KnowledgeBase::generateContext(const QString &query, int topK) const
 
 bool KnowledgeBase::isKnowledgeQuery(const QString &message)
 {
-    // 检测是否为需要检索知识库的查询
+    // Only trigger if knowledge base actually has content
+    if (instance()->totalDocuments() == 0)
+        return false;
+
     static const QStringList queryKeywords = {
-        QStringLiteral("根据文档"), QStringLiteral("知识库"), QStringLiteral("我之前导入"),
-        QStringLiteral("我的文档"), QStringLiteral("文档里"), QStringLiteral("查一下文档"),
-        QStringLiteral("参考文档"), QStringLiteral("根据资料"), QStringLiteral("搜索文档"),
-        QStringLiteral("based on the document"), QStringLiteral("my documents"),
-        QStringLiteral("knowledge base"), QStringLiteral("search my files"),
+        // Chinese — explicit knowledge base references
+        QStringLiteral("知识库"), QStringLiteral("导入的文档"), QStringLiteral("我的文档"),
+        QStringLiteral("文档里"), QStringLiteral("我导入"), QStringLiteral("之前上传"),
+        // Chinese — search / look up in documents
+        QStringLiteral("查一下文档"), QStringLiteral("搜一下"), QStringLiteral("搜索文档"),
+        QStringLiteral("找一下文档"), QStringLiteral("有没有关于"), QStringLiteral("资料里"),
+        // Chinese — document-based reasoning
+        QStringLiteral("根据文档"), QStringLiteral("根据资料"), QStringLiteral("参考文档"),
+        // English
+        QStringLiteral("knowledge base"), QStringLiteral("my documents"),
+        QStringLiteral("search my files"), QStringLiteral("look up in"),
+        QStringLiteral("based on the document"), QStringLiteral("imported doc"),
     };
 
     QString lower = message.toLower();
