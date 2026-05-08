@@ -25,7 +25,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     , m_apiUrlLine(new QLineEdit(this))
     , m_apiKeyLine(new QLineEdit(this))
     , m_modelNameLine(new QLineEdit(this))
-    , m_localModeCheckBox(new QCheckBox(tr("使用本地模式"), this))
     , m_apiTypeComboBox(new QComboBox(this))
     , m_themeComboBox(new QComboBox(this))
     , m_languageComboBox(new QComboBox(this))
@@ -41,7 +40,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     m_apiKeyLine->setEchoMode(QLineEdit::Password);
     m_apiKeyLine->setText(settings.value("apiKey", "").toString());
     m_modelNameLine->setText(settings.value("modelName", "local-model").toString());
-    m_localModeCheckBox->setChecked(settings.value("localMode", true).toBool());
     m_streamingCheckBox->setChecked(settings.value("streamingEnabled", true).toBool());
 
     m_themeComboBox->addItem(tr("跟随系统"), static_cast<int>(StyleSheetManager::SystemTheme));
@@ -76,8 +74,8 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     // API type combo box
     m_apiTypeComboBox->addItem(tr("OpenAI 兼容 (llama.cpp, vLLM 等)"), static_cast<int>(ApiType::OpenAI));
     m_apiTypeComboBox->addItem(QStringLiteral("Ollama"), static_cast<int>(ApiType::Ollama));
-    m_apiTypeComboBox->addItem(QStringLiteral("llama.cpp"), static_cast<int>(ApiType::LlamaCpp));
-    m_apiTypeComboBox->addItem(QStringLiteral("Anthropic"), static_cast<int>(ApiType::Anthropic));
+    m_apiTypeComboBox->addItem(tr("llama.cpp (本地 OpenAI 兼容)"), static_cast<int>(ApiType::LlamaCpp));
+    m_apiTypeComboBox->addItem(tr("Anthropic 兼容"), static_cast<int>(ApiType::Anthropic));
     QString savedApiType = settings.value("apiType", "openai").toString().toLower();
     if (savedApiType == "ollama")
         m_apiTypeComboBox->setCurrentIndex(1);
@@ -95,7 +93,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     apiLayout->addRow(tr("API 密钥:"), m_apiKeyLine);
     apiLayout->addRow(tr("模型名称:"), m_modelNameLine);
     apiLayout->addRow(tr("API 类型:"), m_apiTypeComboBox);
-    apiLayout->addRow(m_localModeCheckBox);
     apiLayout->addRow(m_streamingCheckBox);
 
     QGroupBox *appearanceGroup = new QGroupBox(tr("外观"), this);
@@ -295,7 +292,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
         settings.setValue("apiBaseUrl", m_apiUrlLine->text().trimmed());
         settings.setValue("apiKey", m_apiKeyLine->text());
         settings.setValue("modelName", m_modelNameLine->text());
-        settings.setValue("localMode", m_localModeCheckBox->isChecked());
         settings.setValue("apiType",
             m_apiTypeComboBox->currentData().toInt() == static_cast<int>(ApiType::Ollama) ? "ollama" :
             m_apiTypeComboBox->currentData().toInt() == static_cast<int>(ApiType::LlamaCpp) ? "llamacpp" :
@@ -412,11 +408,6 @@ QString SettingsDialog::getApiKey() const
 QString SettingsDialog::getModelName() const
 {
     return m_modelNameLine->text();
-}
-
-bool SettingsDialog::isLocalMode() const
-{
-    return m_localModeCheckBox->isChecked();
 }
 
 StyleSheetManager::Theme SettingsDialog::getTheme() const

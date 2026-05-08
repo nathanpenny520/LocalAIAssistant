@@ -92,8 +92,7 @@ Open settings from the menu bar or toolbar gear icon.
 | **API Base URL** | Your AI service endpoint (e.g., `https://api.openai.com`) |
 | **API Key** | Your authentication key |
 | **Model Name** | AI model to use (e.g., `gpt-4o`, `claude-sonnet-4-6`) |
-| **API Type** | Backend type: OpenAI-compatible (incl. llama.cpp, vLLM), Ollama, llama.cpp |
-| **Local Mode** | Optimized for local services (auto `http://`, skip auth) |
+| **API Type** | Backend: OpenAI-compatible, Ollama, llama.cpp (local OpenAI), Anthropic-compatible |
 | **Streaming** | Enable real-time token-by-token response |
 | **Theme** | Light / Dark / Follow System |
 | **Language** | Interface language (Chinese / English) |
@@ -132,7 +131,6 @@ Enter the **API URL**, **API Key**, and **Model Name** in Settings → General.
    - API URL: `http://127.0.0.1:11434`
    - API Type: `Ollama`
    - Model: `llama3`
-   - Local Mode: ✓ Enabled
 
 #### llama.cpp
 
@@ -141,11 +139,10 @@ Enter the **API URL**, **API Key**, and **Model Name** in Settings → General.
 3. Start the server: `llama-server -m model.gguf --port 8080`
 4. In Settings, set:
    - API URL: `http://127.0.0.1:8080`
-   - API Type: `llama.cpp` or `OpenAI-compatible`
+   - API Type: `llama.cpp (本地 OpenAI 兼容)`
    - Model: `local-model`
-   - Local Mode: ✓ Enabled
 
-> llama.cpp server is fully OpenAI-compatible (`/v1/chat/completions`), default port 8080. When <kbd>API Type</kbd> is left unset, the app auto-detects the backend via the URL port.
+> llama.cpp server uses the OpenAI-compatible protocol (`/v1/chat/completions`), default port 8080. The `llama.cpp` API type automatically sets local mode (HTTP, no auth).
 
 ---
 

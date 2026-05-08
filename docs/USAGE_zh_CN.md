@@ -92,8 +92,7 @@ build\LocalAIAssistant.exe --debug
 | **API 地址** | AI 服务端点（如 `https://api.openai.com`） |
 | **API 密钥** | 您的认证密钥 |
 | **模型名称** | 使用的 AI 模型（如 `gpt-4o`、`claude-sonnet-4-6`） |
-| **API 类型** | 选择后端类型：OpenAI 兼容（含 llama.cpp、vLLM）、Ollama、llama.cpp |
-| **本地模式** | 针对本地服务优化（自动 `http://`，跳过认证） |
+| **API 类型** | 选择后端：OpenAI 兼容、Ollama、llama.cpp (本地 OpenAI)、Anthropic 兼容 |
 | **流式输出** | 启用实时逐字回复 |
 | **主题** | 亮色 / 暗色 / 跟随系统 |
 | **语言** | 界面语言（中文 / English） |
@@ -132,7 +131,6 @@ build\LocalAIAssistant.exe --debug
    - API 地址：`http://127.0.0.1:11434`
    - API 类型：`Ollama`
    - 模型名：`llama3`
-   - 本地模式：✓ 启用
 
 #### llama.cpp
 
@@ -141,11 +139,10 @@ build\LocalAIAssistant.exe --debug
 3. 启动 server：`llama-server -m model.gguf --port 8080`
 4. 在设置中配置：
    - API 地址：`http://127.0.0.1:8080`
-   - API 类型：`llama.cpp` 或 `OpenAI 兼容`
+   - API 类型：`llama.cpp (本地 OpenAI 兼容)`
    - 模型名：`local-model`
-   - 本地模式：✓ 启用
 
-> llama.cpp server 完全兼容 OpenAI `/v1/chat/completions` 接口格式，默认端口为 8080。如省略 <kbd>API 类型</kbd> 设置，应用会通过 URL 端口自动检测后端类型。
+> llama.cpp server 使用 OpenAI 兼容协议 (`/v1/chat/completions`)，默认端口 8080。选择 `llama.cpp` 类型会自动启用本地模式（HTTP、无需认证）。
 
 ---
 

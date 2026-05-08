@@ -126,10 +126,6 @@ int CLIApplication::run(int argc, char *argv[])
         "Set API key", "key");
     QCommandLineOption modelOpt(QStringList() << "model",
         "Set model name", "name");
-    QCommandLineOption localModeOpt(QStringList() << "local",
-        "Use local mode");
-    QCommandLineOption externalModeOpt(QStringList() << "external",
-        "Use external API mode");
     QCommandLineOption showConfigOpt(QStringList() << "show-config",
         "Show current config");
     QCommandLineOption noStreamOpt(QStringList() << "no-stream",
@@ -159,8 +155,6 @@ int CLIApplication::run(int argc, char *argv[])
     parser.addOption(apiURLOpt);
     parser.addOption(apiKeyOpt);
     parser.addOption(modelOpt);
-    parser.addOption(localModeOpt);
-    parser.addOption(externalModeOpt);
     parser.addOption(showConfigOpt);
     parser.addOption(noStreamOpt);
     parser.addOption(temperatureOpt);
@@ -226,8 +220,6 @@ void CLIApplication::printUsage()
     std::cout << "  --api-url <url>            Set API base URL\n";
     std::cout << "  --api-key <key>            Set API key\n";
     std::cout << "  --model <name>             Set model name\n";
-    std::cout << "  --local                    Use local mode\n";
-    std::cout << "  --external                 Use external API mode\n";
     std::cout << "  --show-config              Show current config\n\n";
     std::cout << "Model parameter options:\n";
     std::cout << "  --temperature <value>      Set temperature (0.0-2.0)\n";
@@ -494,9 +486,6 @@ void CLIApplication::showConfig()
     QSettings settings("LocalAIAssistant", "Settings");
     std::cout << "\nCurrent config:\n";
     std::cout << "----------------------------------------\n";
-    std::cout << "Mode: "
-              << (settings.value("localMode", true).toBool() ? "Local mode" : "External API mode")
-              << "\n";
     std::cout << "API URL: "
               << settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString().toStdString()
               << "\n";
@@ -643,7 +632,6 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     QString apiUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString();
     QString apiKey = settings.value("apiKey", "").toString();
     QString modelName = settings.value("modelName", "local-model").toString();
-    bool isLocalMode = settings.value("localMode", true).toBool();
     QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
     ApiType apiType = ApiType::OpenAI;
     if (apiTypeStr == "ollama") apiType = ApiType::Ollama;
@@ -660,14 +648,6 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     }
     if (parser.isSet("model")) {
         modelName = parser.value("model");
-        hasChanges = true;
-    }
-    if (parser.isSet("local")) {
-        isLocalMode = true;
-        hasChanges = true;
-    }
-    if (parser.isSet("external")) {
-        isLocalMode = false;
         hasChanges = true;
     }
     if (parser.isSet("api-type")) {
@@ -729,7 +709,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
 
     // Update API settings first (triggers NetworkManager to save cached values)
     if (hasChanges) {
-        m_networkManager->updateSettings(apiUrl, apiKey, modelName, isLocalMode, apiType);
+        m_networkManager->updateSettings(apiUrl, apiKey, modelName, apiType);
     }
 
     // Then set model parameters (override NetworkManager saved old values)

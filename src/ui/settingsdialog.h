@@ -22,7 +22,6 @@ public:
     QString getApiBaseUrl() const;
     QString getApiKey() const;
     QString getModelName() const;
-    bool isLocalMode() const;
     StyleSheetManager::Theme getTheme() const;
     QString getLanguage() const;
     bool isStreamingEnabled() const;
@@ -40,7 +39,6 @@ private:
     QLineEdit *m_apiUrlLine;
     QLineEdit *m_apiKeyLine;
     QLineEdit *m_modelNameLine;
-    QCheckBox *m_localModeCheckBox;
     QComboBox *m_apiTypeComboBox;
     QComboBox *m_themeComboBox;
     QComboBox *m_languageComboBox;

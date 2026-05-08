@@ -898,7 +898,6 @@ void MainWindow::onSettingsClicked()
             dialog.getApiBaseUrl(),
             dialog.getApiKey(),
             dialog.getModelName(),
-            dialog.isLocalMode(),
             dialog.getApiType()
         );
         m_networkManager->setStreamingEnabled(dialog.isStreamingEnabled());

@@ -14,7 +14,6 @@ NetworkManager::NetworkManager(QObject *parent)
     , m_apiBaseUrl("http://127.0.0.1:8080")
     , m_apiKey()
     , m_modelName("local-model")
-    , m_isLocalMode(true)
     , m_temperature(0.4)
     , m_topP(1.0)
     , m_maxContext(20)
@@ -92,7 +91,7 @@ void NetworkManager::setApiType(ApiType type)
 // --- Settings ---
 
 void NetworkManager::updateSettings(const QString &apiBaseUrl, const QString &apiKey,
-                                    const QString &modelName, bool isLocalMode,
+                                    const QString &modelName,
                                     ApiType apiType)
 {
     // Auto-detect Ollama via port 11434 for backward compatibility
@@ -102,7 +101,6 @@ void NetworkManager::updateSettings(const QString &apiBaseUrl, const QString &ap
     m_apiBaseUrl = apiBaseUrl.trimmed();
     m_apiKey = apiKey.trimmed();
     m_modelName = modelName.trimmed();
-    m_isLocalMode = isLocalMode;
     m_apiType = apiType;
 
     saveSettings();
@@ -114,7 +112,6 @@ void NetworkManager::loadSettings()
 {
     QSettings settings("LocalAIAssistant", "Settings");
 
-    m_isLocalMode = settings.value("localMode", true).toBool();
     m_apiBaseUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString().trimmed();
     m_apiKey = settings.value("apiKey", "").toString().trimmed();
     m_modelName = settings.value("modelName", "local-model").toString().trimmed();
@@ -146,7 +143,6 @@ void NetworkManager::saveSettings()
 {
     QSettings settings("LocalAIAssistant", "Settings");
 
-    settings.setValue("localMode", m_isLocalMode);
     settings.setValue("apiBaseUrl", m_apiBaseUrl);
     settings.setValue("apiKey", m_apiKey);
     settings.setValue("modelName", m_modelName);
@@ -223,7 +219,6 @@ void NetworkManager::applySettingsToProvider()
     m_provider->setBaseUrl(m_apiBaseUrl);
     m_provider->setApiKey(m_apiKey);
     m_provider->setModelName(m_modelName);
-    m_provider->setIsLocalMode(m_isLocalMode);
     m_provider->setStreamingEnabled(m_streamingEnabled);
     m_provider->setTemperature(m_temperature);
     m_provider->setTopP(m_topP);

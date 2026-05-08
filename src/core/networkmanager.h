@@ -42,7 +42,7 @@ public slots:
     void sendChatRequest(const QString &userMessage);
     void sendChatRequestWithContext(const QVector<ChatMessage> &messages);
     void updateSettings(const QString &apiBaseUrl, const QString &apiKey,
-                        const QString &modelName, bool isLocalMode,
+                        const QString &modelName,
                         ApiType apiType = ApiType::OpenAI);
 
 private:
@@ -59,7 +59,6 @@ private:
     QString m_apiBaseUrl;
     QString m_apiKey;
     QString m_modelName;
-    bool m_isLocalMode;
     double m_temperature;
     double m_topP;
     int m_maxContext;
