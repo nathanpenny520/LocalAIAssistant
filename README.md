@@ -47,6 +47,24 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **异步导入** — 后台线程处理，不阻塞 UI 操作
 - **记忆增强** — 跨会话记忆提取、语义检索、上下文注入
 
+#### 已知局限性：数学 PDF 支持
+
+数学/公式密集型 PDF（如习题集、论文）的检索效果显著低于纯文本 PDF。原因来自三个环节的叠加：
+
+| 环节 | 文件 | 问题 |
+|------|------|------|
+| **PDF 文字提取** | `src/parsers/fileparser.cpp:111` | [Poppler](https://poppler.freedesktop.org) 的 `page->text()` 只读取 PDF 文字层。公式若以矢量图形、嵌入图片或缺少 Unicode 映射的字体渲染，则完全丢失（无 OCR 能力） |
+| **文本分块** | `src/knowledge/textchunker.cpp` | 段落拆分依赖 `\n\n+`（双换行），数学 PDF 很少产生这种分隔；回退的句子拆分仅识别 `.?!。！？`，数学内容缺少这些标点；Token 估算将数学符号按 0.25 token 计算（视为英文 ASCII），严重低估，导致整份文档被塞进一个超长块 |
+| **嵌入模型** | `src/knowledge/embedder.cpp` | `all-MiniLM-L6-v2` 的 WordPiece 词表不含任何 LaTeX 命令（`\frac`、`\int`、`\sqrt` 等均无）；模型在自然语言句子相似度任务上训练，不具备数学语义理解 |
+
+**适合的知识库文档**：商业计划书、技术文档、Markdown 笔记、教程等以自然语言为主的 PDF/TXT/MD/DOCX 文件。
+
+**未来改进方向**：
+- 引入 OCR（如 Tesseract）对 PDF 图片区域进行公式识别
+- 增加数学感知的分块策略（按章节/公式边界分割，单换行符回退）
+- 替换为数学专用嵌入模型（如 [MathBERT](https://github.com/tbs17/MathBERT)）或支持 LaTeX 的多语言模型
+- 对数学符号的 Token 估算进行修正
+
 ### 任务执行模块 🔧
 - **原生文件操作** — 通过 Qt API 直接执行创建/移动/删除/复制/搜索文件，无需依赖 shell
 - **跨平台 Shell 支持** — 自动检测可用 Shell（Windows: pwsh→powershell→cmd，Unix: $SHELL→zsh→bash→sh）
