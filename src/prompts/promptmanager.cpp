@@ -285,20 +285,24 @@ QString PromptManager::taskPrompt() const
                 "  \"requiresConfirmation\": true,\n"
                 "  \"operations\": [\n"
                 "    {\n"
-                "      \"type\": \"shell_command|shell_script|write_file|search_files\",\n"
-                "      \"command\": \"command to execute\",\n"
+                "      \"type\": \"shell_command|shell_script|create_dir|move_file|delete_file|copy_file|write_file|search_files\",\n"
+                "      \"command\": \"command or content\",\n"
+                "      \"source\": \"source path (move/copy/delete/search)\",\n"
+                "      \"target\": \"target path (create_dir/move/copy/write_file)\",\n"
                 "      \"workingDir\": \"working directory\",\n"
                 "      \"description\": \"what this step does\",\n"
                 "      \"timeout\": 30\n"
                 "    }\n"
                 "  ]\n"
                 "}\n\n"
+                "Prefer native types (create_dir/move_file/delete_file/copy_file/write_file/search_files) over shell commands.\n"
+                "Only use shell_command for tools like git/npm/brew.\n\n"
                 "Rules:\n"
                 "1. Use absolute paths, ~/ for home directory\n"
                 "2. description is required\n"
-                "3. Mark dangerous operations with requiresConfirmation: true\n"
+                "3. Delete operations auto-require confirmation\n"
                 "4. Never use sudo\n"
-                "5. Wrap paths with spaces in double quotes");
+                "5. Prefer native types over shell commands");
         } else {
             prompt = QStringLiteral(
                 "# 任务执行指令\n\n"
@@ -309,20 +313,24 @@ QString PromptManager::taskPrompt() const
                 "  \"requiresConfirmation\": true,\n"
                 "  \"operations\": [\n"
                 "    {\n"
-                "      \"type\": \"shell_command|shell_script|write_file|search_files\",\n"
-                "      \"command\": \"要执行的命令\",\n"
+                "      \"type\": \"shell_command|shell_script|create_dir|move_file|delete_file|copy_file|write_file|search_files\",\n"
+                "      \"command\": \"命令或文件内容\",\n"
+                "      \"source\": \"源路径（move/copy/delete/search）\",\n"
+                "      \"target\": \"目标路径（create_dir/move/copy/write_file）\",\n"
                 "      \"workingDir\": \"工作目录\",\n"
                 "      \"description\": \"这一步做什么\",\n"
                 "      \"timeout\": 30\n"
                 "    }\n"
                 "  ]\n"
                 "}\n\n"
+                "优先使用原生类型（create_dir/move_file/delete_file/copy_file/write_file/search_files），\n"
+                "它们跨平台、更安全。只在 git/npm/brew 等工具命令时使用 shell_command。\n\n"
                 "规则：\n"
                 "1. 使用绝对路径，~/ 表示主目录\n"
                 "2. description 必填\n"
-                "3. 危险操作标记 requiresConfirmation: true\n"
+                "3. 删除操作自动需要确认\n"
                 "4. 不用 sudo\n"
-                "5. 路径包含空格用双引号包裹");
+                "5. 优先原生类型而非 shell 命令");
         }
     }
     return prompt;

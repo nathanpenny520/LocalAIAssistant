@@ -25,6 +25,7 @@ void SafetyChecker::resetToDefaults()
     m_allowedPaths.clear();
     m_allowedPaths.append(QDir::homePath());
     m_allowedPaths.append(QDir::tempPath());
+    m_allowedPaths.append(QStringLiteral("/tmp"));
     m_allowedPaths.append(QDir::currentPath());
     m_allowedPaths.append(QStandardPaths::writableLocation(QStandardPaths::DesktopLocation));
     m_allowedPaths.append(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
@@ -459,16 +460,36 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString &command) const
     return paths;
 }
 
+static QString resolveCanonicalPath(const QString &path)
+{
+    // Resolve symlinks where possible. For non-existent paths,
+    // resolve the longest existing parent and append the rest.
+    QString clean = QDir::cleanPath(path);
+    QFileInfo fi(clean);
+    QString canonical = fi.canonicalFilePath();
+    if (!canonical.isEmpty())
+        return canonical;
+
+    // Path doesn't exist — walk up to find existing parent
+    QDir dir(clean);
+    QStringList missingParts;
+    while (!dir.exists() && !dir.isRoot()) {
+        missingParts.prepend(dir.dirName());
+        dir = QDir(QDir::cleanPath(dir.path() + QStringLiteral("/..")));
+    }
+    return QDir::cleanPath(dir.canonicalPath() + QStringLiteral("/") + missingParts.join(QStringLiteral("/")));
+}
+
 bool SafetyChecker::isPathSafe(const QString &path) const
 {
-    QString resolved = QDir::cleanPath(
+    QString resolved = resolveCanonicalPath(
         QFileInfo(path).isAbsolute()
             ? path
             : (QDir::currentPath() + QStringLiteral("/") + path));
 
     for (const auto &allowed : m_allowedPaths) {
-        QString allowedClean = QDir::cleanPath(allowed);
-        if (resolved.startsWith(allowedClean))
+        QString allowedResolved = resolveCanonicalPath(allowed);
+        if (resolved.startsWith(allowedResolved))
             return true;
     }
 

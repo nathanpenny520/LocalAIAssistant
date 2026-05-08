@@ -25,14 +25,15 @@ bool TaskEngine::isTaskRequest(const QString &message) const
     static const QStringList taskKeywords = {
         // 中文关键词
         QStringLiteral("整理"), QStringLiteral("移动"), QStringLiteral("重命名"),
-        QStringLiteral("删除文件"), QStringLiteral("复制"), QStringLiteral("搜索文件"),
-        QStringLiteral("创建文件夹"), QStringLiteral("新建文件夹"), QStringLiteral("打包"),
+        QStringLiteral("删除"), QStringLiteral("删除文件"), QStringLiteral("复制"), QStringLiteral("搜索文件"),
+        QStringLiteral("创建"), QStringLiteral("创建文件夹"), QStringLiteral("新建"), QStringLiteral("新建文件夹"),
+        QStringLiteral("写入"), QStringLiteral("打包"),
         QStringLiteral("批量"), QStringLiteral("清理"), QStringLiteral("归类"),
         QStringLiteral("整理文件"), QStringLiteral("移动文件"), QStringLiteral("按类型"),
         QStringLiteral("按日期"), QStringLiteral("修改文件"), QStringLiteral("替换"),
         QStringLiteral("安装"), QStringLiteral("下载"), QStringLiteral("编译"),
         QStringLiteral("运行"), QStringLiteral("执行"), QStringLiteral("终端"),
-        QStringLiteral("命令"), QStringLiteral("脚本"),
+        QStringLiteral("命令"), QStringLiteral("脚本"), QStringLiteral("帮我"),
         // 英文关键词
         QStringLiteral("organize"), QStringLiteral("move"), QStringLiteral("rename"),
         QStringLiteral("delete"), QStringLiteral("sort"), QStringLiteral("clean up"),
@@ -55,14 +56,25 @@ bool TaskEngine::isTaskRequest(const QString &message) const
 
 OperationPlan TaskEngine::parsePlanFromAIResponse(const QString &aiResponse) const
 {
+    // Extract content between [TASK_PLAN] ... [/TASK_PLAN]
     static QRegularExpression re(
-        QStringLiteral(R"(\[TASK_PLAN\]\s*(\{.*?\})\s*\[/TASK_PLAN\])"),
+        QStringLiteral(R"(\[TASK_PLAN\]\s*(.*?)\s*\[/TASK_PLAN\])"),
         QRegularExpression::DotMatchesEverythingOption);
 
     QRegularExpressionMatch match = re.match(aiResponse);
     if (match.hasMatch()) {
-        QString jsonStr = match.captured(1);
-        QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+        QString content = match.captured(1).trimmed();
+
+        // Strip markdown code fences if present (```json ... ```)
+        static QRegularExpression codeFence(
+            QStringLiteral("```(?:json)?\\s*(\\{.*?\\})\\s*```"),
+            QRegularExpression::DotMatchesEverythingOption);
+        QRegularExpressionMatch fenceMatch = codeFence.match(content);
+        if (fenceMatch.hasMatch()) {
+            content = fenceMatch.captured(1);
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(content.toUtf8());
         if (doc.isObject())
             return parsePlanFromJson(doc.object());
     }
