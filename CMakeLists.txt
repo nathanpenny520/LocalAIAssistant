@@ -502,6 +502,9 @@ if(APPLE)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
             ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/Resources/app.icns
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/resources/models
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant-CLI.app/Contents/Resources/models
         COMMENT "Creating CLI .app bundle with iTerm2 detection"
     )
 endif()
