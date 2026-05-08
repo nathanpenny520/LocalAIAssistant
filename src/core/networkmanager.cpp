@@ -78,6 +78,12 @@ void NetworkManager::setSystemPrompt(const QString &prompt)
         m_provider->setSystemPrompt(prompt);
 }
 
+void NetworkManager::setKnowledgeContext(const QString &context)
+{
+    if (m_provider)
+        m_provider->setKnowledgeContext(context);
+}
+
 void NetworkManager::setApiType(ApiType type)
 {
     if (m_apiType != type) {

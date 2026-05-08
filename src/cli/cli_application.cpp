@@ -20,6 +20,7 @@
 #include "networkmanager.h"
 #include "sessionmanager.h"
 #include "../tasks/taskengine.h"
+#include "../knowledge/knowledgebase.h"
 
 namespace {
 #ifdef Q_OS_WIN
@@ -93,6 +94,7 @@ int CLIApplication::run(int argc, char *argv[])
     m_networkManager = new NetworkManager(this);
     m_fileManager = new FileManager(this);
     m_taskEngine = TaskEngine::instance();
+    KnowledgeBase::instance()->init();
     connect(m_networkManager, &NetworkManager::responseReceived,
             this, &CLIApplication::onResponseReceived);
     connect(m_networkManager, &NetworkManager::errorOccurred,
@@ -358,6 +360,14 @@ void CLIApplication::readInput()
         std::cout << "\nAI is thinking..." << std::endl;
     }
 
+    // Search knowledge base for relevant context (injected into system prompt)
+    KnowledgeBase *kb = KnowledgeBase::instance();
+    if (kb->isReady()) {
+        QString context = kb->generateContext(qInput);
+        if (!context.isEmpty())
+            m_networkManager->setKnowledgeContext(context);
+    }
+
     // Build message list and send
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
 
@@ -545,6 +555,14 @@ int CLIApplication::runSingleQuery(QCoreApplication &app, const QString &query, 
     m_streamingContent.clear();
 
     QTimer::singleShot(0, [this, &query]() {
+        // Search knowledge base for relevant context (injected into system prompt)
+        KnowledgeBase *kb = KnowledgeBase::instance();
+        if (kb->isReady()) {
+            QString context = kb->generateContext(query);
+            if (!context.isEmpty())
+                m_networkManager->setKnowledgeContext(context);
+        }
+
         if (m_networkManager->isStreamingEnabled()) {
             std::cout << "AI: " << std::flush;
         }

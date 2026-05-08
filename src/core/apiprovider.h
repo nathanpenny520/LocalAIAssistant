@@ -30,6 +30,7 @@ public:
     void setApiKey(const QString &key);
     void setModelName(const QString &name);
     void setSystemPrompt(const QString &prompt);
+    void setKnowledgeContext(const QString &context);
     void setIsLocalMode(bool local);
     void setStreamingEnabled(bool enabled);
     bool isStreamingEnabled() const;
@@ -78,6 +79,7 @@ protected:
     QString m_apiKey;
     QString m_modelName;
     QString m_systemPrompt;
+    QString m_knowledgeContext;
     bool m_isLocalMode;
     bool m_streamingEnabled;
     double m_temperature;

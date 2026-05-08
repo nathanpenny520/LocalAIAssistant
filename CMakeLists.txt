@@ -315,11 +315,13 @@ target_include_directories(${PROJECT_NAME}-CLI PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/cli
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/knowledge
 )
 
 target_link_libraries(${PROJECT_NAME}-CLI PRIVATE
     LocalAIAssistantCore
     TaskModule
+    KnowledgeModule
 )
 
 # readline/libedit support for better input handling (especially for Chinese characters)

@@ -691,16 +691,12 @@ void MainWindow::onSendClicked()
         attachments = m_fileManager->pendingFiles();
     }
 
-    // 任务 prompt 已合并到 system prompt 中，无需在此注入
-    QString aiPrompt = userInput;
-
-    // 如果检测到知识库请求，注入检索上下文
+    // 检索知识库，将结果注入系统提示（而非用户消息），避免污染对话上下文
     KnowledgeBase *kb = KnowledgeBase::instance();
-    if (kb->isReady() && KnowledgeBase::isKnowledgeQuery(userInput)) {
+    if (kb->isReady()) {
         QString context = kb->generateContext(userInput);
-        if (!context.isEmpty()) {
-            aiPrompt = context + QLatin1String("\n\n") + tr("用户问题：") + aiPrompt;
-        }
+        if (!context.isEmpty())
+            m_networkManager->setKnowledgeContext(context);
     }
 
     // Suppress renderCurrentSession while we add the user message, so the
@@ -727,10 +723,7 @@ void MainWindow::onSendClicked()
 
     m_inputLine->clear();
 
-    // Build augmented messages for AI (inject task/knowledge prompts if needed)
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-    if (aiPrompt != userInput)
-        messages.last().content = aiPrompt;
 
     m_requestSessionId = SessionManager::instance()->currentSessionId();
     setInputEnabled(false);

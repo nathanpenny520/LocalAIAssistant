@@ -35,6 +35,11 @@ void ApiProvider::setBaseUrl(const QString &url) { m_baseUrl = url.trimmed(); }
 void ApiProvider::setApiKey(const QString &key) { m_apiKey = key.trimmed(); }
 void ApiProvider::setModelName(const QString &name) { m_modelName = name.trimmed(); }
 void ApiProvider::setSystemPrompt(const QString &prompt) { m_systemPrompt = prompt; }
+
+void ApiProvider::setKnowledgeContext(const QString &context)
+{
+    m_knowledgeContext = context;
+}
 void ApiProvider::setIsLocalMode(bool local) { m_isLocalMode = local; }
 
 void ApiProvider::setStreamingEnabled(bool enabled)
@@ -103,6 +108,14 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage> &messages)
         } else {
             m_systemPrompt = loadSystemPrompt();
         }
+    }
+
+    // Inject knowledge base context into system prompt with a descriptive preamble
+    if (!m_knowledgeContext.isEmpty()) {
+        m_systemPrompt += QStringLiteral("\n\n## 知识库参考内容\n\n")
+                          + QStringLiteral("以下是本地知识库中与用户问题相关的参考内容，供你回答用户问题时参考：\n\n")
+                          + m_knowledgeContext;
+        m_knowledgeContext.clear(); // one-shot, per-request
     }
 
     jsonPayload["messages"] = buildMessagesArray(messages);

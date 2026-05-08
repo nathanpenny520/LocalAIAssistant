@@ -27,6 +27,7 @@ public:
     bool isStreamingEnabled() const;
     void setStreamingEnabled(bool enabled);
     void setSystemPrompt(const QString &prompt);
+    void setKnowledgeContext(const QString &context);
     void abortCurrentRequest();
 
     ApiType apiType() const { return m_apiType; }
