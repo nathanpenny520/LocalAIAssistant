@@ -237,7 +237,11 @@ QJsonObject ApiProvider::buildBasePayload() const
 
 QString ApiProvider::loadSystemPrompt() const
 {
-    return PromptManager::instance()->systemPrompt();
+    QString prompt = PromptManager::instance()->systemPrompt();
+    QString task = PromptManager::instance()->taskPrompt();
+    if (!task.isEmpty())
+        prompt += QStringLiteral("\n\n") + task;
+    return prompt;
 }
 
 QJsonObject ApiProvider::buildTextContentBlock(const QString &text) const

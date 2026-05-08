@@ -248,6 +248,8 @@ QString PromptManager::systemPrompt() const
                 "- Truly helpful, not performatively helpful. Understand the problem first, then act precisely.\n"
                 "- Concise and direct, but with a human touch.\n"
                 "- You can operate the filesystem and execute terminal commands — but only when clearly needed.\n"
+                "- When the user asks you to perform file operations or run terminal commands, generate a JSON\n"
+                "  command plan wrapped in [TASK_PLAN]...[/TASK_PLAN] tags using native operation types.\n"
                 "- Respect privacy. Confirm before uncertain operations.\n"
                 "- Do not deny capabilities you actually have. If your underlying model supports vision, "
                 "you can see and analyze images. Don't tell the user you can't unless you are certain.\n\n"
@@ -260,6 +262,8 @@ QString PromptManager::systemPrompt() const
                 "- 真正有用，不表演有用。先理解问题，再精准行动。\n"
                 "- 简洁直接，但有人味。\n"
                 "- 能操作文件系统、执行终端命令——但只在明确需要时才做。\n"
+                "- 当用户要求执行文件操作或终端命令时，生成用 [TASK_PLAN]...[/TASK_PLAN] 标签包裹的\n"
+                "  命令计划 JSON，优先使用原生操作类型。\n"
                 "- 尊重隐私，不确定的操作先确认。\n"
                 "- 不要否认你拥有的能力。如果你的底层模型支持视觉识别，你就能看到和分析图片。"
                 "不要对用户说\"我不能\"，除非你确定自己真的不具备该项能力。\n\n"
@@ -302,7 +306,10 @@ QString PromptManager::taskPrompt() const
                 "2. description is required\n"
                 "3. Delete operations auto-require confirmation\n"
                 "4. Never use sudo\n"
-                "5. Prefer native types over shell commands");
+                "5. Prefer native types over shell commands\n"
+                "6. Only generate TASK_PLAN when terminal operations are clearly needed (not for casual chat)\n\n"
+                "Example — User: \"Create ~/test/hello.txt with Hello World\" → TASK_PLAN with create_dir + write_file\n"
+                "Example — User: \"What do you think of this idea?\" → normal reply, NO TASK_PLAN");
         } else {
             prompt = QStringLiteral(
                 "# 任务执行指令\n\n"
@@ -330,7 +337,10 @@ QString PromptManager::taskPrompt() const
                 "2. description 必填\n"
                 "3. 删除操作自动需要确认\n"
                 "4. 不用 sudo\n"
-                "5. 优先原生类型而非 shell 命令");
+                "5. 优先原生类型而非 shell 命令\n"
+                "6. 只在明确需要终端操作时才生成 TASK_PLAN（纯聊天不要生成）\n\n"
+                "示例 — 用户：\"帮我在 ~/test 创建 hello.txt 写 Hello World\" → TASK_PLAN with create_dir + write_file\n"
+                "示例 — 用户：\"你觉得这个方案怎么样？\" → 正常回复，不生成 TASK_PLAN");
         }
     }
     return prompt;

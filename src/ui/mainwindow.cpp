@@ -691,13 +691,10 @@ void MainWindow::onSendClicked()
         attachments = m_fileManager->pendingFiles();
     }
 
-    // 如果检测到任务请求，注入任务 prompt 模板（仅对 AI 可见）
+    // 任务 prompt 已合并到 system prompt 中，无需在此注入
     QString aiPrompt = userInput;
-    if (TaskEngine::instance()->isTaskRequest(userInput)) {
-        aiPrompt = userInput + TaskEngine::instance()->taskPromptTemplate();
-    }
 
-    // 如果检测到知识库请求，注入检索上下文（仅对 AI 可见）
+    // 如果检测到知识库请求，注入检索上下文
     KnowledgeBase *kb = KnowledgeBase::instance();
     if (kb->isReady() && KnowledgeBase::isKnowledgeQuery(userInput)) {
         QString context = kb->generateContext(userInput);

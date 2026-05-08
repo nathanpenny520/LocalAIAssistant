@@ -338,17 +338,11 @@ void CLIApplication::readInput()
         std::cout << "Sending message with " << attachments.size() << " file(s)" << std::endl;
     }
 
-    // Inject task prompt for task requests (same as GUI mainwindow.cpp:696-697)
-    QString finalInput = qInput;
-    if (m_taskEngine && m_taskEngine->isTaskRequest(qInput)) {
-        finalInput = qInput + m_taskEngine->taskPromptTemplate();
-    }
-
     // Save message with attachments
     if (attachments.isEmpty()) {
-        SessionManager::instance()->addMessageToCurrentSession("user", finalInput);
+        SessionManager::instance()->addMessageToCurrentSession("user", qInput);
     } else {
-        SessionManager::instance()->addMessageToCurrentSession("user", finalInput, attachments);
+        SessionManager::instance()->addMessageToCurrentSession("user", qInput, attachments);
         m_fileManager->clearPendingFiles();
     }
 
@@ -539,13 +533,7 @@ int CLIApplication::runSingleQuery(QCoreApplication &app, const QString &query, 
         SessionManager::instance()->createNewSession(singleQueryTitle);
     }
 
-    // Inject task prompt for task requests (same as GUI mainwindow.cpp:696-697)
-    QString finalQuery = query;
-    if (m_taskEngine && m_taskEngine->isTaskRequest(query)) {
-        finalQuery = query + m_taskEngine->taskPromptTemplate();
-    }
-
-    SessionManager::instance()->addMessageToCurrentSession("user", finalQuery);
+    SessionManager::instance()->addMessageToCurrentSession("user", query);
     m_running = true;
     m_isStreaming = false;
     m_streamingContent.clear();

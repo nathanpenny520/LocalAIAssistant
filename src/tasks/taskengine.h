@@ -17,9 +17,6 @@ class TaskEngine : public QObject
 public:
     static TaskEngine *instance();
 
-    // 检测是否为任务请求
-    bool isTaskRequest(const QString &message) const;
-
     // 从 AI 回复中解析操作计划 JSON
     // 期望 AI 返回格式: [TASK_PLAN] {...json...} [/TASK_PLAN]
     OperationPlan parsePlanFromAIResponse(const QString &aiResponse) const;
