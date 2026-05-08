@@ -6,7 +6,7 @@ When the user's question relates to previously imported documents, inject the re
 
 **Relevant Document Excerpts** (from user's knowledge base):
 
-{{chunks}}
+<<CHUNKS>>
 
 ---
 

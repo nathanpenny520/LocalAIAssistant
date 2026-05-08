@@ -183,7 +183,7 @@ QString KnowledgeBase::generateContext(const QString &query, int topK) const
     // 使用提示词模板包装
     QString template_ = PromptManager::instance()->knowledgePrompt();
     QString context = template_;
-    context.replace(QStringLiteral("{{chunks}}"), chunks.trimmed());
+    context.replace(QStringLiteral("<<CHUNKS>>"), chunks.trimmed());
 
     return context;
 }

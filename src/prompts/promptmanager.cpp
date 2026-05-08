@@ -421,12 +421,12 @@ QString PromptManager::knowledgePrompt() const
         if (lang == QStringLiteral("en")) {
             prompt = QStringLiteral(
                 "Relevant document excerpts (from user's knowledge base):\n\n"
-                "{{chunks}}\n\n"
+                "<<CHUNKS>>\n\n"
                 "Rules: cite document sources when quoting, never fabricate content not in the documents.");
         } else {
             prompt = QStringLiteral(
                 "相关文档片段（来自用户的知识库）：\n\n"
-                "{{chunks}}\n\n"
+                "<<CHUNKS>>\n\n"
                 "规则：引用文档时标注来源，不要编造文档中没有的内容。");
         }
     }
