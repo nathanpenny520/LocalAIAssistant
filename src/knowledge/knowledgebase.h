@@ -1,3 +1,7 @@
+/**
+ * @file knowledgebase.h
+ * @brief Document indexing, chunked knowledge retrieval, and AI context injection.
+ */
 #pragma once
 
 #ifndef KNOWLEDGEBASE_H

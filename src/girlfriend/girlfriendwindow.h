@@ -1,3 +1,7 @@
+/**
+ * @file girlfriendwindow.h
+ * @brief AI girlfriend main window: avatar display, voice interaction, personality, and memory.
+ */
 #pragma once
 
 #ifndef GIRLFRIENDWINDOW_H

@@ -1,3 +1,7 @@
+/**
+ * @file datamodels.h
+ * @brief Shared data structures for chat messages, sessions, file attachments, and shell operations.
+ */
 #pragma once
 
 #ifndef DATAMODELS_H

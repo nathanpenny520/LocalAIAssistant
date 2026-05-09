@@ -1,3 +1,8 @@
+/**
+ * @file networkmanager.h
+ * @brief Thin facade over ApiProvider subclasses (OpenAI, Ollama, LlamaCpp, Anthropic) for LLM API
+ * calls.
+ */
 #pragma once
 
 #ifndef NETWORKMANAGER_H

@@ -1,3 +1,7 @@
+/**
+ * @file operationplan.h
+ * @brief Data structures for planned shell and file operations with safety metadata.
+ */
 #pragma once
 
 #ifndef OPERATIONPLAN_H

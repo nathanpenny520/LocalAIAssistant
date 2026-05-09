@@ -1,3 +1,7 @@
+/**
+ * @file promptmanager.h
+ * @brief System, task, knowledge, and girlfriend prompt loading with locale-aware fallback.
+ */
 #pragma once
 
 #ifndef PROMPTMANAGER_H

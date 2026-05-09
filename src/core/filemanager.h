@@ -1,3 +1,7 @@
+/**
+ * @file filemanager.h
+ * @brief File I/O manager for attaching, reading, and managing files in chat sessions.
+ */
 #pragma once
 
 #ifndef FILEMANAGER_H

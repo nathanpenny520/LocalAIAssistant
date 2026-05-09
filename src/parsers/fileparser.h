@@ -1,3 +1,7 @@
+/**
+ * @file fileparser.h
+ * @brief Unified text/PDF/DOCX/image parsing with auto-detection and plain text extraction.
+ */
 #pragma once
 
 #ifndef FILEPARSER_H

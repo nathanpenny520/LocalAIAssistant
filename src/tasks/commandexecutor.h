@@ -1,3 +1,7 @@
+/**
+ * @file commandexecutor.h
+ * @brief Cross-platform command execution: native Qt file ops + shell commands with auto-detection.
+ */
 #pragma once
 
 #ifndef COMMANDEXECUTOR_H

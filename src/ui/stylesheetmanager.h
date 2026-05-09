@@ -1,3 +1,8 @@
+/**
+ * @file stylesheetmanager.h
+ * @brief Singleton that generates QSS stylesheets from AppTheme color tokens for the entire
+ * application.
+ */
 #pragma once
 
 #ifndef STYLESHEETMANAGER_H

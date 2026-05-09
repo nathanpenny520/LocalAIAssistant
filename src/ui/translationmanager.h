@@ -1,3 +1,7 @@
+/**
+ * @file translationmanager.h
+ * @brief Locale-aware i18n translation loader for Qt .ts files with auto-detection.
+ */
 #pragma once
 
 #ifndef TRANSLATIONMANAGER_H

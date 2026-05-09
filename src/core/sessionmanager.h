@@ -1,3 +1,7 @@
+/**
+ * @file sessionmanager.h
+ * @brief Chat session CRUD, JSON persistence, and session size limits with auto-truncation.
+ */
 #pragma once
 
 #ifndef SESSIONMANAGER_H

@@ -1,3 +1,8 @@
+/**
+ * @file apptheme.h
+ * @brief Semantic color token system (~40 tokens) for light/dark themes, single source of truth for
+ * UI colors.
+ */
 #pragma once
 
 #ifndef APPTHEME_H

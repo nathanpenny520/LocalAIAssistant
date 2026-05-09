@@ -1,3 +1,7 @@
+/**
+ * @file taskengine.h
+ * @brief AI response parsing, TASK_PLAN extraction, and multi-step plan execution orchestration.
+ */
 #pragma once
 
 #ifndef TASKENGINE_H
