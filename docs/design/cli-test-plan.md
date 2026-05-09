@@ -75,6 +75,12 @@ Verify that accessing non-whitelist or system paths triggers user confirmation.
 | 4.3 | `$BIN ask "Create file /etc/locai_test.conf with content 'test=1'. Use TASK_PLAN."` | `[WRITE] [SYSTEM PATH] /etc/locai_test.conf` shown. Write to system path. |
 | 4.4 | `$BIN ask "Create file /opt/locai_test.ini with content 'key=val'. Use TASK_PLAN."` | `[WRITE] [OUTSIDE WHITELIST] /opt/locai_test.ini` shown. Write outside whitelist. |
 
+> **Phase 4 testing note**: These tests only verify the confirmation prompt appears. Always type `n`
+> to cancel when prompted. If you accidentally confirm, cleanup with:
+> ```bash
+> sudo rm -f /etc/locai_test.conf /opt/locai_test.ini
+> ```
+
 ---
 
 ## Phase 5: Path Violation Responses
@@ -103,7 +109,13 @@ Verify that accessing non-whitelist or system paths triggers user confirmation.
 | # | Command (in `$BIN chat`) | Expected |
 |---|--------------------------|----------|
 | 5.10 | `List files in /etc/. Use TASK_PLAN.` → `p` → `/confirm` | `/etc/` is `persistentlyAllowPath()`-ed. Plan executes. Subsequent access to `/etc/` in same session auto-approved. |
-| 5.11 | `Write file /etc/test.txt with 'hello'. Use TASK_PLAN.` → `d` → `/confirm` | All paths set to DENY. `/confirm` applies choices (no paths allowed). Plan executes but path access blocked by SafetyChecker. |
+| 5.11 | `List files in /etc/. Use TASK_PLAN.` → `d` → `/confirm` | All paths set to DENY. `/confirm` applies choices (no paths allowed). Plan executes with `ls /etc/` (read-only, safe regardless of Deny enforcement). |
+
+> **Cleanup after Phase 5.10**: `persistentlyAllowPath("/etc/")` writes to QSettings. To reset,
+> find and delete `SafetyChecker/PersistentlyAllowedPaths` from the QSettings file:
+> - macOS: `~/Library/Preferences/LocalAIAssistant.plist` (NativeFormat) or
+>   `~/.config/LocalAIAssistant/Settings.conf` (IniFormat)
+> - Or simply remove and re-add `/etc/` in the GUI Settings → Security tab
 
 ---
 
