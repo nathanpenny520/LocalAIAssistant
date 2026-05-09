@@ -37,6 +37,8 @@ jobs:
 
       - name: Test
         run: cd build && ctest --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
 
       - name: Package
         if: success()
@@ -71,6 +73,8 @@ jobs:
 
       - name: Test
         run: cd build && ctest --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
 
       - name: Package
         if: success()
@@ -106,7 +110,9 @@ jobs:
         run: cmake --build build --parallel $env:NUMBER_OF_PROCESSORS --config Release
 
       - name: Test
-        run: cd build && ctest --output-on-failure -C Release
+        run: cd build && ctest --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen -C Release
 
       - name: Package
         if: success()
