@@ -58,7 +58,7 @@ struct AppTheme {
     QColor syntaxVariable;
 
     // ── Widget-specific
-    QColor disabledButtonBg;   // washed-out accent for disabled buttons
+    QColor disabledButtonBg;  // washed-out accent for disabled buttons
 
     // ── Girlfriend-specific (theme-independent pink accent)
     QColor girlfriendAccent;

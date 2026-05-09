@@ -3,21 +3,21 @@
 #ifndef SETTINGSDIALOG_H
 #define SETTINGSDIALOG_H
 
-#include <QDialog>
-#include <QLineEdit>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
-#include "stylesheetmanager.h"
-#include "networkmanager.h"
 
-class SettingsDialog : public QDialog
-{
+#include "networkmanager.h"
+#include "stylesheetmanager.h"
+
+class SettingsDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit SettingsDialog(QWidget *parent = nullptr);
+    explicit SettingsDialog(QWidget* parent = nullptr);
 
     QString getApiBaseUrl() const;
     QString getApiKey() const;
@@ -36,18 +36,18 @@ private slots:
     void showUsageHelp();
 
 private:
-    QLineEdit *m_apiUrlLine;
-    QLineEdit *m_apiKeyLine;
-    QLineEdit *m_modelNameLine;
-    QComboBox *m_apiTypeComboBox;
-    QComboBox *m_themeComboBox;
-    QComboBox *m_languageComboBox;
-    QCheckBox *m_streamingCheckBox;
-    QListWidget *m_kbDocList;
+    QLineEdit* m_apiUrlLine;
+    QLineEdit* m_apiKeyLine;
+    QLineEdit* m_modelNameLine;
+    QComboBox* m_apiTypeComboBox;
+    QComboBox* m_themeComboBox;
+    QComboBox* m_languageComboBox;
+    QCheckBox* m_streamingCheckBox;
+    QListWidget* m_kbDocList;
 
     // Security tab
-    QPlainTextEdit *m_pathWhitelistEdit;
-    QCheckBox *m_confirmOpsCheckBox;
+    QPlainTextEdit* m_pathWhitelistEdit;
+    QCheckBox* m_confirmOpsCheckBox;
 };
 
 #endif

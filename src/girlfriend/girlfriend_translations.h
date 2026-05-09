@@ -3,15 +3,14 @@
 #ifndef GIRLFRIEND_TRANSLATIONS_H
 #define GIRLFRIEND_TRANSLATIONS_H
 
-#include <QString>
 #include <QCoreApplication>
+#include <QString>
 
 /**
  * AI女友模块翻译辅助类
  * 统一管理所有需要翻译的字符串
  */
-class GTr
-{
+class GTr {
 public:
     // GirlfriendWindow 界面文本
     static QString windowTitle() {
@@ -178,15 +177,15 @@ public:
     }
 
     // VoiceManager 错误消息
-    static QString asrConnectionError(const QString &details) {
+    static QString asrConnectionError(const QString& details) {
         return tr("ASR connection error: %1").arg(details);
     }
 
-    static QString ttsErrorWithCode(int code, const QString &msg) {
+    static QString ttsErrorWithCode(int code, const QString& msg) {
         return tr("TTS error [%1]: %2").arg(code).arg(msg);
     }
 
-    static QString ttsConnectionError(const QString &details) {
+    static QString ttsConnectionError(const QString& details) {
         return tr("TTS connection error: %1").arg(details);
     }
 
@@ -216,7 +215,9 @@ public:
         return tr("Voice Configuration");
     }
     static QString voiceConfigDescription() {
-        return tr("Configure Xunfei (iFlytek) voice service credentials. Register at https://www.xfyun.cn to get your APP ID, API Key, and API Secret.");
+        return tr(
+                "Configure Xunfei (iFlytek) voice service credentials. Register at "
+                "https://www.xfyun.cn to get your APP ID, API Key, and API Secret.");
     }
     static QString voiceConfigAppId() {
         return tr("APP ID");
@@ -268,7 +269,7 @@ public:
     static QString deleteSessionConfirmTitle() {
         return tr("Delete Session");
     }
-    static QString deleteSessionConfirmMessage(const QString &name) {
+    static QString deleteSessionConfirmMessage(const QString& name) {
         return tr("Delete \"%1\"? This cannot be undone.").arg(name);
     }
     static QString currentSessionLabel() {
@@ -352,9 +353,9 @@ public:
     }
 
 private:
-    static QString tr(const char *text) {
+    static QString tr(const char* text) {
         return QCoreApplication::translate("GTr", text);
     }
 };
 
-#endif // GIRLFRIEND_TRANSLATIONS_H
+#endif  // GIRLFRIEND_TRANSLATIONS_H

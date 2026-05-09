@@ -3,65 +3,65 @@
 #ifndef GIRLFRIENDWINDOW_H
 #define GIRLFRIENDWINDOW_H
 
-#include <QWidget>
-#include <QVBoxLayout>
+#include <QCloseEvent>
+#include <QComboBox>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QPushButton>
-#include <QScrollArea>
-#include <QFrame>
-#include <QCloseEvent>
-#include <QResizeEvent>
 #include <QMenu>
-#include <QComboBox>
+#include <QPushButton>
+#include <QResizeEvent>
+#include <QScrollArea>
 #include <QTimer>
+#include <QVBoxLayout>
+#include <QWidget>
+
 #include "avatarwidget.h"
-#include "personalityengine.h"
+#include "datamodels.h"
 #include "girlfriendsession.h"
 #include "girlfriendsessionmanager.h"
 #include "girlfriendsettings.h"
 #include "memorymanager.h"
 #include "networkmanager.h"
-#include "datamodels.h"
+#include "personalityengine.h"
 #include "voicemanager.h"
 
-class GirlfriendWindow : public QWidget
-{
+class GirlfriendWindow : public QWidget {
     Q_OBJECT
 
 public:
-    explicit GirlfriendWindow(QWidget *parent = nullptr);
+    explicit GirlfriendWindow(QWidget* parent = nullptr);
     ~GirlfriendWindow();
 
 protected:
-    void closeEvent(QCloseEvent *event) override;
-    void resizeEvent(QResizeEvent *event) override;
-    void changeEvent(QEvent *event) override;
-    void showEvent(QShowEvent *event) override;  // 窗口显示时更新UI状态
+    void closeEvent(QCloseEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    void changeEvent(QEvent* event) override;
+    void showEvent(QShowEvent* event) override;  // 窗口显示时更新UI状态
 
 private:
-    void retranslateUi();  // 更新界面文字
+    void retranslateUi();        // 更新界面文字
     void updateOverlayLabels();  // 更新overlay上的情绪标签和mood bar
-    void applyTheme();  // 应用亮/暗主题
+    void applyTheme();           // 应用亮/暗主题
 
 private slots:
     void onSendClicked();
     void onVoiceClicked();
-    void onSettingsClicked();       // 设置按钮点击
+    void onSettingsClicked();  // 设置按钮点击
     void onClearClicked();
-    void onToggleVoiceOutput();     // 切换语音输出
-    void onStreamChunkReceived(const QString &chunk);
-    void onStreamFinished(const QString &fullContent);
-    void onNetworkError(const QString &error);
+    void onToggleVoiceOutput();  // 切换语音输出
+    void onStreamChunkReceived(const QString& chunk);
+    void onStreamFinished(const QString& fullContent);
+    void onNetworkError(const QString& error);
 
     // 语音相关槽函数
-    void onAsrPartialResult(const QString &text);     // ASR中间结果
-    void onAsrFinalResult(const QString &text);       // ASR最终结果
-    void onAsrError(const QString &error);
+    void onAsrPartialResult(const QString& text);  // ASR中间结果
+    void onAsrFinalResult(const QString& text);    // ASR最终结果
+    void onAsrError(const QString& error);
     void onSpeakingStarted();
     void onSpeakingFinished();
-    void onVoiceStatusChanged(const QString &status);
+    void onVoiceStatusChanged(const QString& status);
 
     // Settings menu slots
     void onSessionChanged(int index);
@@ -73,57 +73,56 @@ private slots:
     void onSettingsAvatarLevelChanged(AvatarLevel level);
     void onSettingsVideoSoundChanged(bool enabled);
     void onSettingsVoiceOutputChanged(bool enabled);
-    void onAvatarEmotionChanged(const QString &emotion);  // 情绪变化时更新overlay标签
-    void onAvatarMoodChanged(double mood);  // mood变化时更新overlay标签
+    void onAvatarEmotionChanged(const QString& emotion);  // 情绪变化时更新overlay标签
+    void onAvatarMoodChanged(double mood);                // mood变化时更新overlay标签
 
 private:
     void setupUI();
-    void addMessageBubble(const QString &role, const QString &content);
-    void updateStreamingBubble(const QString &content);  // 更新流式消息
+    void addMessageBubble(const QString& role, const QString& content);
+    void updateStreamingBubble(const QString& content);  // 更新流式消息
     void clearInput();
     void setInputEnabled(bool enabled);
-    void updateAvatarEmotion(const QString &text);
-    void loadSessionMessages();  // Load messages from current session
-    void clearChatUI();          // Clear all message bubbles
+    void updateAvatarEmotion(const QString& text);
+    void loadSessionMessages();      // Load messages from current session
+    void clearChatUI();              // Clear all message bubbles
     void updateOverlayVisibility();  // 根据头像等级更新overlay可见性
-    void showVoiceConfigDialog();   // 显示语音配置对话妰
+    void showVoiceConfigDialog();    // 显示语音配置对话妰
 
     // 流式思考过滤器
-    QString filterThinkingFromChunk(const QString &chunk);
-    bool m_inThinkBlock;            // 是否在思考块内
-    QString m_currentThinkTag;      // 当前思考块标签类型 (thinking/reasoning/think)
-    QString m_thinkFilterBuffer;    // 过滤器缓冲区
+    QString filterThinkingFromChunk(const QString& chunk);
+    bool m_inThinkBlock;          // 是否在思考块内
+    QString m_currentThinkTag;    // 当前思考块标签类型 (thinking/reasoning/think)
+    QString m_thinkFilterBuffer;  // 过滤器缓冲区
 
-    AvatarWidget *m_avatarWidget;
-    PersonalityEngine *m_personalityEngine;
-    MemoryManager *m_memoryManager;
-    NetworkManager *m_networkManager;
-    VoiceManager *m_voiceManager;      // 语音管理器
+    AvatarWidget* m_avatarWidget;
+    PersonalityEngine* m_personalityEngine;
+    MemoryManager* m_memoryManager;
+    NetworkManager* m_networkManager;
+    VoiceManager* m_voiceManager;  // 语音管理器
 
     // Overlay UI elements (在AvatarWidget之上，视频模式可见)
-    QLabel *m_overlayEmotionLabel;     // 情绪标签（GirlfriendWindow直接子widget）
-    QLabel *m_overlayMoodBarLabel;     // Mood进度条
-    QLabel *m_overlayMoodPercentLabel; // Mood百分比
-    QString m_currentOverlayEmotion;   // 当前情绪
-    double m_currentOverlayMood;       // 当前mood值
+    QLabel* m_overlayEmotionLabel;      // 情绪标签（GirlfriendWindow直接子widget）
+    QLabel* m_overlayMoodBarLabel;      // Mood进度条
+    QLabel* m_overlayMoodPercentLabel;  // Mood百分比
+    QString m_currentOverlayEmotion;    // 当前情绪
+    double m_currentOverlayMood;        // 当前mood值
 
-    QScrollArea *m_chatScrollArea;
-    QWidget *m_chatContainer;
-    QVBoxLayout *m_chatLayout;
+    QScrollArea* m_chatScrollArea;
+    QWidget* m_chatContainer;
+    QVBoxLayout* m_chatLayout;
 
-    QLineEdit *m_inputLine;
-    QPushButton *m_sendButton;
-    QPushButton *m_voiceButton;
-    QPushButton *m_settingsButton;  // 设置按钮（右上角）
-    QMenu *m_settingsMenu;          // 设置菜单
+    QLineEdit* m_inputLine;
+    QPushButton* m_sendButton;
+    QPushButton* m_voiceButton;
+    QPushButton* m_settingsButton;  // 设置按钮（右上角）
+    QMenu* m_settingsMenu;          // 设置菜单
 
     bool m_isStreaming;
     QString m_streamingContent;
-    QFrame *m_streamingBubble;      // 流式消息气泡
-    QLabel *m_streamingTextLabel;   // 流式消息文本标签
-    QString m_lastReplyText;        // 最后一条回复文本（用于TTS）
-    bool m_isDarkTheme = false;     // 当前是否为暗色主题
-
+    QFrame* m_streamingBubble;     // 流式消息气泡
+    QLabel* m_streamingTextLabel;  // 流式消息文本标签
+    QString m_lastReplyText;       // 最后一条回复文本（用于TTS）
+    bool m_isDarkTheme = false;    // 当前是否为暗色主题
 };
 
-#endif // GIRLFRIENDWINDOW_H
+#endif  // GIRLFRIENDWINDOW_H
