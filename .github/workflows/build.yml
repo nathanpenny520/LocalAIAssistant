@@ -44,7 +44,9 @@ jobs:
           brew install qt@6 poppler libzip pugixml ninja
 
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"
+        run:
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$(brew --prefix
+          qt@6)"
 
       - name: Build
         run: cmake --build build --parallel $(sysctl -n hw.logicalcpu)

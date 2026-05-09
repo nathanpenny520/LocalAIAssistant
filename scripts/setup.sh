@@ -68,7 +68,7 @@ echo ""
 missing_deps=()
 
 # Check CMake
-if command -v cmake &> /dev/null; then
+if command -v cmake &>/dev/null; then
     cmake_version=$(cmake --version | head -1)
     echo "  ✅ CMake: $cmake_version"
 else
@@ -86,15 +86,15 @@ fi
 # On Windows, MinGW g++ is NOT in PATH by default, need to search Qt Tools directory
 found_compiler=false
 
-if command -v g++ &> /dev/null; then
+if command -v g++ &>/dev/null; then
     gpp_version=$(g++ --version | head -1)
     echo "  ✅ Compiler: $gpp_version"
     found_compiler=true
-elif command -v clang++ &> /dev/null; then
+elif command -v clang++ &>/dev/null; then
     clang_version=$(clang++ --version | head -1)
     echo "  ✅ Compiler: $clang_version"
     found_compiler=true
-elif command -v cl &> /dev/null; then
+elif command -v cl &>/dev/null; then
     echo "  ✅ Compiler: MSVC cl"
     found_compiler=true
 fi
@@ -120,7 +120,7 @@ if [ "$found_compiler" = false ]; then
     echo "  ❌ C++ compiler not installed"
     echo "     Note: Qt Creator is an IDE, not a compiler"
     case "$OSTYPE" in
-        msys*|cygwin*|win32*)
+        msys* | cygwin* | win32*)
             echo "     Windows: Install MinGW Qt (includes g++) or Visual Studio"
             ;;
         darwin*)
@@ -148,42 +148,42 @@ if [ -d "$HOME/Qt" ]; then
         echo "  ⚠️  ~/Qt directory exists but no Qt versions found"
     fi
 # macOS/Linux: Check system package manager
-elif command -v qmake6 &> /dev/null || command -v qmake &> /dev/null; then
+elif command -v qmake6 &>/dev/null || command -v qmake &>/dev/null; then
     echo "  ✅ Qt installed (system package manager)"
     # Check Multimedia and WebSockets on Linux
     if [[ "$OSTYPE" == "linux"* ]]; then
         # Debian/Ubuntu (dpkg)
-        if command -v dpkg &> /dev/null; then
-            if dpkg -l qt6-multimedia-dev &> /dev/null 2>&1; then
+        if command -v dpkg &>/dev/null; then
+            if dpkg -l qt6-multimedia-dev &>/dev/null 2>&1; then
                 echo "  ✅ Multimedia module installed"
             else
                 echo "  ⚠️  Install qt6-multimedia-dev (required for voice)"
             fi
-            if dpkg -l qt6-websockets-dev &> /dev/null 2>&1; then
+            if dpkg -l qt6-websockets-dev &>/dev/null 2>&1; then
                 echo "  ✅ WebSockets module installed"
             else
                 echo "  ⚠️  Install qt6-websockets-dev (required for voice)"
             fi
         # Fedora/RHEL (rpm)
-        elif command -v rpm &> /dev/null; then
-            if rpm -q qt6-qtmultimedia-devel &> /dev/null 2>&1; then
+        elif command -v rpm &>/dev/null; then
+            if rpm -q qt6-qtmultimedia-devel &>/dev/null 2>&1; then
                 echo "  ✅ Multimedia module installed"
             else
                 echo "  ⚠️  Install qt6-qtmultimedia-devel (required for voice)"
             fi
-            if rpm -q qt6-qtwebsockets-devel &> /dev/null 2>&1; then
+            if rpm -q qt6-qtwebsockets-devel &>/dev/null 2>&1; then
                 echo "  ✅ WebSockets module installed"
             else
                 echo "  ⚠️  Install qt6-qtwebsockets-devel (required for voice)"
             fi
         # Arch Linux (pacman)
-        elif command -v pacman &> /dev/null; then
-            if pacman -Q qt6-multimedia &> /dev/null 2>&1; then
+        elif command -v pacman &>/dev/null; then
+            if pacman -Q qt6-multimedia &>/dev/null 2>&1; then
                 echo "  ✅ Multimedia module installed"
             else
                 echo "  ⚠️  Install qt6-multimedia (required for voice)"
             fi
-            if pacman -Q qt6-websockets &> /dev/null 2>&1; then
+            if pacman -Q qt6-websockets &>/dev/null 2>&1; then
                 echo "  ✅ WebSockets module installed"
             else
                 echo "  ⚠️  Install qt6-websockets (required for voice)"
@@ -237,12 +237,12 @@ fi
 echo ""
 echo "  Poppler (PDF support, optional):"
 poppler_installed=false
-if command -v pkg-config &> /dev/null && pkg-config --exists poppler-cpp 2>/dev/null; then
+if command -v pkg-config &>/dev/null && pkg-config --exists poppler-cpp 2>/dev/null; then
     echo "  ✅ Poppler installed"
     poppler_installed=true
 elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
     # Windows: Check MSYS2 poppler
-    if command -v pacman &> /dev/null && pacman -Q poppler &> /dev/null 2>&1; then
+    if command -v pacman &>/dev/null && pacman -Q poppler &>/dev/null 2>&1; then
         echo "  ✅ Poppler installed (MSYS2)"
         poppler_installed=true
     fi
@@ -257,7 +257,7 @@ fi
 echo ""
 echo "  libzip (DOCX support, optional):"
 libzip_installed=false
-if command -v pkg-config &> /dev/null && pkg-config --exists libzip 2>/dev/null; then
+if command -v pkg-config &>/dev/null && pkg-config --exists libzip 2>/dev/null; then
     echo "  ✅ libzip installed"
     libzip_installed=true
 elif [ -f "/usr/local/lib/libzip.dylib" ] || [ -f "/opt/homebrew/lib/libzip.dylib" ]; then
@@ -267,7 +267,7 @@ elif [ -f "/usr/lib/x86_64-linux-gnu/libzip.so" ] || [ -f "/usr/lib/libzip.so" ]
     echo "  ✅ libzip installed (system)"
     libzip_installed=true
 elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
-    if command -v pacman &> /dev/null && pacman -Q libzip &> /dev/null 2>&1; then
+    if command -v pacman &>/dev/null && pacman -Q libzip &>/dev/null 2>&1; then
         echo "  ✅ libzip installed (MSYS2)"
         libzip_installed=true
     fi
@@ -285,7 +285,7 @@ fi
 echo ""
 echo "  pugixml (DOCX/XML support, optional):"
 pugixml_installed=false
-if command -v pkg-config &> /dev/null && pkg-config --exists pugixml 2>/dev/null; then
+if command -v pkg-config &>/dev/null && pkg-config --exists pugixml 2>/dev/null; then
     echo "  ✅ pugixml installed"
     pugixml_installed=true
 elif [ -f "/usr/local/lib/libpugixml.dylib" ] || [ -f "/opt/homebrew/lib/libpugixml.dylib" ]; then
@@ -295,7 +295,7 @@ elif [ -f "/usr/lib/x86_64-linux-gnu/libpugixml.so" ] || [ -f "/usr/lib/libpugix
     echo "  ✅ pugixml installed (system)"
     pugixml_installed=true
 elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
-    if command -v pacman &> /dev/null && pacman -Q pugixml &> /dev/null 2>&1; then
+    if command -v pacman &>/dev/null && pacman -Q pugixml &>/dev/null 2>&1; then
         echo "  ✅ pugixml installed (MSYS2)"
         pugixml_installed=true
     fi
@@ -340,7 +340,7 @@ fi
 echo ""
 echo "  ONNX Runtime (embedding model, optional):"
 onnx_found=false
-if command -v pkg-config &> /dev/null && pkg-config --exists libonnxruntime 2>/dev/null; then
+if command -v pkg-config &>/dev/null && pkg-config --exists libonnxruntime 2>/dev/null; then
     echo "  ✅ ONNX Runtime installed"
     onnx_found=true
 elif [ -f "/usr/local/lib/libonnxruntime.so" ] || [ -f "/usr/lib/libonnxruntime.so" ]; then
@@ -402,16 +402,16 @@ if [ ${#missing_deps[@]} -gt 0 ]; then
         linux*)
             echo "  [Linux]"
             echo ""
-            if command -v apt &> /dev/null; then
+            if command -v apt &>/dev/null; then
                 echo "  Ubuntu/Debian:"
                 echo "     sudo apt update"
                 echo "     sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev"
                 echo "     Optional: sudo apt install libonnxruntime-dev libreadline-dev"
-            elif command -v dnf &> /dev/null; then
+            elif command -v dnf &>/dev/null; then
                 echo "  Fedora/RHEL:"
                 echo "     sudo dnf install gcc-c++ cmake qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwebsockets-devel poppler-cpp-devel libzip-devel pugixml-devel"
                 echo "     Optional: sudo dnf install onnxruntime-devel readline-devel"
-            elif command -v pacman &> /dev/null; then
+            elif command -v pacman &>/dev/null; then
                 echo "  Arch Linux:"
                 echo "     sudo pacman -S base-devel cmake qt6-base qt6-multimedia qt6-websockets poppler libzip pugixml"
                 echo "     Optional: sudo pacman -S onnxruntime readline"
@@ -428,7 +428,7 @@ if [ ${#missing_deps[@]} -gt 0 ]; then
             echo "     URL: https://www.qt.io/download"
             echo "     After install, run Maintenance Tool and select Multimedia + WebSockets"
             ;;
-        msys*|cygwin*|win32*)
+        msys* | cygwin* | win32*)
             echo "  [Windows]"
             echo ""
             echo "  Option 1: MinGW (recommended, no Visual Studio required)"
@@ -490,15 +490,15 @@ else
                 echo "  macOS: brew install poppler"
                 ;;
             linux*)
-                if command -v apt &> /dev/null; then
+                if command -v apt &>/dev/null; then
                     echo "  Ubuntu/Debian: sudo apt install libpoppler-cpp-dev"
-                elif command -v dnf &> /dev/null; then
+                elif command -v dnf &>/dev/null; then
                     echo "  Fedora/RHEL: sudo dnf install poppler-cpp-devel"
-                elif command -v pacman &> /dev/null; then
+                elif command -v pacman &>/dev/null; then
                     echo "  Arch Linux: sudo pacman -S poppler"
                 fi
                 ;;
-            msys*|cygwin*|win32*)
+            msys* | cygwin* | win32*)
                 echo "  Windows: Install MSYS2 then run pacman -S poppler"
                 echo "  URL: https://www.msys2.org"
                 ;;

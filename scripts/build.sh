@@ -60,10 +60,10 @@ pause_if_interactive() {
 
 detect_platform() {
     case "$OSTYPE" in
-        darwin*)  PLATFORM="macos" ;;
-        linux*)   PLATFORM="linux" ;;
-        msys*|cygwin*|win32*) PLATFORM="windows" ;;
-        *)        PLATFORM="unknown" ;;
+        darwin*) PLATFORM="macos" ;;
+        linux*) PLATFORM="linux" ;;
+        msys* | cygwin* | win32*) PLATFORM="windows" ;;
+        *) PLATFORM="unknown" ;;
     esac
     echo "  Platform: $PLATFORM"
 }
@@ -85,7 +85,7 @@ detect_qt_path() {
         fi
 
         # macOS: Homebrew
-        if command -v brew &> /dev/null; then
+        if command -v brew &>/dev/null; then
             BREW_QT=$(brew --prefix qt@6 2>/dev/null)
             if [ -d "$BREW_QT" ]; then
                 QT_PATH="$BREW_QT"
@@ -109,7 +109,7 @@ detect_qt_path() {
         fi
 
         # Linux: System Qt
-        if command -v qmake6 &> /dev/null; then
+        if command -v qmake6 &>/dev/null; then
             QT_PATH=$(qmake6 -query QT_INSTALL_PREFIX 2>/dev/null)
             if [ -d "$QT_PATH" ]; then
                 echo "  Detected system Qt: $QT_PATH"
@@ -117,7 +117,7 @@ detect_qt_path() {
             fi
         fi
 
-        if command -v qmake &> /dev/null; then
+        if command -v qmake &>/dev/null; then
             QT_VERSION_QUERY=$(qmake -query QT_VERSION 2>/dev/null)
             if [[ "$QT_VERSION_QUERY" == 6* ]]; then
                 QT_PATH=$(qmake -query QT_INSTALL_PREFIX 2>/dev/null)
@@ -158,7 +158,7 @@ detect_qt_path() {
         # Qt library directories use: mingw_64, msvc2019_64, msvc2022_64
         # MinGW compiler tools are in: C:\Qt\Tools\mingw1310_64\ (separate from Qt lib)
         local qt_versions=("6.11.0" "6.10.2" "6.10.1" "6.10.0" "6.9.2" "6.9.1" "6.9.0" "6.8.2" "6.8.1" "6.8.0" "6.7.3" "6.7.2" "6.7.1" "6.7.0")
-        local qt_compilers=("mingw_64" "msvc2019_64" "msvc2022_64")  # Qt library directories
+        local qt_compilers=("mingw_64" "msvc2019_64" "msvc2022_64") # Qt library directories
         local drives=("C:" "D:" "E:")
 
         for drive in "${drives[@]}"; do
@@ -168,7 +168,7 @@ detect_qt_path() {
                     local win_path="$drive/Qt/$version/$compiler"
                     # Use cygpath if available, otherwise manual conversion
                     local unix_path=""
-                    if command -v cygpath &> /dev/null; then
+                    if command -v cygpath &>/dev/null; then
                         unix_path=$(cygpath -u "$win_path" 2>/dev/null)
                     else
                         # Manual conversion: C:/Qt -> /c/Qt (Git Bash format)
@@ -242,10 +242,10 @@ setup_windows_path() {
     fi
 
     # Verify compiler is now available
-    if command -v g++ &> /dev/null; then
+    if command -v g++ &>/dev/null; then
         local gpp_path=$(command -v g++)
         echo "  OK Compiler: g++ at $gpp_path"
-    elif command -v cl &> /dev/null; then
+    elif command -v cl &>/dev/null; then
         echo "  OK Compiler: MSVC cl"
     else
         echo "  Warning: No C++ compiler found in PATH"
@@ -263,7 +263,7 @@ check_dependencies() {
 
     echo "Checking dependencies..."
 
-    if ! command -v cmake &> /dev/null; then
+    if ! command -v cmake &>/dev/null; then
         missing_deps+=("cmake")
     else
         echo "  OK CMake: $(cmake --version | head -1)"
@@ -272,18 +272,18 @@ check_dependencies() {
     # Check compiler based on platform
     if [[ "$PLATFORM" == "windows" ]]; then
         # Windows: check for MinGW or MSVC (via cmake)
-        if ! command -v g++ &> /dev/null && ! command -v cl &> /dev/null; then
+        if ! command -v g++ &>/dev/null && ! command -v cl &>/dev/null; then
             missing_deps+=("C++ compiler (MinGW g++ or MSVC cl)")
         else
-            local compiler=$(command -v g++ &> /dev/null && echo "g++" || echo "MSVC cl")
+            local compiler=$(command -v g++ &>/dev/null && echo "g++" || echo "MSVC cl")
             echo "  OK Compiler: $compiler"
         fi
     else
         # macOS/Linux
-        if ! command -v g++ &> /dev/null && ! command -v clang++ &> /dev/null; then
+        if ! command -v g++ &>/dev/null && ! command -v clang++ &>/dev/null; then
             missing_deps+=("C++ compiler (g++ or clang++)")
         else
-            local compiler=$(command -v g++ &> /dev/null && echo "g++" || echo "clang++")
+            local compiler=$(command -v g++ &>/dev/null && echo "g++" || echo "clang++")
             echo "  OK Compiler: $compiler"
         fi
     fi
@@ -683,7 +683,7 @@ package_windows() {
     echo "[2/2] Creating zip archive..."
 
     cd "$release_dir"
-    if command -v zip &> /dev/null; then
+    if command -v zip &>/dev/null; then
         zip -rq "$zip_name" "LocalAIAssistant"
         echo "  === Windows package created ==="
         echo "  $release_dir/$zip_name"
@@ -770,7 +770,7 @@ package_linux() {
     fi
 
     # Create install script
-    cat > "$staging/install.sh" << 'INSTALL_SCRIPT'
+    cat >"$staging/install.sh" <<'INSTALL_SCRIPT'
 #!/bin/bash
 INSTALL_DIR="$HOME/.local"
 echo "Installing LocalAIAssistant..."
@@ -895,7 +895,7 @@ prompt_open_program() {
 
 run_program() {
     local target="$1"
-    local cli_mode="$2"  # "chat" or "help"
+    local cli_mode="$2" # "chat" or "help"
 
     echo ""
     echo "Opening $target..."
@@ -1030,7 +1030,7 @@ cmd_run() {
 
     # Determine target
     local target=""
-    local cli_mode="chat"  # Default to chat mode
+    local cli_mode="chat" # Default to chat mode
 
     if [ "$CLI_HELP_ONLY" = true ]; then
         cli_mode="help"
@@ -1059,7 +1059,7 @@ parse_args() {
     # First argument might be a command
     if [[ $# -gt 0 ]]; then
         case $1 in
-            build|run|test|help|package)
+            build | run | test | help | package)
                 COMMAND="$1"
                 shift
                 ;;
@@ -1068,31 +1068,31 @@ parse_args() {
 
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -h|--help)
+            -h | --help)
                 COMMAND="help"
                 shift
                 ;;
-            -c|--clean)
+            -c | --clean)
                 CLEAN_BUILD=true
                 shift
                 ;;
-            -d|--debug)
+            -d | --debug)
                 BUILD_TYPE="Debug"
                 shift
                 ;;
-            -r|--release)
+            -r | --release)
                 BUILD_TYPE="Release"
                 shift
                 ;;
-            -v|--verbose)
+            -v | --verbose)
                 VERBOSE=true
                 shift
                 ;;
-            -j|--jobs)
+            -j | --jobs)
                 JOBS="$2"
                 shift 2
                 ;;
-            -q|--qt-path)
+            -q | --qt-path)
                 QT_PATH="$2"
                 shift 2
                 ;;
@@ -1100,7 +1100,7 @@ parse_args() {
                 NO_RUN_PROMPT=true
                 shift
                 ;;
-            -p|--package)
+            -p | --package)
                 PACKAGE=true
                 shift
                 ;;
@@ -1116,7 +1116,7 @@ parse_args() {
                 CLI_HELP_ONLY=true
                 shift
                 ;;
-            LocalAIAssistant|LocalAIAssistant-CLI|all)
+            LocalAIAssistant | LocalAIAssistant-CLI | all)
                 TARGET="$1"
                 shift
                 ;;
@@ -1139,7 +1139,7 @@ parse_args() {
 # ============================================================
 
 show_help() {
-    cat << EOF
+    cat <<EOF
 LocalAIAssistant - Unified Cross-Platform Build Script
 
 Usage: ./build.sh [command] [options] [target]

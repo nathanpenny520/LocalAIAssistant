@@ -18,12 +18,14 @@ cmake --build build --parallel 4                    # Fast build (preferred)
 ./scripts/build.sh build -p                         # Package (DMG/zip)
 ```
 
-**Note**: `build.sh` has an interactive prompt (line 870). Use `--no-run`, `--gui`, or `--cli` to skip it. Prefer `cmake --build` for non-interactive use.
+**Note**: `build.sh` has an interactive prompt (line 870). Use `--no-run`, `--gui`, or `--cli` to
+skip it. Prefer `cmake --build` for non-interactive use.
 
 ## Git Workflow
 
 - Commit after every change. Never accumulate unrelated edits.
-- Format: `type(scope): brief description`  (types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`)
+- Format: `type(scope): brief description` (types: `feat`, `fix`, `refactor`, `docs`, `test`,
+  `chore`)
 - Commit locally first, push only after verifying `cmake --build` succeeds.
 - Rollback: `git reset --soft HEAD~1` (keep changes) or `--hard` (discard).
 - Always use: `git -C /Users/nathanpenny/Projects/locai/sourcecode-ai-assistant <cmd>`
@@ -42,29 +44,41 @@ LocalAIAssistantCore  (src/core/, src/prompts/)   — network, sessions, file I/
             └── LocalAIAssistant (GUI, src/ui/main.cpp → MainWindow)
 ```
 
-- **Core**: `NetworkManager` (OpenAI/Ollama/LlamaCpp/Anthropic APIs via Provider pattern), `SessionManager` (JSON persistence), `FileManager`, `PromptManager`
-- **TaskModule**: `TaskEngine` (AI response parsing, TASK_PLAN extraction), `CommandExecutor` (native file ops via Qt + shell commands with auto-detection), `SafetyChecker` (cross-platform dangerous command/path validation), `OperationUndo`. Task prompt merged into system prompt — AI self-judges when to generate TASK_PLAN. All plans require user confirmation before execution (CLI: `/confirm` or inline `[Y/n]`, GUI: dialog). `--yes` flag auto-confirms for scripting.
-- **GirlfriendModule** (single-file `girlfriendwindow.cpp`, 1,937 lines — split deferred per ROADMAP)
+- **Core**: `NetworkManager` (OpenAI/Ollama/LlamaCpp/Anthropic APIs via Provider pattern),
+  `SessionManager` (JSON persistence), `FileManager`, `PromptManager`
+- **TaskModule**: `TaskEngine` (AI response parsing, TASK_PLAN extraction), `CommandExecutor`
+  (native file ops via Qt + shell commands with auto-detection), `SafetyChecker` (cross-platform
+  dangerous command/path validation), `OperationUndo`. Task prompt merged into system prompt — AI
+  self-judges when to generate TASK_PLAN. All plans require user confirmation before execution (CLI:
+  `/confirm` or inline `[Y/n]`, GUI: dialog). `--yes` flag auto-confirms for scripting.
+- **GirlfriendModule** (single-file `girlfriendwindow.cpp`, 1,937 lines — split deferred per
+  ROADMAP)
 - **CLI**: links Core + TaskModule only (no Girlfriend, no Knowledge)
 - **GUI**: links GirlfriendModule → transitively pulls in Core
 - Settings: `QSettings("LocalAIAssistant", "Settings")`
-- **UI Theme**: `AppTheme` color token system (`src/ui/apptheme.h`) — light/dark themes with ~40 semantic color tokens. `StyleSheetManager` (singleton) generates QSS from tokens. `MarkdownRenderer::toHtml()` renders markdown theme-aware without requiring a theme parameter.
+- **UI Theme**: `AppTheme` color token system (`src/ui/apptheme.h`) — light/dark themes with ~40
+  semantic color tokens. `StyleSheetManager` (singleton) generates QSS from tokens.
+  `MarkdownRenderer::toHtml()` renders markdown theme-aware without requiring a theme parameter.
 
 ## Code Standards
 
 ### File & Function Size
+
 - **Files ≤ 500 lines** (see ROADMAP.md for current violations)
 - **Functions ≤ 50 lines** — extract private helpers aggressively
 - One class / one concern per file. Qt signals/slots for cross-object communication.
 
 ### Naming & Style
+
 - Files: `snake_case.cpp/h` | Types: `PascalCase` | Variables: `snake_case`, members `m_`
 - Functions: `PascalCase` | Constants: `kPascalCase` or `ALL_CAPS`
 - Include order: related header → C std → C++ std → Qt → other libs → project headers
 - Run `clang-format -i <file>` before commit. CMake: `cmake-format -i CMakeLists.txt`.
 
 ### Comments
-- English only. Headers: Doxygen (`@brief`, `@param`, `@return`). Implementation: explain WHY, not WHAT.
+
+- English only. Headers: Doxygen (`@brief`, `@param`, `@return`). Implementation: explain WHY, not
+  WHAT.
 - Tags: `// TODO(name):`, `// FIXME:`, `// HACK:`
 
 ## Testing
@@ -76,11 +90,13 @@ LocalAIAssistantCore  (src/core/, src/prompts/)   — network, sessions, file I/
 
 ## Roadmap
 
-See `ROADMAP.md` for full refactoring plan, priority order, known issues, and verification checklist.
+See `ROADMAP.md` for full refactoring plan, priority order, known issues, and verification
+checklist.
 
 ## Documentation Maintenance
 
 After every major fix or feature, update these docs if the changes affect them:
+
 - **ROADMAP.md** — mark completed items, update line counts, add new findings
 - **USAGE.md / USAGE_zh_CN.md** — if UI or user-facing behavior changed
 - **README.md / README_EN.md** — if features, build steps, or config changed
