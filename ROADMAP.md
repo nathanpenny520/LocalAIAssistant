@@ -115,11 +115,12 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 **风险**: 低（添加缺失的资源复制）  
 **重要性**: 中（功能完整性）
 
-- [x] Add `docs/`, `AIGirlfriend/`, `girlfriend/` to WIN32 `install()` block
-- [x] Add `${PROJECT_NAME}-CLI` to WIN32 `install(TARGETS ...)`
+- [x] WIN32 `docs/` POST_BUILD copy — already done in Phase 2.1 (commit `9ce1faf`)
+- [x] Linux `docs/` POST_BUILD copy — added (was missing, caused help docs to not display)
+- [x] WIN32 `install()` block: add `docs/`, `AIGirlfriend/`, `girlfriend/`, `${PROJECT_NAME}-CLI`
 - [x] `AIGirlfriend` for CLI: **不需要** — CLI 不链接 GirlfriendModule，无法显示图片
 
-**收益**: Windows 打包分发时资源完整，帮助文档可正常显示
+**收益**: 三平台 build 目录 + install 打包时资源完整，帮助文档可正常显示
 
 ---
 
