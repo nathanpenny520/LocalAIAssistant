@@ -105,7 +105,7 @@ static QString buildStyleSheet(const AppTheme& t)
         "  outline: none;"
         "}"
         "QListWidget::item {"
-        "  padding: 10px 12px;"
+        "  padding: 10px 4px;"
         "  border-radius: 6px;"
         "  margin: 2px 0;"
         "}"

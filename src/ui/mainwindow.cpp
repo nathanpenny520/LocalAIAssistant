@@ -29,6 +29,10 @@
 #include <QTextCharFormat>
 #include <QPalette>
 
+namespace {
+    constexpr int kSidebarWidth = 220;
+}
+
 // Parse thinking content from AI response
 // Returns a map with "thinking" and "response" keys
 QMap<QString, QString> MainWindow::parseThinkingContent(const QString &content)
@@ -311,7 +315,7 @@ void MainWindow::setupUI()
     m_fileButton->setFixedSize(40, 30);
     m_fileButton->setToolTip(tr("添加文件"));
 
-    m_splitter->setSizes({200, 580});
+    m_splitter->setSizes({kSidebarWidth, 580});
 
     QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -599,7 +603,7 @@ void MainWindow::updateSessionList()
         titleLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
         titleLabel->setWordWrap(false);
         titleLabel->setTextFormat(Qt::PlainText);
-        titleLabel->setMaximumWidth(140);
+        titleLabel->setMaximumWidth(130);
 
         if (session.pinned) {
             QFont f = titleLabel->font();
@@ -902,7 +906,7 @@ void MainWindow::onToggleHistoryPanel()
 
     // 如果面板当前隐藏（宽度为最小宽度），则恢复到正常宽度
     if (m_leftPanel->width() <= m_leftPanel->minimumWidth()) {
-        m_splitter->setSizes({180, m_splitter->width() - 180});
+        m_splitter->setSizes({kSidebarWidth, m_splitter->width() - kSidebarWidth});
         m_toggleHistoryAction->setChecked(true);
     } else {
         // 隐藏面板（设置为最小宽度）
