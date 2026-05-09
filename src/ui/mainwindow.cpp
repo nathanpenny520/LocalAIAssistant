@@ -30,7 +30,7 @@
 #include <QPalette>
 
 namespace {
-    constexpr int kSidebarWidth = 220;
+    constexpr int kSidebarWidth = 200;
 }
 
 // Parse thinking content from AI response
@@ -279,6 +279,7 @@ void MainWindow::setupUI()
     leftLayout->addWidget(m_newChatButton);
     leftLayout->addWidget(m_historyList);
     m_historyList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_historyList->setToolTip(tr("Right-click a session for more options"));
 
     // 设置左侧面板最小宽度，防止完全关闭
     m_leftPanel->setMinimumWidth(140);
@@ -589,12 +590,12 @@ void MainWindow::updateSessionList()
         item->setData(Qt::UserRole, session.id);
         item->setSizeHint(QSize(0, 44));
 
-        // Custom widget: [pin icon] title  ⋮
+        // Custom widget: [pin icon] title
         QWidget *itemWidget = new QWidget();
         itemWidget->setStyleSheet(QStringLiteral("background: transparent;"));
         itemWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         QHBoxLayout *layout = new QHBoxLayout(itemWidget);
-        layout->setContentsMargins(6, 1, 8, 1);
+        layout->setContentsMargins(6, 1, 4, 1);
         layout->setSpacing(4);
 
         QString displayTitle = session.title.isEmpty() ? tr("新对话") : session.title;
@@ -603,7 +604,6 @@ void MainWindow::updateSessionList()
         titleLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
         titleLabel->setWordWrap(false);
         titleLabel->setTextFormat(Qt::PlainText);
-        titleLabel->setMaximumWidth(130);
 
         if (session.pinned) {
             QFont f = titleLabel->font();
@@ -613,22 +613,7 @@ void MainWindow::updateSessionList()
             titleLabel->setText(QStringLiteral("📌 ") + displayTitle);
         }
 
-        QPushButton *menuBtn = new QPushButton(QStringLiteral("⋮"));
-        menuBtn->setFixedSize(28, 28);
-        menuBtn->setCursor(Qt::PointingHandCursor);
-        menuBtn->setToolTip(tr("更多操作"));
-        menuBtn->setStyleSheet(
-            QStringLiteral("QPushButton { border: 1px solid %1; border-radius: 4px; background: transparent; color: %2; font-size: 18px; font-weight: bold; }"
-                           "QPushButton:hover { background: %3; color: %2; border-color: %4; }")
-                .arg(theme.border.name(), theme.textPrimary.name(), theme.hoverBg.name(), theme.textDisabled.name()));
-
-        QString sid = session.id;
-        connect(menuBtn, &QPushButton::clicked, this, [this, sid]() {
-            onSessionMenuButtonClicked(sid);
-        });
-
         layout->addWidget(titleLabel, 1);
-        layout->addWidget(menuBtn);
 
         m_historyList->addItem(item);
         m_historyList->setItemWidget(item, itemWidget);
@@ -1001,35 +986,6 @@ void MainWindow::onTogglePinSession()
     bool newPinned = !sessions[sessionId].pinned;
     SessionManager::instance()->setSessionPinned(sessionId, newPinned);
     updateSessionList();
-}
-
-void MainWindow::onSessionMenuButtonClicked(const QString &sessionId)
-{
-    m_contextMenuSessionId = sessionId;
-
-    // Update pin action text based on current state
-    const auto &sessions = SessionManager::instance()->allSessions();
-    if (sessions.contains(sessionId)) {
-        m_pinAction->setText(sessions[sessionId].pinned ? tr("取消置顶") : tr("置顶"));
-    }
-
-    // Find the button widget to position the menu under it
-    if (m_sessionItemMap.contains(sessionId)) {
-        QListWidgetItem *item = m_sessionItemMap[sessionId];
-        QWidget *w = m_historyList->itemWidget(item);
-        if (w) {
-            // Find the "⋯" button inside the item widget
-            QPushButton *btn = w->findChild<QPushButton *>();
-            if (btn) {
-                QPoint menuPos = btn->mapToGlobal(QPoint(0, btn->height()));
-                m_contextMenu->exec(menuPos);
-                return;
-            }
-        }
-    }
-
-    // Fallback
-    m_contextMenu->exec(QCursor::pos());
 }
 
 void MainWindow::onCustomContextMenuRequested(const QPoint &pos)

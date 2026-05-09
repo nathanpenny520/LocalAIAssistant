@@ -51,7 +51,6 @@ private slots:
     void onRenameSession();
     void onTogglePinSession();
     void onCustomContextMenuRequested(const QPoint &pos);
-    void onSessionMenuButtonClicked(const QString &sessionId);
     void onThemeChanged(int theme);
     void onLanguageChanged();
     void onToggleHistoryPanel();  // 显示/隐藏历史面板
