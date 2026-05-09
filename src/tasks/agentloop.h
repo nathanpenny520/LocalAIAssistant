@@ -27,6 +27,7 @@ public:
 
     State state() const;
     int iterationCount() const;
+    QString lastFeedback() const;
     void setMaxIterations(int max);
     void setPreserveLoopMessages(bool preserve);
     bool preserveLoopMessages() const;
@@ -53,6 +54,7 @@ private:
     bool m_preserveLoopMessages = true;
     OperationPlan m_pendingPlan;
     QString m_sessionId;
+    QString m_lastFeedback;
 };
 
 #endif  // AGENTLOOP_H

@@ -6,6 +6,8 @@
 
 #include "../prompts/promptmanager.h"
 
+static constexpr int kTransferTimeoutMs = 120000;
+
 ApiProvider::ApiProvider(QObject* parent)
         : QObject(parent)
         , m_network(new QNetworkAccessManager(this))
@@ -150,6 +152,7 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setTransferTimeout(kTransferTimeoutMs);
     configureRequest(request);
 
     m_streamBuffer.clear();

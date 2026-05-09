@@ -26,6 +26,10 @@ int AgentLoop::iterationCount() const {
     return m_iterationCount;
 }
 
+QString AgentLoop::lastFeedback() const {
+    return m_lastFeedback;
+}
+
 void AgentLoop::setMaxIterations(int max) {
     m_maxIterations = max;
 }
@@ -138,6 +142,7 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
 
     // Build structured feedback message
     QString feedback = buildResultFeedback(results);
+    m_lastFeedback = feedback;
 
     // Save the original AI response (with TASK_PLAN) as assistant message
     ChatMessage planMsg("assistant", plan.generateSummary());

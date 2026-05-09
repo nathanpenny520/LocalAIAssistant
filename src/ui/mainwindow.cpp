@@ -1558,9 +1558,12 @@ void MainWindow::retryEmptyResponseDuringLoop() {
     }
     m_emptyResponseRetryCount++;
     qWarning() << "Agent loop: empty response, retry" << m_emptyResponseRetryCount << "/3";
-    QString retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] or [TASK_FINISHED] "
-                          "with a summary if all operations succeeded, "
-                          "or [TASK_PLAN] for next steps.");
+    QString retryMsg = AgentLoop::instance()->lastFeedback();
+    if (retryMsg.isEmpty()) {
+        retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] or [TASK_FINISHED] "
+                      "with a summary if all operations succeeded, "
+                      "or [TASK_PLAN] for next steps.");
+    }
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
     m_networkManager->sendChatRequestWithContext(messages);
