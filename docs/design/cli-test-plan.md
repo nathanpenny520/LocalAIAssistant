@@ -83,13 +83,23 @@ Verify that accessing non-whitelist or system paths triggers user confirmation.
 | 5.2 | `$BIN ask "List files in /etc/. Use TASK_PLAN."` → type `y` | Plan executes. Path temporarily allowed for this session. |
 | 5.3 | After 5.2, run again: `$BIN ask ...` | Violation shown again (ask mode creates a new app instance, so session-scoped temporary allow is reset). |
 
-### Interactive mode
+### Interactive mode — per-violation toggling
 
 | # | Command (in `$BIN chat`) | Expected |
 |---|--------------------------|----------|
-| 5.4 | `List files in /etc/. Use TASK_PLAN.` → `/confirm` | Plan executes. All path violations auto-allowed temporarily. |
-| 5.5 | `Write file /etc/test.txt with 'hello'. Use TASK_PLAN.` → `/cancel` | Plan cancelled. No file created. |
-| 5.6 | `List files in /etc/. Use TASK_PLAN.` → type a new message `hello` instead of `/confirm` | New message starts. AgentLoop stops gracefully. Normal chat response. |
+| 5.4 | `List files in /etc/. Use TASK_PLAN.` → type `a` | All violations switch to ALLOW ONCE. List re-renders with updated state. |
+| 5.5 | `List files in /etc/. Use TASK_PLAN.` → type `p` | All violations switch to ALWAYS ALLOW. List re-renders. |
+| 5.6 | `List files in /etc/. Use TASK_PLAN.` → type `d` | All violations switch to DENY. List re-renders. Plan still pending (not cancelled). |
+| 5.7 | `List files in /etc/ and /opt/. Use TASK_PLAN.` → type `1` then `2` | Single violations cycle: Deny→Allow Once→Always Allow. Each toggle re-renders the list. |
+| 5.8 | `List files in /etc/. Use TASK_PLAN.` → type `x` | "Invalid input. Use a/p/d/number, /confirm, or /cancel." Plan still pending. |
+| 5.9 | `List files in /etc/. Use TASK_PLAN.` → type a normal chat message | Falls through toggle intercept (multi-char). New conversation starts, pending plan cleared. |
+
+### Interactive mode — confirm with choices applied
+
+| # | Command (in `$BIN chat`) | Expected |
+|---|--------------------------|----------|
+| 5.10 | `List files in /etc/. Use TASK_PLAN.` → `p` → `/confirm` | `/etc/` is `persistentlyAllowPath()`-ed. Plan executes. Subsequent access to `/etc/` in same session auto-approved. |
+| 5.11 | `Write file /etc/test.txt with 'hello'. Use TASK_PLAN.` → `d` → `/confirm` | All paths set to DENY. `/confirm` applies choices (no paths allowed). Plan executes but path access blocked by SafetyChecker. |
 
 ---
 
@@ -127,10 +137,10 @@ rm -f ~/locai_step1.txt ~/locai_step2.txt ~/locai_single.txt
 
 | # | Command (in `$BIN chat`) | Expected |
 |---|--------------------------|----------|
-| 8.1 | `Write file /etc/test_confirm.txt with 'test'. Use TASK_PLAN.` → `/confirm` | Path violations shown, then auto-allowed temporarily. Plan executes. |
-| 8.2 | `Write file /etc/test_cancel.txt with 'test'. Use TASK_PLAN.` → `/cancel` | Plan cancelled. No file created. |
+| 8.1 | `Write file /etc/test_confirm.txt with 'test'. Use TASK_PLAN.` → `/confirm` | Per-violation choices applied (default: Allow Once for all). Pending state cleared. Plan executes. |
+| 8.2 | `Write file /etc/test_cancel.txt with 'test'. Use TASK_PLAN.` → `/cancel` | Pending state cleared. Plan cancelled. No file created. |
 | 8.3 | `sudo rm -rf /tmp/test` (Tier 1 blocked) → then `/confirm` | `/confirm` says "No pending command plan to confirm." (Blocked never reaches AwaitingUserConfirm). |
-| 8.4 | `Write file /etc/test_interrupt.txt. Use TASK_PLAN.` → at confirmation, type a new message instead of `/confirm` | New message starts. AgentLoop stops. Normal response. |
+| 8.4 | `Write file /etc/test_interrupt.txt. Use TASK_PLAN.` → at confirmation, type a normal chat message | Multi-char input falls through toggle intercept. New conversation starts. Pending plan cleared. |
 
 ---
 
@@ -148,15 +158,21 @@ rm -f ~/locai_step1.txt ~/locai_step2.txt ~/locai_single.txt
 
 ## Phase 10: Path Persistence
 
+### Interactive mode — persistent allow
+
+| # | Command | Expected |
+|---|---------|----------|
+| 10.1 | In `$BIN chat`: trigger a plan with path violations → type `p` (Always Allow all) → `/confirm` | `persistentlyAllowPath()` called. Paths saved to QSettings `SafetyChecker/PersistentlyAllowedPaths`. |
+| 10.2 | After 10.1, trigger another plan accessing the same paths | Paths now in whitelist — Tier 3 Approved, auto-execute. No confirmation prompt. |
+
+### Unit test coverage
+
 Tested in unit tests (`test_safetychecker.cpp`):
 
 - `persistentlyAllowPath()` writes to QSettings under `SafetyChecker/PersistentlyAllowedPaths`
 - Deduplication: duplicate paths are not re-added
 - Persisted paths survive app restart (loaded in SafetyChecker constructor)
 - `temporarilyAllowPath()` is session-scoped only (not persisted to QSettings)
-
-CLI interactive mode does not currently expose "Always Allow" (persistent) — only `temporarilyAllowPath`
-via `/confirm`.
 
 ---
 
@@ -168,32 +184,11 @@ via `/confirm`.
 | 2. Tier 3 Approved | 2 | Low | Yes | Whitelist write |
 | 3. Tier 1 Blocked | 4 | Low | No | Local validation only |
 | 4. Tier 2 NeedsConfirmation | 4 | Low | No | Local validation only |
-| 5. Path Violation Responses | 6 | Low | Some | y/n + /confirm routing |
+| 5. Path Violation Responses | 11 | Low | Some | ask mode y/n + interactive toggle + confirm with choices |
 | 6. Agent Loop Multi-Iteration | 3 | Medium | Yes | Full loop flow |
 | 7. Agent Loop Edge Cases | 2 | Low | Yes | TASK_FINISHED, no-plan |
-| 8. Interactive Confirm/Cancel | 4 | Low | Some | Command routing |
+| 8. Interactive Confirm/Cancel | 4 | Low | Some | Command routing with per-violation state |
 | 9. --yes Auto-Confirm | 3 | Medium | Some | NeedsConfirmation vs Blocked |
-| 10. Path Persistence | 1 | Low | No | Unit test verified |
+| 10. Path Persistence | 2 | Low | Some | Interactive persistent allow + unit tests |
 
-**Total: 31 test cases** (22 low-risk, 9 requiring actual AI calls)
-
----
-
-## Known Limitations
-
-### CLI Interactive Mode: Per-Violation Toggle Gap
-
-The interactive mode prompt prints:
-```
-a=allow all once, p=permanently allow all, d=deny all, or enter number to toggle
-```
-
-However, these single-key inputs (`a`, `p`, `d`, numbers) are **not parsed** by the current
-`readInput` loop. Only `/confirm` (auto-allows all temporarily) and `/cancel` (rejects all) work.
-
-This means:
-- Users cannot individually toggle per-violation responses in interactive mode
-- Users cannot persistently allow paths via interactive mode
-- The prompt text is misleading
-
-**Fix plan**: see [cli-interactive-path-fix-plan.md](cli-interactive-path-fix-plan.md)
+**Total: 37 test cases** (27 low-risk, 10 requiring actual AI calls)

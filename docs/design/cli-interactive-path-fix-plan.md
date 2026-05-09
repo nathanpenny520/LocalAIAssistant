@@ -1,6 +1,6 @@
 # Fix Plan: CLI Interactive Mode Per-Violation Path Toggle
 
-> Status: **APPROVED**  
+> Status: **IMPLEMENTED** (commit `0e1a1b3`)  
 > Date: 2026-05-09  
 > Related: [cli-test-plan.md](cli-test-plan.md) — Known Limitations
 

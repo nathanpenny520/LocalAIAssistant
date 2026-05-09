@@ -433,15 +433,30 @@ When the AI tries to access a path outside the whitelist:
 Execute? [Y/n]: y   # y = allow all this session, n = deny all
 ```
 
-**CLI interactive mode — path violation response:**
+**CLI interactive mode — path violation response (per-violation toggling):**
 
 ```
-*** Path access warnings ***
-  1. [READ] [SYSTEM PATH] /etc/
-  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
+*** Path access toggles ***
+  1. [READ] [SYSTEM PATH] /etc/ → ALLOW ONCE
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini → ALLOW ONCE
+a=allow all once  p=always allow all  d=deny all  number=toggle single
+
 Type /confirm to execute, /cancel to abort.
-> /confirm   # auto-allows all violations temporarily (session-scoped)
+> p                           # switch all to Always Allow
+  1. [READ] [SYSTEM PATH] /etc/ → ALWAYS ALLOW
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini → ALWAYS ALLOW
+> /confirm                    # applies choices and executes
 ```
+
+| Key | Action |
+|-----|--------|
+| `a` | Set all to Allow Once (session-scoped) |
+| `p` | Set all to Always Allow (persisted to QSettings) |
+| `d` | Set all to Deny |
+| `1`–`9` | Cycle single violation through Deny → Allow Once → Always Allow |
+| `/confirm` | Apply per-violation choices and execute plan |
+| `/cancel` | Cancel plan and clear pending state |
+| (chat message) | Stop pending plan, start new conversation |
 
 **GUI confirmation dialog** shows each path violation with individual `[Allow Once]` / `[Always Allow]` / `[Deny]` buttons.
 

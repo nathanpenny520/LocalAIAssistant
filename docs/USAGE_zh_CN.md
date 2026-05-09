@@ -421,15 +421,30 @@ SafetyChecker 在执行前对每个文件操作和 Shell 命令进行校验：
 Execute? [Y/n]: y   # y = 本次会话全部允许，n = 全部拒绝
 ```
 
-**CLI 交互模式 — 路径违规响应：**
+**CLI 交互模式 — 路径违规响应（逐项切换）：**
 
 ```
-*** Path access warnings ***
-  1. [READ] [SYSTEM PATH] /etc/
-  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
+*** Path access toggles ***
+  1. [READ] [SYSTEM PATH] /etc/ → ALLOW ONCE
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini → ALLOW ONCE
+a=allow all once  p=always allow all  d=deny all  number=toggle single
+
 Type /confirm to execute, /cancel to abort.
-> /confirm   # 自动临时允许所有违规路径（会话范围）
+> p                           # 全部切换为永久允许
+  1. [READ] [SYSTEM PATH] /etc/ → ALWAYS ALLOW
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini → ALWAYS ALLOW
+> /confirm                    # 应用选择并执行
 ```
+
+| 按键 | 操作 |
+|------|------|
+| `a` | 全部设为允许本次（会话范围） |
+| `p` | 全部设为永久允许（保存到 QSettings） |
+| `d` | 全部设为拒绝 |
+| `1`–`9` | 逐项循环切换：拒绝 → 允许本次 → 永久允许 |
+| `/confirm` | 应用逐项选择并执行计划 |
+| `/cancel` | 取消计划并清除待定状态 |
+| (聊天消息) | 停止待定计划，开始新对话 |
 
 **GUI 确认对话框** 为每个路径违规提供独立的 `[允许本次]` / `[永久允许]` / `[拒绝]` 按钮。
 

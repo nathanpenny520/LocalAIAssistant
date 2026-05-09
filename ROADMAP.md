@@ -50,14 +50,10 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
 - [x] **CLI Test Plan** — Created `docs/design/cli-test-plan.md` with 31 test cases across 10
       phases covering all three tiers, Agent Loop multi-iteration, path violation responses, and
       interactive mode routing.
-
-### Known Issues (2026-05-09)
-
-- [ ] **CLI Interactive Mode: Per-Violation Toggle Gap** — The interactive mode prints
-      `a=allow all once, p=permanently allow all, d=deny all, or enter number to toggle` but
-      these single-key inputs are not parsed by the `readInput` loop. Only `/confirm` (auto-allows
-      all temporarily) and `/cancel` work. Per-violation toggling and persistent-allow require
-      the GUI dialog. Fix plan: `docs/design/cli-interactive-path-fix-plan.md`.
+- [x] **CLI Interactive Path Toggle Fix** — Wired up single-key intercept (a/p/d/number) in
+      `readInput()` for per-violation path toggling. Updated `/confirm` to apply per-violation
+      choices (`persistentlyAllowPath`/`temporarilyAllowPath`/deny). Added `clearPendingPlan()`
+      for consistent state cleanup. 2 files, +93/-10 lines.
 
 ### What to do next (优先级排序)
 
