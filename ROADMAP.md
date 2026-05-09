@@ -229,15 +229,15 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 ### **Tier 6: UI/UX 优化（可选）**
 
-#### 6.1 UI improvements
+#### 6.1 UI improvements ✅ **DONE**
 **风险**: 低（不破坏功能）  
 **重要性**: 低（用户体验优化）
 
-- [ ] Fix input height: remove `setFixedHeight()`, enable scrollbar, raise cap to 300px (files: `mainwindow.cpp:182-183, 1722`)
-- [ ] Fix thinking collapse: replace `<details>` HTML with custom QWidget toggle (file: `mainwindow.cpp:119-127`)
-- [ ] Fix chat history: incremental rendering, remove garbled `৻` regex delimiter (file: `mainwindow.cpp:33-59`)
-- [ ] Add session size limits and auto-truncation (file: `sessionmanager.cpp`)
-- [ ] Fix help docs search path: remove duplicate path (file: `settingsdialog.cpp:348-349`)
+- [x] Fix input height: raise cap to 300px, enable scrollbar (ScrollBarAsNeeded) — kept `setFixedHeight()` which works correctly with scrollbar (files: `mainwindow.h:98`, `mainwindow.cpp:182`)
+- [x] Fix thinking collapse: replace non-functional `<details>` HTML with AppTheme-token styled `<div>` (surfaceBg, quoteBorder, accent, textSecondary) — QTextBrowser doesn't support `<details>`/`<summary>` (file: `mainwindow.cpp:106-126`)
+- [x] Fix chat history: eliminate post-streaming flicker via `setUpdatesEnabled(false/true)` wrap in `renderCurrentSession()`; remove garbled `৻...pracu` regex delimiter (file: `mainwindow.cpp:45, 468-517`)
+- [x] Add session size limits and auto-truncation: default 500 msg, min 10 enforced, oldest truncated, system message notification, configurable via QSettings `sessionMaxMessages` (files: `sessionmanager.h/cpp`)
+- [x] Fix help docs search path: use `#ifdef Q_OS_MACOS` platform-conditional path, matching `translationmanager.cpp` pattern (file: `settingsdialog.cpp:355-362`)
 
 ---
 
