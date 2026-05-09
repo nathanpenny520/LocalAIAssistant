@@ -19,6 +19,7 @@ jobs:
             qt6-base-dev \
             qt6-multimedia-dev \
             qt6-websockets-dev \
+            qt6-tools-dev \
             libqt6sql6-sqlite \
             libpoppler-cpp-dev \
             libzip-dev \
