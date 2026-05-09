@@ -376,7 +376,13 @@ void VoiceManager::initAsrWebSocket() {
     connect(m_asrWebSocket, &QWebSocket::disconnected, this, &VoiceManager::onAsrDisconnected);
     connect(m_asrWebSocket, &QWebSocket::textMessageReceived, this,
             &VoiceManager::onAsrTextMessageReceived);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(m_asrWebSocket, &QWebSocket::errorOccurred, this, &VoiceManager::onAsrError);
+#else
+    connect(m_asrWebSocket,
+            QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error), this,
+            &VoiceManager::onAsrError);
+#endif
 }
 
 void VoiceManager::startRecording() {
@@ -951,7 +957,12 @@ void VoiceManager::initTtsWebSocket() {
             &VoiceManager::onTtsBinaryMessageReceived);
     connect(m_ttsWebSocket, &QWebSocket::textMessageReceived, this,
             &VoiceManager::onTtsTextMessageReceived);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(m_ttsWebSocket, &QWebSocket::errorOccurred, this, &VoiceManager::onTtsError);
+#else
+    connect(m_ttsWebSocket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error),
+            this, &VoiceManager::onTtsError);
+#endif
 }
 
 void VoiceManager::speak(const QString& text) {
