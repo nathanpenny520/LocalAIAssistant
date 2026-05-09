@@ -54,6 +54,19 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
       `readInput()` for per-violation path toggling. Updated `/confirm` to apply per-violation
       choices (`persistentlyAllowPath`/`temporarilyAllowPath`/deny). Added `clearPendingPlan()`
       for consistent state cleanup. 2 files, +93/-10 lines.
+- [x] **CLI End-to-End Testing** — Executed 21/37 manual test cases across Phases 1-9. Verified:
+      Tier 1 blocks all 4 dangerous patterns (sudo, rm-rf, eval, backticks), Tier 2 displays
+      `[READ]/[WRITE]` + `[SYSTEM PATH]/[OUTSIDE WHITELIST]` correctly, Tier 3 auto-executes,
+      Agent Loop handles multi-operation plans, `--yes` bypasses Tier 2 but not Tier 1. Discovered:
+      JSON TASK_PLAN format from newer models, non-streaming delays, model-level safety as defense
+      in depth, pipe-based testing limitations.
+- [x] **Documentation Update** — Rewrote Task Execution and Security sections in `USAGE.md` and
+      `USAGE_zh_CN.md` with real CLI output examples from testing. Added JSON TASK_PLAN format
+      documentation, operation type reference table, Tier 1 block reason messages, streaming
+      performance recommendations, CLI troubleshooting section (pipe limitations, non-streaming
+      delays, model refusal behavior, QSettings cleanup). Updated README.md/README_EN.md Task
+      Execution feature list with detailed capability descriptions. Added test results section
+      to `cli-test-plan.md`.
 
 ### What to do next (优先级排序)
 

@@ -79,20 +79,26 @@ and other prose-heavy PDF/TXT/MD/DOCX files.
 ### Task Execution Module 🔧
 
 - **Agent Iteration Loop** — AI observes execution results and autonomously continues working via
-  `[ITERATION_FEEDBACK]` → new `[TASK_PLAN]` → execute → ... → `[TASK_COMPLETE]` cycle
-- **Native File Operations** — Execute create/move/delete/copy/search files via Qt APIs, no shell
-  dependency
+  `[ITERATION_FEEDBACK]` → new `[TASK_PLAN]` → execute → ... → `[TASK_COMPLETE]` cycle (max 10
+  iterations by default)
+- **JSON Task Plans** — AI generates operation plans in JSON format (`create_dir`/`write_file`/
+  `move_file`/`delete_file`/`search_files`/`shell_command`), auto-parsed and executed by the app
+- **Native File Operations** — Execute file operations via Qt APIs, no shell dependency
+  (cross-platform, safer)
 - **Cross-platform Shell Support** — Auto-detect available shell (Windows: pwsh→powershell→cmd,
   Unix: $SHELL→zsh→bash→sh)
-- **Three-Tier Safety** — Tier 1: Blocked (dangerous commands like `sudo`, `eval` — permanent).
-  Tier 2: Needs Confirmation (system paths, outside-whitelist paths — user chooses Allow
-  Once/Always/Deny). Tier 3: Approved (whitelist paths — auto-execute)
-- **Command Injection Prevention** — Detect PowerShell injection, Unix command substitution,
-  Living-off-the-Land attacks
+- **Three-Tier Safety** — Tier 1: Blocked (dangerous commands like `sudo`, `eval`, `rm -rf /` —
+  permanent, even `--yes` cannot bypass). Tier 2: Needs Confirmation (system paths, outside-whitelist
+  paths — user chooses Allow Once/Always/Deny with per-violation toggling). Tier 3: Approved
+  (whitelist paths — auto-execute)
+- **Command Injection Prevention** — Detects eval, backtick substitution, PowerShell injection,
+  Living-off-the-Land attacks, disk operations, system service manipulation, firewall disabling,
+  and 30+ other dangerous patterns
 - **Operation Undo** — Supports undoing executed file operations
-- **User Confirmation** — All task plans require user review before execution (CLI interactive
-  `/confirm`, ask mode inline `[Y/n]` prompt, GUI confirmation dialog with per-path controls),
-  `--yes` flag to auto-confirm Tier 2 warnings for scripting
+- **User Confirmation** — All task plans require user review before execution. CLI interactive mode
+  uses single-key toggling (a/p/d/number) + `/confirm`. Ask mode uses inline `[Y/n]` prompt.
+  `--yes` flag auto-confirms Tier 2 warnings (Tier 1 never bypassed). GUI confirmation dialog
+  with per-path buttons.
 
 > ⚠️ **Platform Compatibility**:
 >

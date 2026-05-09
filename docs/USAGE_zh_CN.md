@@ -339,57 +339,128 @@ AI 可以自主执行多步骤任务，通过反馈循环持续工作：
 
 | 标签 | 用途 |
 |------|------|
-| `[TASK_PLAN]...[/TASK_PLAN]` | 发出命令计划（文件操作、Shell 命令） |
+| `[TASK_PLAN]...[/TASK_PLAN]` | 发出命令计划（JSON 格式） |
 | `[TASK_COMPLETE]` | 表示任务完全完成 |
 | `[TASK_FINISHED]` | `[TASK_COMPLETE]` 的别名 |
 | `[ITERATION_FEEDBACK]` | 由程序注入——展示上一轮执行结果 |
 
-**交互模式示例（多轮迭代）：**
+#### TASK_PLAN JSON 格式
 
-```bash
+AI 以 JSON 块的形式生成任务计划。程序支持文本和 JSON 两种格式，自动检测并解析。新模型默认生成 JSON：
+
+```json
+{
+    "description": "简要描述正在执行的操作",
+    "requiresConfirmation": false,
+    "operations": [
+        {
+            "type": "create_dir",
+            "target": "~/myproject/src",
+            "description": "创建源代码目录"
+        },
+        {
+            "type": "write_file",
+            "target": "~/myproject/README.md",
+            "command": "# 我的项目\n\n项目描述内容",
+            "description": "编写 README 文件"
+        }
+    ]
+}
+```
+
+**可用的操作类型：**
+
+| 类型 | 用途 | 关键字段 |
+|------|------|---------|
+| `create_dir` | 创建目录（跨平台） | `target` |
+| `write_file` | 创建或覆盖文件 | `target`, `command`（内容） |
+| `move_file` | 移动或重命名文件/目录 | `source`, `target` |
+| `copy_file` | 递归复制文件/目录 | `source`, `target` |
+| `delete_file` | 删除文件或目录 | `source` |
+| `search_files` | 按模式搜索文件 | `source`, `command`（通配符） |
+| `shell_command` | 运行 shell 命令 | `command`, `workingDir`（可选） |
+| `shell_script` | 运行多行脚本 | `command` |
+
+> 优先使用原生类型（`create_dir`、`write_file` 等）——它们跨平台、更安全，不依赖 shell。
+> 仅在需要使用 `git`、`npm`、`brew` 等工具时才使用 `shell_command`。
+
+#### 交互模式示例（多轮迭代）
+
+测试项目脚手架请求的实际输出：
+
+```
 > 帮我创建 ~/myproject，包含 src、tests、docs 子目录和 README
+
 *** Command plan requires confirmation ***
+Description: 创建项目目录结构和 README
 Commands (3):
   1. create_dir → ~/myproject/src
   2. create_dir → ~/myproject/tests
   3. create_dir → ~/myproject/docs
+
 Type /confirm to execute, /cancel to abort.
 > /confirm
-Executing... 3/3 succeeded
+Executing...
+  [1] OK  (5ms)
+  [2] OK  (3ms)
+  [3] OK  (4ms)
 
-# AI 检查反馈后，在第二轮创建 README
+--- Command plan finished: 3/3 succeeded ---
+
+# AI 检查反馈后，决定继续工作，生成新计划：
 *** Command plan requires confirmation ***
+Description: 创建 README.md
 Commands (1):
   1. write_file → ~/myproject/README.md
-> /confirm
-Executing... 1/1 succeeded
 
-# AI 发出完成信号
-[TASK_COMPLETE] 项目脚手架已创建完毕。
---- Agent loop finished ---
+> /confirm
+Executing...
+  [1] OK  (2ms)
+
+--- Command plan finished: 1/1 succeeded ---
+
+[TASK_COMPLETE] 项目脚手架已创建完毕，包含 src、tests、docs 和 README。
+--- Task completed ---
 ```
 
-**ask 模式多轮迭代：**
+#### Ask 模式（单次查询，带确认）
 
 ```bash
-$ ./build/LocalAIAssistant-CLI ask "在 ~/test 创建 hello.txt"
+$ ./LocalAIAssistant-CLI ask "在 ~/test 创建 hello.txt"
+
 *** Command plan requires confirmation ***
-...
+Commands (1):
+  1. write_file → ~/test/hello.txt
+
 Execute? [Y/n]: y
 Executing...
-# AI 可能继续执行更多步骤，然后发出 [TASK_COMPLETE]
+
+[TASK_COMPLETE] 文件已创建。
+--- Task completed ---
 ```
 
-**ask 模式 + --yes（自动确认所有计划）：**
+#### Ask 模式 + --yes（脚本自动化）
 
 ```bash
-$ ./build/LocalAIAssistant-CLI ask --yes "在 ~/test 创建 hello.txt"
+$ ./LocalAIAssistant-CLI ask --yes "在 ~/test 创建 hello.txt"
+
 Auto-confirming (--yes)...
 Executing...
+[TASK_COMPLETE] 文件已创建。
 ```
 
-> **注意**：`--yes` 仅跳过 Tier 2（路径确认）。Tier 1（危险命令如 `sudo`、`rm -rf /`、
-> `eval`）始终被拦截，即使用 `--yes` 也不会放行。
+#### 性能注意事项
+
+- **启用流式输出模式**以获得响应迅速的 CLI 输出。非流式模式下，AI 的完整响应会一次性到达，
+  可能需要 30-60 秒才能看到任何输出。
+- **任务执行时间**因模型而异——有些模型生成 TASK_PLAN 的速度比其他模型快。
+- **首次迭代**包含初始 API 调用（30-60 秒）。同一 Agent 循环内的后续迭代复用对话上下文，
+  API 调用更短。
+- 部分 AI 模型有自己的安全层，可能会拒绝生成 `sudo` 等命令——
+  这是在程序自身 SafetyChecker 之上的纵深防御。
+
+> **重要提示**：`--yes` 仅跳过 Tier 2（路径确认）。Tier 1（危险命令如 `sudo`、`rm -rf`、
+> `eval`）**始终被拦截**，即使用 `--yes` 也不会放行。
 
 ---
 
@@ -399,29 +470,53 @@ Executing...
 
 SafetyChecker 在执行前对每个文件操作和 Shell 命令进行校验：
 
-| 等级 | 名称 | 行为 | 示例 |
-|------|------|------|------|
-| **Tier 1** | 永久拦截 | 立即拒绝，无用户覆盖选项 | `sudo`、`rm -rf /`、`eval`、反引号注入、`cmd /c` |
-| **Tier 2** | 需用户确认 | 用户必须明确批准。选项：允许本次 / 永久允许 / 拒绝 | 系统路径（`/etc`、`C:\Windows`）、白名单外路径 |
-| **Tier 3** | 自动批准 | 自动执行，无需提示 | `~/`、`/tmp`、桌面、文档、当前目录 |
+| 等级 | 名称 | 行为 | 示例 | `--yes` 效果 |
+|------|------|------|------|-------------|
+| **Tier 1** | 永久拦截 | 立即拒绝，并显示具体原因。无用户覆盖选项。 | `sudo`、`rm -rf`、`eval`、反引号注入、`cmd /c` | **无效** — Tier 1 永不被绕过 |
+| **Tier 2** | 需用户确认 | 用户必须明确批准。选项：允许本次 / 永久允许 / 拒绝 | 系统路径（`/etc`、`C:\Windows`）、白名单外路径 | **自动确认** — 所有违规路径临时允许 |
+| **Tier 3** | 自动批准 | 自动执行，无需提示。 | `~/`、`/tmp`、桌面、文档、当前目录 | 不适用 — 已自动批准 |
 
-### 路径违规提示
+**Tier 1 拦截原因消息**（实际输出，语言取决于应用语言设置）：
 
-当 AI 尝试访问白名单外的路径时：
+| 检测到的模式 | 拦截原因（中文环境） |
+|-------------|---------------------|
+| 命令注入（eval、反引号等） | `检测到潜在的命令注入` |
+| `sudo` 前缀 | `禁止使用 sudo 提权` |
+| `rm -rf /` 或 `rm -rf /*` | `禁止递归删除根目录或系统目录` |
+| `runas` 或提权命令 | `禁止使用提权命令` |
+| 磁盘操作（`dd`、`format`） | `禁止磁盘操作命令` |
+| 系统服务操作 | `禁止操作系统服务` |
+| 强制关机/重启 | `禁止强制关机/重启` |
+| 关闭防火墙 | `禁止关闭防火墙` |
 
-**读取操作**（如 `ls`、`cat`、`grep`）显示黄色/信息警告。
-**写入操作**（如 `touch`、`mkdir`、`rm`）显示红色/危险警告，尤其是系统路径。
+> 部分 AI 模型也会在自身安全层拒绝生成危险命令。这提供了纵深防御：即使 AI 生成了命令，
+> SafetyChecker 也会拦截；反之，即使 SafetyChecker 有 bug，模型自身的拒绝也能阻止执行。
 
-**CLI ask 模式 — 路径违规响应：**
+### 路径违规响应
+
+当 AI 尝试访问白名单外的路径时，应用会显示详细警告。
+
+**操作类型标签：**
+- `[READ]` — 只读操作（`ls`、`cat`、`grep`、`dir`、`find`） — 黄色显示
+- `[WRITE]` — 写入操作（`touch`、`mkdir`、`rm`、文件创建） — 红色显示
+
+**路径类别标签：**
+- `[SYSTEM PATH]` — 受保护的系统目录（`/etc`、`/bin`、`C:\Windows` 等）
+- `[OUTSIDE WHITELIST]` — 不在默认白名单或用户已批准列表中的路径
+
+#### CLI ask 模式（`ask` 命令）
 
 ```
 *** Path access warnings ***
   1. [READ] [SYSTEM PATH] /etc/
   2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
-Execute? [Y/n]: y   # y = 本次会话全部允许，n = 全部拒绝
+Execute? [Y/n]: y
 ```
 
-**CLI 交互模式 — 路径违规响应（逐项切换）：**
+- `y` 或回车 — 允许本次会话所有违规路径，执行计划
+- `n` — 取消计划。打印 "Cancelled."
+
+#### CLI 交互模式（`chat` 命令）— 逐项切换
 
 ```
 *** Path access toggles ***
@@ -430,23 +525,24 @@ Execute? [Y/n]: y   # y = 本次会话全部允许，n = 全部拒绝
 a=allow all once  p=always allow all  d=deny all  number=toggle single
 
 Type /confirm to execute, /cancel to abort.
-> p                           # 全部切换为永久允许
-  1. [READ] [SYSTEM PATH] /etc/ → ALWAYS ALLOW
-  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini → ALWAYS ALLOW
-> /confirm                    # 应用选择并执行
 ```
 
 | 按键 | 操作 |
 |------|------|
-| `a` | 全部设为允许本次（会话范围） |
-| `p` | 全部设为永久允许（保存到 QSettings） |
-| `d` | 全部设为拒绝 |
-| `1`–`9` | 逐项循环切换：拒绝 → 允许本次 → 永久允许 |
+| `a` | 全部设为**允许本次**（会话范围，列表重新渲染） |
+| `p` | 全部设为**永久允许**（保存到 QSettings，列表重新渲染） |
+| `d` | 全部设为**拒绝**（列表重新渲染，计划仍在待定——未取消） |
+| `1`–`9` | 逐项循环切换：拒绝 → 允许本次 → 永久允许（列表重新渲染） |
 | `/confirm` | 应用逐项选择并执行计划 |
 | `/cancel` | 取消计划并清除待定状态 |
-| (聊天消息) | 停止待定计划，开始新对话 |
+| （聊天消息） | 多字符输入穿透——停止待定计划，开始新对话 |
 
-**GUI 确认对话框** 为每个路径违规提供独立的 `[允许本次]` / `[永久允许]` / `[拒绝]` 按钮。
+无效的单字符输入（如 `x`）打印：`"Invalid input. Use a/p/d/number, /confirm, or /cancel."` —— 计划仍保持待定状态。
+
+#### GUI 确认对话框
+
+为每个路径违规提供独立的 `[允许本次]` / `[永久允许]` / `[拒绝]` 按钮。
+只读操作用黄色图标，系统路径写入操作用红色图标。
 
 ### 路径允许模式
 
@@ -460,6 +556,17 @@ Type /confirm to execute, /cancel to abort.
 **所有任务计划均需用户确认后才执行。** CLI 交互模式输入 `/confirm` 或 `/cancel`，CLI
 ask 模式响应内联 `[Y/n]` 提示，GUI 弹出确认对话框。CLI ask 模式可用 `--yes`
 标志跳过 Tier 2 警告（适合脚本）。Tier 1（危险命令）不会被 `--yes` 绕过。
+
+### 重置永久路径批准
+
+当你为某个路径选择"永久允许"后，该设置会保存到 QSettings 并在应用重启后保持。重置方法：
+
+- **GUI**：打开设置 → 安全选项卡，在列表中找到对应路径并删除
+- **CLI / 手动**：从 QSettings 中删除 `SafetyChecker/PersistentlyAllowedPaths` 键：
+  - macOS: `~/Library/Preferences/LocalAIAssistant.plist`（NativeFormat）或
+    `~/.config/LocalAIAssistant/Settings.conf`（IniFormat）
+  - Windows: 注册表 `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings`
+  - Linux: `~/.config/LocalAIAssistant/Settings.conf`
 
 ---
 
@@ -482,6 +589,31 @@ ask 模式响应内联 `[Y/n]` 提示，GUI 弹出确认对话框。CLI ask 模�
 ### AI 无响应
 
 检查设置中的 API 地址、API 密钥和网络连接。
+
+### 非流式模式导致 CLI 输出缓慢
+
+如果 CLI 在 TASK_PLAN 请求期间似乎卡住，检查设置 → 通用中是否启用了**流式输出**。
+非流式模式下，AI 的完整响应一次性到达，可能需要 30-60 秒且没有进度提示。
+启用流式输出以获得实时响应。
+
+### 管道测试 CLI 的局限性
+
+使用 shell 管道测试 CLI（如 `echo y | ./LocalAIAssistant-CLI ask "..."`）可能无法可靠地工作：
+- 确认后，应用进入 Agent 循环，stdin 行为可能与管道冲突
+- 自动化脚本请改用 `--yes` 标志：`./LocalAIAssistant-CLI ask --yes "..."`
+- 交互模式（`chat`）无法通过管道测试——需使用真实终端
+
+### AI 生成了相关文字但没有 TASK_PLAN
+
+部分模型可能会用散文描述它们打算做什么，而不生成实际的 `[TASK_PLAN]` JSON 块。
+如果你看到 AI 说"我将创建文件..."但没有执行：
+- 尝试更明确地表达："使用 [TASK_PLAN] 创建文件..."
+- 不同模型在 TASK_PLAN 生成能力上有差异
+
+### AI 拒绝生成危险命令
+
+部分 AI 模型（尤其是较新的模型）有自己的安全层，会拒绝生成 `sudo` 等命令，
+即使你明确要求。这是预期行为，提供了纵深防御——应将其视为安全特性而非 bug。
 
 ### 语音功能不可用
 

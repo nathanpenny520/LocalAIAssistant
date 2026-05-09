@@ -208,3 +208,43 @@ Tested in unit tests (`test_safetychecker.cpp`):
 | 10. Path Persistence | 2 | Low | Some | Interactive persistent allow + unit tests |
 
 **Total: 37 test cases** (27 low-risk, 10 requiring actual AI calls)
+
+---
+
+## Test Results (2026-05-09)
+
+Tests executed on macOS with `LocalAIAssistant-CLI` build. Model: MiniMax-M2.7 (streaming enabled).
+
+### Results by Phase
+
+| Phase | Passed | Notes |
+|-------|--------|-------|
+| 1. Basic Chat | 2/2 | ✅ Normal chat without TASK_PLAN works correctly |
+| 2. Tier 3 Approved | 2/2 | ✅ Whitelist paths auto-execute with `--yes` |
+| 3. Tier 1 Blocked | 4/4 | ✅ `sudo`, `rm -rf`, `eval`, backticks all blocked; `--yes` has no effect |
+| 4. Tier 2 NeedsConfirmation | 4/4 | ✅ `[READ]/[WRITE]` + `[SYSTEM PATH]/[OUTSIDE WHITELIST]` displayed correctly |
+| 5. Path Violation Responses | 3/11 | ⚠️ ask mode y/n tested; interactive toggle tested via unit tests (pipe limitation) |
+| 6. Agent Loop Multi-Iteration | 2/3 | ⚠️ Multi-operation plans execute; `[TASK_FINISHED]` works; single-iteration not fully verified |
+| 7. Agent Loop Edge Cases | 1/2 | ⚠️ No-plan chat works; `[TASK_FINISHED]` alias tested in Phase 6 |
+| 8. Interactive Confirm/Cancel | 0/4 | ⚠️ Not tested (requires real terminal interaction) |
+| 9. --yes Auto-Confirm | 3/3 | ✅ Auto-confirms Tier 2; Tier 1 still blocked even with `--yes` |
+| 10. Path Persistence | 0/2 | ⚠️ Not tested; covered by unit tests (`test_safetychecker.cpp`) |
+
+**Total manual tests: 21/37 executed directly** (remaining 16 covered by unit tests or require real terminal interaction)
+
+### Key Findings
+
+1. **JSON TASK_PLAN format**: Newer models generate TASK_PLAN as JSON blocks (`\`\`\`json\n{...}\n\`\`\``). TaskEngine's fallback parser handles both JSON and text formats correctly.
+2. **Model-level safety**: MiniMax-M2.7 refuses to generate `sudo` commands at its own safety layer — defense in depth on top of SafetyChecker.
+3. **Non-streaming delays**: In non-streaming mode, full API responses arrive at once (30-60s), making CLI appear hung. Enabling streaming fixes this.
+4. **Pipe-based testing limitation**: `echo y | ask` works for cancel but hangs after confirmation. `echo n | ask` works. Interactive mode (`chat`) cannot be tested via pipes — requires real terminal.
+5. **Agent Loop works**: Multi-operation plans execute, AI observes results, and continues with further steps or emits `[TASK_COMPLETE]`/`[TASK_FINISHED]`.
+6. **Per-violation toggle**: Single-key intercept (a/p/d/number) verified via unit tests and code review. Renders correctly with state labels (DENY/ALLOW ONCE/ALWAYS ALLOW).
+7. **All unit tests pass**: 82 tests pass across 8 test suites (52 existing + 30 new).
+
+### Recommendations for Future Testing
+
+- Test interactive mode toggles in a real terminal (not via pipes)
+- Test with different AI models to verify TASK_PLAN format compatibility
+- Test on Windows and Linux platforms
+- Test GUI confirmation dialog with per-path controls

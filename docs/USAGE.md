@@ -351,57 +351,129 @@ This repeats until the AI declares `[TASK_COMPLETE]` or the iteration limit is r
 
 | Tag | Purpose |
 |-----|---------|
-| `[TASK_PLAN]...[/TASK_PLAN]` | Issue a command plan (file ops, shell commands) |
+| `[TASK_PLAN]...[/TASK_PLAN]` | Issue a command plan in JSON format |
 | `[TASK_COMPLETE]` | Signal that the task is fully done |
 | `[TASK_FINISHED]` | Alias for `[TASK_COMPLETE]` |
 | `[ITERATION_FEEDBACK]` | Injected by the app — shows previous execution results |
 
-**Interactive mode example (multi-iteration):**
+#### TASK_PLAN JSON Format
 
-```bash
+The AI generates task plans as JSON blocks. The app supports both text-based and JSON-based formats,
+automatically detecting and parsing either one. Newer models produce JSON by default:
+
+```json
+{
+    "description": "Brief description of what you're doing",
+    "requiresConfirmation": false,
+    "operations": [
+        {
+            "type": "create_dir",
+            "target": "~/myproject/src",
+            "description": "Create source directory"
+        },
+        {
+            "type": "write_file",
+            "target": "~/myproject/README.md",
+            "command": "# My Project\n\nProject description here",
+            "description": "Write README with project description"
+        }
+    ]
+}
+```
+
+**Available operation types:**
+
+| Type | Purpose | Key Fields |
+|------|---------|------------|
+| `create_dir` | Create directory (cross-platform) | `target` |
+| `write_file` | Create or overwrite a file | `target`, `command` (content) |
+| `move_file` | Move or rename file/directory | `source`, `target` |
+| `copy_file` | Recursively copy file/directory | `source`, `target` |
+| `delete_file` | Delete file or directory | `source` |
+| `search_files` | Search files by pattern | `source`, `command` (glob) |
+| `shell_command` | Run a shell command | `command`, `workingDir` (optional) |
+| `shell_script` | Run a multi-line script | `command` |
+
+> Prefer native types (`create_dir`, `write_file`, etc.) — they are cross-platform, safer, and
+> don't require a shell. Use `shell_command` only for tools like `git`, `npm`, `brew`, etc.
+
+#### Interactive Mode (Multi-Iteration)
+
+Real output from testing a project scaffolding request:
+
+```
 > Create ~/myproject with subdirs src, tests, docs and a README
+
 *** Command plan requires confirmation ***
+Description: Create project directory structure and README
 Commands (3):
   1. create_dir → ~/myproject/src
   2. create_dir → ~/myproject/tests
   3. create_dir → ~/myproject/docs
+
 Type /confirm to execute, /cancel to abort.
 > /confirm
-Executing... 3/3 succeeded
+Executing...
+  [1] OK  (5ms)
+  [2] OK  (3ms)
+  [3] OK  (4ms)
 
-# AI inspects the feedback and creates README in a second iteration
+--- Command plan finished: 3/3 succeeded ---
+
+# AI inspects results, decides more work is needed, generates new plan:
 *** Command plan requires confirmation ***
+Description: Create README.md
 Commands (1):
   1. write_file → ~/myproject/README.md
-> /confirm
-Executing... 1/1 succeeded
 
-# AI signals completion
-[TASK_COMPLETE] Project scaffold created.
---- Agent loop finished ---
+> /confirm
+Executing...
+  [1] OK  (2ms)
+
+--- Command plan finished: 1/1 succeeded ---
+
+[TASK_COMPLETE] Project scaffold created with src, tests, docs and README.
+--- Task completed ---
 ```
 
-**Ask mode with multi-iteration:**
+#### Ask Mode (One-shot, with confirmation)
 
 ```bash
-$ ./build/LocalAIAssistant-CLI ask "Create ~/test/hello.txt"
+$ ./LocalAIAssistant-CLI ask "Create ~/test/hello.txt"
+
 *** Command plan requires confirmation ***
-...
+Commands (1):
+  1. write_file → ~/test/hello.txt
+
 Execute? [Y/n]: y
 Executing...
-# AI may continue with more steps, then emit [TASK_COMPLETE]
+
+[TASK_COMPLETE] File created.
+--- Task completed ---
 ```
 
-**Ask mode with `--yes` (auto-confirm all plans):**
+#### Ask Mode with `--yes` (Scripting)
 
 ```bash
-$ ./build/LocalAIAssistant-CLI ask --yes "Create ~/test/hello.txt"
+$ ./LocalAIAssistant-CLI ask --yes "Create ~/test/hello.txt"
+
 Auto-confirming (--yes)...
 Executing...
+[TASK_COMPLETE] File created.
 ```
 
-> **Note**: `--yes` only bypasses Tier 2 (path confirmation). Tier 1 (dangerous commands like
-> `sudo`, `rm -rf /`, `eval`) is always blocked, even with `--yes`.
+#### Performance Notes
+
+- **Enable streaming mode** in Settings for responsive CLI output. Non-streaming mode causes the
+  entire AI response to arrive at once, which can take 30-60 seconds before any output appears.
+- **Task execution time** varies by model — some models generate TASK_PLANs faster than others.
+- **First iteration** includes the initial API call (30-60s). Subsequent iterations within the same
+  Agent Loop reuse the conversation context with shorter API calls.
+- Some AI models have their own safety layer and may refuse to generate commands like `sudo` —
+  this provides defense in depth on top of the app's own SafetyChecker.
+
+> **Important**: `--yes` only bypasses Tier 2 (path confirmation). Tier 1 (dangerous commands like
+> `sudo`, `rm -rf`, `eval`) is **always blocked**, even with `--yes`.
 
 ---
 
@@ -411,29 +483,54 @@ Executing...
 
 The SafetyChecker validates every file operation and shell command before execution:
 
-| Tier | Name | Behavior | Examples |
-|------|------|----------|----------|
-| **Tier 1** | Blocked | Immediately rejected. No user override. | `sudo`, `rm -rf /`, `eval`, backtick injection, `cmd /c` |
-| **Tier 2** | Needs Confirmation | User must explicitly approve. Options: Allow Once / Always Allow / Deny | System paths (`/etc`, `C:\Windows`), paths outside whitelist |
-| **Tier 3** | Approved | Auto-executes. No prompt needed. | `~/`, `/tmp`, Desktop, Documents, current directory |
+| Tier | Name | Behavior | Examples | `--yes` effect |
+|------|------|----------|----------|----------------|
+| **Tier 1** | Blocked | Immediately rejected with a specific reason message. No user override possible. | `sudo`, `rm -rf`, `eval`, backtick injection, `cmd /c` | **No effect** — Tier 1 is never bypassed |
+| **Tier 2** | Needs Confirmation | User must explicitly approve. Options: Allow Once / Always Allow / Deny | System paths (`/etc`, `C:\Windows`), paths outside whitelist | **Auto-confirms** — all violations temporarily allowed |
+| **Tier 3** | Approved | Auto-executes. No prompt needed. | `~/`, `/tmp`, Desktop, Documents, current directory | N/A — already auto-approved |
 
-### Path Violations
+**Tier 1 block reason messages** (actual output, language depends on app locale setting):
 
-When the AI tries to access a path outside the whitelist:
+| Pattern Detected | Block Reason (Chinese locale) |
+|------------------|------------------------------|
+| Command injection (eval, backticks, etc.) | `检测到潜在的命令注入` |
+| `sudo` prefix | `禁止使用 sudo 提权` |
+| `rm -rf /` or `rm -rf /*` | `禁止递归删除根目录或系统目录` |
+| `runas` or privilege escalation | `禁止使用提权命令` |
+| Disk operations (`dd`, `format`) | `禁止磁盘操作命令` |
+| System service manipulation | `禁止操作系统服务` |
+| Forced shutdown/reboot | `禁止强制关机/重启` |
+| Firewall disabling | `禁止关闭防火墙` |
 
-**Read operations** (like `ls`, `cat`, `grep`) show a yellow/info warning.
-**Write operations** (like `touch`, `mkdir`, `rm`) show a red/danger warning, especially on system paths.
+> Some AI models also refuse to generate dangerous commands at their own safety layer. This provides
+> defense in depth: even if the AI generates a command, the SafetyChecker blocks it; conversely, if
+> the SafetyChecker had a bug, the model's own refusal would prevent execution.
 
-**CLI ask mode — path violation response:**
+### Path Violation Responses
+
+When the AI tries to access a path outside the whitelist, the app shows detailed warnings.
+
+**Operation type labels:**
+- `[READ]` — read-only operations (`ls`, `cat`, `grep`, `dir`, `find`) — shown in yellow
+- `[WRITE]` — write operations (`touch`, `mkdir`, `rm`, file creation) — shown in red
+
+**Path category labels:**
+- `[SYSTEM PATH]` — protected system directories (`/etc`, `/bin`, `C:\Windows`, etc.)
+- `[OUTSIDE WHITELIST]` — paths not in the default whitelist or user-approved list
+
+#### CLI ask mode (`ask` command)
 
 ```
 *** Path access warnings ***
   1. [READ] [SYSTEM PATH] /etc/
   2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
-Execute? [Y/n]: y   # y = allow all this session, n = deny all
+Execute? [Y/n]: y
 ```
 
-**CLI interactive mode — path violation response (per-violation toggling):**
+- `y` or Enter — allow all violations for this session, execute plan
+- `n` — cancel the plan. Prints "Cancelled."
+
+#### CLI interactive mode (`chat` command) — per-violation toggling
 
 ```
 *** Path access toggles ***
@@ -442,23 +539,24 @@ Execute? [Y/n]: y   # y = allow all this session, n = deny all
 a=allow all once  p=always allow all  d=deny all  number=toggle single
 
 Type /confirm to execute, /cancel to abort.
-> p                           # switch all to Always Allow
-  1. [READ] [SYSTEM PATH] /etc/ → ALWAYS ALLOW
-  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini → ALWAYS ALLOW
-> /confirm                    # applies choices and executes
 ```
 
 | Key | Action |
 |-----|--------|
-| `a` | Set all to Allow Once (session-scoped) |
-| `p` | Set all to Always Allow (persisted to QSettings) |
-| `d` | Set all to Deny |
-| `1`–`9` | Cycle single violation through Deny → Allow Once → Always Allow |
+| `a` | Set all to **Allow Once** (session-scoped, list re-renders) |
+| `p` | Set all to **Always Allow** (persisted to QSettings, list re-renders) |
+| `d` | Set all to **Deny** (list re-renders, plan still pending — not cancelled) |
+| `1`–`9` | Cycle single violation: Deny → Allow Once → Always Allow (list re-renders) |
 | `/confirm` | Apply per-violation choices and execute plan |
 | `/cancel` | Cancel plan and clear pending state |
-| (chat message) | Stop pending plan, start new conversation |
+| (chat message) | Multi-character input falls through — stops pending plan, starts new conversation |
 
-**GUI confirmation dialog** shows each path violation with individual `[Allow Once]` / `[Always Allow]` / `[Deny]` buttons.
+Invalid single-character inputs (like `x`) print: `"Invalid input. Use a/p/d/number, /confirm, or /cancel."` — the plan remains pending.
+
+#### GUI confirmation dialog
+
+Shows each path violation with individual `[Allow Once]` / `[Always Allow]` / `[Deny]` buttons.
+Yellow icon for read operations, red for write operations on system paths.
 
 ### Path Allow Modes
 
@@ -473,6 +571,18 @@ Type /confirm to execute, /cancel to abort.
 `/confirm` or `/cancel`. In CLI ask mode, respond to the inline `[Y/n]` prompt. In GUI, a
 confirmation dialog is shown. Use the `--yes` flag to auto-confirm Tier 2 warnings in CLI ask mode
 for scripting. Tier 1 (dangerous commands) is never bypassed by `--yes`.
+
+### Resetting Persistent Path Approvals
+
+When you choose "Always Allow" for a path, it is saved to QSettings and survives app restarts.
+To reset:
+
+- **GUI**: Open Settings → Security tab, find the path in the list and remove it
+- **CLI / Manual**: Delete the `SafetyChecker/PersistentlyAllowedPaths` key from QSettings:
+  - macOS: `~/Library/Preferences/LocalAIAssistant.plist` (NativeFormat) or
+    `~/.config/LocalAIAssistant/Settings.conf` (IniFormat)
+  - Windows: Registry under `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings`
+  - Linux: `~/.config/LocalAIAssistant/Settings.conf`
 
 ---
 
@@ -495,6 +605,33 @@ Right-click the app → **Open**. This is needed only the first time.
 ### No response from AI
 
 Check your API URL, API Key, and network connection in Settings.
+
+### Non-streaming mode causes slow CLI output
+
+If the CLI appears to hang during a TASK_PLAN request, check if **streaming** is enabled in
+Settings → General. In non-streaming mode, the AI's full response arrives at once, which can take
+30-60 seconds with no visible progress. Enable streaming for responsive, real-time output.
+
+### Pipe-based CLI testing limitations
+
+Using shell pipes with the CLI (e.g., `echo y | ./LocalAIAssistant-CLI ask "..."` ) may not work
+reliably for task execution:
+- After confirmation, the app enters an Agent Loop and stdin behavior can conflict with the pipe
+- Use the `--yes` flag instead for automated scripting: `./LocalAIAssistant-CLI ask --yes "..."`
+- Interactive mode (`chat`) cannot be tested via pipes — use a real terminal
+
+### AI generates text about doing something but no TASK_PLAN
+
+Some models may describe what they plan to do in prose without generating an actual `[TASK_PLAN]`
+JSON block. If you see the AI saying "I'll create the file..." but nothing executes:
+- Try being more explicit: "Use [TASK_PLAN] to create the file..."
+- Some models are better at TASK_PLAN generation than others
+
+### AI refuses to generate dangerous commands
+
+Some AI models (particularly newer ones) have their own safety layer and will refuse to generate
+commands like `sudo`, even if you explicitly request them. This is expected behavior and provides
+defense in depth — use this as a safety feature, not a bug.
 
 ### Voice not working
 
