@@ -9,6 +9,7 @@
 #   build    - Build the project (default)
 #   run      - Run compiled executable directly
 #   test     - Build and run unit tests (ctest)
+#   package  - Package build artifacts (delegates to scripts/package.sh)
 #   help     - Show this help message
 #
 # Build options:
@@ -18,7 +19,14 @@
 #   -v, --verbose     Show verbose output
 #   -j, --jobs <n>    Parallel compile jobs
 #   -q, --qt-path     Specify Qt installation path
+#   -p, --package     Create platform package after successful build
 #   --no-run          Skip "open program" prompt after build
+#
+# Package options (passed through to scripts/package.sh):
+#   --nsis            Create NSIS installer (Windows only)
+#   --appimage        Create AppImage (Linux only)
+#   --sign <id>       Code sign macOS bundle (future)
+#   --notarize        Notarize macOS DMG (future)
 #
 # Targets:
 #   all               Build all targets (default)
@@ -42,6 +50,7 @@ NO_RUN_PROMPT=false
 RUN_TARGET=""
 CLI_HELP_ONLY=false
 PACKAGE=false
+PACKAGE_PASSTHROUGH_ARGS=""
 
 # ============================================================
 # Pause function for interactive terminal
@@ -519,325 +528,28 @@ cmd_build() {
 }
 
 # ============================================================
-# Package — Create distributable release artifacts
+# Package — Delegate to standalone packaging script
 # ============================================================
 
-get_version() {
-    grep -oE '[0-9]+\.[0-9]+\.[0-9]+' "$PROJECT_ROOT/CMakeLists.txt" | head -1
-}
-
-package_macos() {
-    local version
-    version=$(get_version)
-    local app_path="$BUILD_DIR/LocalAIAssistant.app"
-    local cli_bin="$BUILD_DIR/LocalAIAssistant-CLI"
-    local release_dir="$PROJECT_ROOT/release"
-    local dmg_name="LocalAIAssistant-${version}-macOS.dmg"
-    local macdeployqt="$QT_PATH/bin/macdeployqt"
-
-    echo ""
-    echo "========================================="
-    echo "  Packaging for macOS"
-    echo "========================================="
-
-    if [ ! -d "$app_path" ]; then
-        echo "Error: $app_path not found. Build first."
-        return 1
-    fi
-
-    rm -rf "$release_dir"
-    mkdir -p "$release_dir"
-
-    # Run macdeployqt to bundle Qt frameworks
-    if [ -f "$macdeployqt" ]; then
-        echo ""
-        echo "[1/3] Bundling Qt frameworks with macdeployqt..."
-        "$macdeployqt" "$app_path" -verbose=1 -no-strip 2>&1 | sed 's/^/  /'
-        if [ $? -ne 0 ]; then
-            echo "  Warning: macdeployqt reported issues, continuing anyway..."
-        fi
-    else
-        echo ""
-        echo "[1/3] macdeployqt not found at $macdeployqt"
-        echo "  Qt frameworks will NOT be bundled. The app will only"
-        echo "  run on machines with Qt installed."
-    fi
-
-    # Create staging directory for DMG
-    echo ""
-    echo "[2/3] Creating DMG staging directory..."
-    local staging="$release_dir/staging"
-    mkdir -p "$staging"
-    cp -R "$app_path" "$staging/"
-
-    # Remove developer .env from app bundle (avoid leaking credentials)
-    rm -f "$staging/LocalAIAssistant.app/Contents/Resources/.env" 2>/dev/null || true
-    echo "  .env removed from app bundle (use Settings UI or .env.example)"
-
-    # Copy .env.example as a template for users
-    if [ -f "$PROJECT_ROOT/.env.example" ]; then
-        cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
-        echo "  .env.example template included"
-    fi
-    ln -s /Applications "$staging/Applications"
-
-    # Copy CLI binary into staging (alongside .app)
-    if [ -f "$cli_bin" ]; then
-        cp "$cli_bin" "$staging/"
-        echo "  CLI binary included"
-    fi
-
-    # Create DMG
-    echo ""
-    echo "[3/3] Creating DMG..."
-    local dmg_path="$release_dir/$dmg_name"
-    hdiutil create -volname "LocalAIAssistant" \
-        -srcfolder "$staging" \
-        -ov -format UDZO \
-        "$dmg_path" 2>&1 | sed 's/^/  /'
-
-    if [ -f "$dmg_path" ]; then
-        rm -rf "$staging"
-        echo ""
-        echo "  === macOS package created ==="
-        echo "  $dmg_path"
-        echo ""
-        echo "  Note: This app is not code-signed."
-        echo "  Users must right-click → Open to launch the first time."
-    else
-        echo "  Error: DMG creation failed"
-        return 1
-    fi
-}
-
-package_windows() {
-    local version
-    version=$(get_version)
-    local gui_exe="$BUILD_DIR/LocalAIAssistant.exe"
-    local cli_exe="$BUILD_DIR/LocalAIAssistant-CLI.exe"
-    local release_dir="$PROJECT_ROOT/release"
-    local zip_name="LocalAIAssistant-${version}-Windows.zip"
-
-    echo ""
-    echo "========================================="
-    echo "  Packaging for Windows"
-    echo "========================================="
-
-    if [ ! -f "$gui_exe" ] && [ ! -f "$cli_exe" ]; then
-        echo "Error: No executables found in $BUILD_DIR. Build first."
-        return 1
-    fi
-
-    rm -rf "$release_dir"
-    mkdir -p "$release_dir"
-
-    # Create staging directory
-    local staging="$release_dir/LocalAIAssistant"
-    mkdir -p "$staging"
-
-    echo ""
-    echo "[1/2] Collecting files..."
-
-    # Copy GUI executable and all adjacent files (DLLs, resources)
-    if [ -f "$gui_exe" ]; then
-        cp "$gui_exe" "$staging/" 2>/dev/null
-        echo "  GUI executable copied"
-    fi
-
-    # Copy CLI executable
-    if [ -f "$cli_exe" ]; then
-        cp "$cli_exe" "$staging/" 2>/dev/null
-        echo "  CLI executable copied"
-    fi
-
-    # Copy resource directories from build
-    for dir in core AIGirlfriend girlfriend translations models; do
-        if [ -d "$BUILD_DIR/$dir" ]; then
-            cp -R "$BUILD_DIR/$dir" "$staging/"
-            echo "  $dir/ copied"
-        fi
-    done
-
-    # Copy individual resource files (skip .env to avoid leaking developer credentials)
-    for file in soul.md personality.md memory.md; do
-        if [ -f "$BUILD_DIR/$file" ]; then
-            cp "$BUILD_DIR/$file" "$staging/"
-        fi
-    done
-
-    # Copy .env.example as a template for users
-    if [ -f "$PROJECT_ROOT/.env.example" ]; then
-        cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
-        echo "  .env.example template included"
-    fi
-
-    # Copy usage docs
-    if [ -d "$PROJECT_ROOT/docs" ]; then
-        mkdir -p "$staging/docs"
-        cp "$PROJECT_ROOT/docs/USAGE.md" "$staging/docs/" 2>/dev/null || true
-        cp "$PROJECT_ROOT/docs/USAGE_zh_CN.md" "$staging/docs/" 2>/dev/null || true
-        echo "  docs/ copied"
-    fi
-
-    echo ""
-    echo "[2/2] Creating zip archive..."
-
-    cd "$release_dir"
-    if command -v zip &>/dev/null; then
-        zip -rq "$zip_name" "LocalAIAssistant"
-        echo "  === Windows package created ==="
-        echo "  $release_dir/$zip_name"
-    else
-        echo "  Error: 'zip' command not found"
-        cd "$PROJECT_ROOT"
-        return 1
-    fi
-    cd "$PROJECT_ROOT"
-
-    rm -rf "$staging"
-}
-
-package_linux() {
-    local version
-    version=$(get_version)
-    local gui_bin="$BUILD_DIR/LocalAIAssistant"
-    local cli_bin="$BUILD_DIR/LocalAIAssistant-CLI"
-    local release_dir="$PROJECT_ROOT/release"
-    local archive_name="LocalAIAssistant-${version}-Linux.tar.gz"
-
-    echo ""
-    echo "========================================="
-    echo "  Packaging for Linux"
-    echo "========================================="
-
-    if [ ! -f "$gui_bin" ] && [ ! -f "$cli_bin" ]; then
-        echo "Error: No executables found in $BUILD_DIR. Build first."
-        return 1
-    fi
-
-    rm -rf "$release_dir"
-    mkdir -p "$release_dir"
-
-    local staging="$release_dir/LocalAIAssistant-${version}"
-    mkdir -p "$staging"
-
-    echo ""
-    echo "[1/2] Collecting files..."
-
-    # Copy binaries
-    if [ -f "$gui_bin" ]; then
-        cp "$gui_bin" "$staging/"
-        echo "  GUI binary copied"
-    fi
-    if [ -f "$cli_bin" ]; then
-        cp "$cli_bin" "$staging/"
-        echo "  CLI binary copied"
-    fi
-
-    # Copy resource directories
-    for dir in core AIGirlfriend girlfriend translations models; do
-        if [ -d "$BUILD_DIR/$dir" ]; then
-            cp -R "$BUILD_DIR/$dir" "$staging/"
-            echo "  $dir/ copied"
-        fi
-    done
-
-    # Copy individual resource files (skip .env to avoid leaking developer credentials)
-    for file in soul.md personality.md memory.md; do
-        if [ -f "$BUILD_DIR/$file" ]; then
-            cp "$BUILD_DIR/$file" "$staging/"
-        fi
-    done
-
-    # Copy .env.example as a template for users
-    if [ -f "$PROJECT_ROOT/.env.example" ]; then
-        cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
-        echo "  .env.example template included"
-    fi
-
-    # Copy usage docs
-    if [ -d "$PROJECT_ROOT/docs" ]; then
-        mkdir -p "$staging/docs"
-        cp "$PROJECT_ROOT/docs/USAGE.md" "$staging/docs/" 2>/dev/null || true
-        cp "$PROJECT_ROOT/docs/USAGE_zh_CN.md" "$staging/docs/" 2>/dev/null || true
-        echo "  docs/ copied"
-    fi
-
-    # Copy desktop file
-    if [ -f "$PROJECT_ROOT/resources/localaiassistant.desktop" ]; then
-        cp "$PROJECT_ROOT/resources/localaiassistant.desktop" "$staging/"
-        echo "  .desktop file copied"
-    fi
-
-    # Create install script
-    cat >"$staging/install.sh" <<'INSTALL_SCRIPT'
-#!/bin/bash
-INSTALL_DIR="$HOME/.local"
-echo "Installing LocalAIAssistant..."
-mkdir -p "$INSTALL_DIR/bin"
-mkdir -p "$INSTALL_DIR/share/localaiassistant"
-mkdir -p "$INSTALL_DIR/share/applications"
-mkdir -p "$INSTALL_DIR/share/icons/hicolor/256x256/apps"
-
-cp LocalAIAssistant "$INSTALL_DIR/bin/" 2>/dev/null || true
-cp LocalAIAssistant-CLI "$INSTALL_DIR/bin/" 2>/dev/null || true
-cp -R core AIGirlfriend girlfriend translations models "$INSTALL_DIR/share/localaiassistant/" 2>/dev/null || true
-
-if [ -f "localaiassistant.desktop" ]; then
-    sed -i "s|^Exec=.*|Exec=$INSTALL_DIR/bin/LocalAIAssistant|" localaiassistant.desktop
-    cp localaiassistant.desktop "$INSTALL_DIR/share/applications/"
-fi
-
-echo "Done. Run 'LocalAIAssistant' from terminal or find it in your app launcher."
-echo "Add $INSTALL_DIR/bin to your PATH if it is not already."
-INSTALL_SCRIPT
-    chmod +x "$staging/install.sh"
-    echo "  install.sh created"
-
-    # Create tar.gz
-    echo ""
-    echo "[2/2] Creating tar.gz archive..."
-
-    cd "$release_dir"
-    tar -czf "$archive_name" "LocalAIAssistant-${version}"
-    echo "  === Linux package created ==="
-    echo "  $release_dir/$archive_name"
-
-    cd "$PROJECT_ROOT"
-    rm -rf "$staging"
-}
-
 cmd_package() {
-    # Detect platform if not already set
-    if [ -z "$PLATFORM" ]; then
-        detect_platform
+    local package_script="$PROJECT_ROOT/scripts/package.sh"
+
+    if [ ! -f "$package_script" ]; then
+        echo "Error: Packaging script not found at $package_script"
+        return 1
     fi
 
-    # Ensure Qt path is set (needed for macdeployqt)
+    # Detect Qt path if needed (pass through to package.sh)
     if [ -z "$QT_PATH" ] && [[ "$PLATFORM" == "macos" ]]; then
         detect_qt_path || true
     fi
 
-    echo ""
-    echo "==================================="
-    echo "  LocalAIAssistant - Package"
-    echo "==================================="
-
-    case "$PLATFORM" in
-        macos)
-            package_macos
-            ;;
-        windows)
-            package_windows
-            ;;
-        linux)
-            package_linux
-            ;;
-        *)
-            echo "Error: Unknown platform '$PLATFORM'"
-            return 1
-            ;;
-    esac
+    bash "$package_script" \
+        --build-dir "$BUILD_DIR" \
+        --qt-path "$QT_PATH" \
+        --output-dir "$PROJECT_ROOT/release" \
+        $PACKAGE_PASSTHROUGH_ARGS
+    return $?
 }
 
 # ============================================================
@@ -1116,6 +828,22 @@ parse_args() {
                 CLI_HELP_ONLY=true
                 shift
                 ;;
+            --nsis)
+                PACKAGE_PASSTHROUGH_ARGS="$PACKAGE_PASSTHROUGH_ARGS --nsis"
+                shift
+                ;;
+            --appimage)
+                PACKAGE_PASSTHROUGH_ARGS="$PACKAGE_PASSTHROUGH_ARGS --appimage"
+                shift
+                ;;
+            --sign)
+                PACKAGE_PASSTHROUGH_ARGS="$PACKAGE_PASSTHROUGH_ARGS --sign $2"
+                shift 2
+                ;;
+            --notarize)
+                PACKAGE_PASSTHROUGH_ARGS="$PACKAGE_PASSTHROUGH_ARGS --notarize"
+                shift
+                ;;
             LocalAIAssistant | LocalAIAssistant-CLI | all)
                 TARGET="$1"
                 shift
@@ -1148,7 +876,7 @@ Commands:
   build    Build the project (default command)
   run      Run compiled executable directly
   test     Build and run unit tests (ctest)
-  package  Package build artifacts for distribution
+  package  Package build artifacts for distribution (delegates to scripts/package.sh)
   help     Show this help message
 
 Build Options:
@@ -1161,10 +889,20 @@ Build Options:
   -p, --package     Create platform package after successful build
   --no-run          Skip "open program" prompt after build
 
+Package Options (passed through to scripts/package.sh):
+  --nsis            Create NSIS installer (Windows only, optional)
+  --appimage        Create AppImage (Linux only, optional)
+  --sign <identity> Code sign macOS bundle (future — not yet implemented)
+  --notarize        Notarize macOS DMG (future — not yet implemented)
+
+  Run ./scripts/package.sh --help for full packaging documentation.
+
 Package Output:
   macOS:   release/LocalAIAssistant-x.x.x-macOS.dmg
-  Windows: release/LocalAIAssistant-x.x.x-Windows.zip
-  Linux:   release/LocalAIAssistant-x.x.x-Linux.tar.gz
+  Windows: release/LocalAIAssistant-x.x.x-Windows-x64.zip
+           release/LocalAIAssistant-x.x.x-Windows-x64-Setup.exe (with --nsis)
+  Linux:   release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz
+           release/LocalAIAssistant-x.x.x-Linux-x86_64.AppImage (with --appimage)
 
 Build Targets:
   all               Build all targets (default)
@@ -1182,6 +920,8 @@ Examples:
   ./build.sh test                   # Build and run unit tests
   ./build.sh build -p               # Build and create platform package
   ./build.sh package                # Package existing build artifacts
+  ./build.sh package --nsis         # Package with NSIS installer (Windows)
+  ./build.sh package --appimage     # Package with AppImage (Linux)
   ./build.sh LocalAIAssistant-CLI   # Build CLI only
   ./build.sh -j 8 --no-run          # 8 parallel jobs, no prompt
   ./build.sh run                    # Run GUI (default)
@@ -1195,7 +935,7 @@ Environment Variables:
 Windows Notes:
   - Requires Git Bash, MSYS2, or WSL
   - Automatically adds Qt bin and MinGW tools to PATH
-  - Automatically runs windeployqt to deploy Qt DLLs
+  - windeployqt runs during both build and packaging phases
   - MinGW compiler (g++) is detected from Qt/Tools directory
 
 Platform-specific Qt detection:

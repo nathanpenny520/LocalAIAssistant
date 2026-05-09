@@ -15,11 +15,20 @@ cmake --build build --parallel 4                    # Fast build (preferred)
 ./scripts/build.sh test                             # Build and run unit tests
 ./scripts/build.sh run --gui                        # Run GUI
 ./scripts/build.sh run --cli                        # Run CLI
-./scripts/build.sh build -p                         # Package (DMG/zip)
+./scripts/build.sh build -p                         # Build + package (DMG/zip)
+./scripts/build.sh package                          # Package existing build
+./scripts/build.sh package --nsis                   # Package with NSIS installer (Windows)
+./scripts/build.sh package --appimage               # Package with AppImage (Linux)
+
+# Standalone packaging (CI-friendly, no build.sh dependency)
+./scripts/package.sh --help                         # Full packaging options
+./scripts/package.sh --build-dir build              # Auto-detect platform, create archive
+./scripts/package.sh --build-dir build --nsis       # + NSIS installer
+./scripts/package.sh --build-dir build --appimage   # + AppImage
 ```
 
-**Note**: `build.sh` has an interactive prompt (line 870). Use `--no-run`, `--gui`, or `--cli` to
-skip it. Prefer `cmake --build` for non-interactive use.
+**Note**: `build.sh` has an interactive prompt. Use `--no-run`, `--gui`, or `--cli` to skip it.
+Prefer `cmake --build` for non-interactive use. Packaging delegates to `scripts/package.sh`.
 
 ## Git Workflow
 
@@ -107,6 +116,20 @@ After every major fix or feature, update these docs if the changes affect them:
 - **CLAUDE.md** — if architecture, build commands, or standards changed
 
 Do not wait for the user to ask. Review docs as the final step of any non-trivial change.
+
+## Packaging
+
+- **`scripts/package.sh`** — Standalone cross-platform packaging (797 lines). Self-sufficient:
+  runs `macdeployqt`/`windeployqt` itself, does not depend on prior build steps.
+- **`scripts/version.sh`** — Shared version source. Extracts `VERSION X.Y.Z` from CMakeLists.txt.
+  Sourced by both `build.sh` and `package.sh`.
+- **macOS**: DMG via `hdiutil`, with `--sign`/`--notarize` stubs (future).
+- **Windows**: ZIP with DLL fix (copies all adjacent `.dll` files). `--nsis` creates
+  NSIS installer (requires `makensis`). Falls back to ZIP if not installed.
+- **Linux**: tar.gz with embedded `install.sh`. `--appimage` creates AppImage (requires
+  `linuxdeployqt` + `appimagetool`). Falls back to tar.gz if not installed.
+- **SHA256SUM**: Generated for all artifacts in output directory.
+- **CI**: `.github/workflows/build.yml` uploads artifacts for all 3 platforms.
 
 ## Platform Notes
 

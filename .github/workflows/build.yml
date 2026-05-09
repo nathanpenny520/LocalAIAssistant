@@ -34,6 +34,20 @@ jobs:
       - name: Test
         run: cd build && ctest --output-on-failure
 
+      - name: Package
+        if: success()
+        run: |
+          ./scripts/package.sh --build-dir build --output-dir release
+          # AppImage skipped: linuxdeployqt/appimagetool not in apt
+
+      - name: Upload Linux artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalAIAssistant-Linux
+          path: release/*
+          if-no-files-found: warn
+
   test-macos:
     runs-on: macos-latest
     steps:
@@ -54,6 +68,22 @@ jobs:
       - name: Test
         run: cd build && ctest --output-on-failure
 
+      - name: Package
+        if: success()
+        run: |
+          ./scripts/package.sh \
+            --build-dir build \
+            --qt-path "$(brew --prefix qt@6)" \
+            --output-dir release
+
+      - name: Upload macOS artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalAIAssistant-macOS
+          path: release/*
+          if-no-files-found: warn
+
   test-windows:
     runs-on: windows-2022
     steps:
@@ -73,3 +103,18 @@ jobs:
 
       - name: Test
         run: cd build && ctest --output-on-failure -C Release
+
+      - name: Package
+        if: success()
+        shell: bash
+        run: |
+          ./scripts/package.sh --build-dir build --output-dir release
+          # NSIS skipped: makensis not on default runner
+
+      - name: Upload Windows artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalAIAssistant-Windows
+          path: release/*
+          if-no-files-found: warn

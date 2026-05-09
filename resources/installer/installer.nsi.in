@@ -1,0 +1,61 @@
+; ============================================================
+; LocalAIAssistant - NSIS Installer Template
+; ============================================================
+; @VERSION@ is substituted by scripts/package.sh at packaging time.
+; Requires NSIS 3.x with Modern UI 2.
+; ============================================================
+
+!include "MUI2.nsh"
+
+!define PRODUCT_NAME "LocalAIAssistant"
+!define PRODUCT_VERSION "@VERSION@"
+!define PRODUCT_PUBLISHER "LocalAIAssistant"
+!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+
+Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
+OutFile "LocalAIAssistant-${PRODUCT_VERSION}-Windows-x64-Setup.exe"
+InstallDir "$PROGRAMFILES64\${PRODUCT_NAME}"
+RequestExecutionLevel admin
+
+; --- Modern UI Pages ---
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_LANGUAGE "English"
+
+; --- Install Section ---
+Section "Install"
+    SetOutPath "$INSTDIR"
+    File /r "staging\*"
+
+    CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\LocalAIAssistant.lnk" \
+        "$INSTDIR\LocalAIAssistant.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\LocalAIAssistant CLI.lnk" \
+        "$INSTDIR\LocalAIAssistant-CLI.exe"
+    CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" \
+        "$INSTDIR\uninstall.exe"
+
+    WriteUninstaller "$INSTDIR\uninstall.exe"
+
+    ; Add/Remove Programs registry
+    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayName" "${PRODUCT_NAME}"
+    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninstall.exe"
+    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
+    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
+    WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "NoModify" 1
+    WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "NoRepair" 1
+SectionEnd
+
+; --- Uninstall Section ---
+Section "Uninstall"
+    Delete "$SMPROGRAMS\${PRODUCT_NAME}\*.lnk"
+    RMDir "$SMPROGRAMS\${PRODUCT_NAME}"
+
+    RMDir /r "$INSTDIR"
+
+    DeleteRegKey HKLM "${PRODUCT_UNINST_KEY}"
+SectionEnd

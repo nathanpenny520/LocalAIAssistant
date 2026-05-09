@@ -67,6 +67,13 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
       delays, model refusal behavior, QSettings cleanup). Updated README.md/README_EN.md Task
       Execution feature list with detailed capability descriptions. Added test results section
       to `cli-test-plan.md`.
+- [x] **Feature 3: Cross-Platform Packaging** — Extracted packaging from `build.sh` into standalone
+      `scripts/package.sh` (797 lines). Created `scripts/version.sh` for shared version source.
+      macOS: DMG with macdeployqt. Windows: ZIP with windeployqt (fixed DLL copy bug) + optional
+      NSIS installer (`--nsis`). Linux: tar.gz + embedded install.sh + optional AppImage
+      (`--appimage`). Added SHA256SUM generation. CI uploads artifacts for all 3 platforms.
+      `build.sh` reduced from 1318 → 1058 lines. All optional features gracefully degrade.
+      5 files (+3 new, 2 modified), +1022/-313 lines.
 
 ### What to do next (优先级排序)
 
@@ -373,10 +380,10 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
 **风险**: 中等（影响构建流程）  
 **重要性**: 低（代码组织）
 
-- [ ] `scripts/build.sh` (1278) → `scripts/build.sh` (main, ~430) + `scripts/build_impl.sh`
-      (cmake+compile, ~430) + `scripts/package.sh` (packaging, ~400)
+- [x] `scripts/build.sh` (1318) → `scripts/build.sh` (1058, delegation to package.sh) +
+      `scripts/package.sh` (797, standalone packaging) + `scripts/version.sh` (15, shared version source)
 
-**前提**: Phase 3.3 build.sh fix 完成
+**前提**: Phase 3.3 build.sh fix 完成 → **DONE 2026-05-09**
 
 #### 7.3 Trim setup.sh
 
@@ -394,12 +401,12 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
 **风险**: 低（不影响代码）  
 **重要性**: 低（分发便利性）
 
-- [ ] Add NSIS/InnoSetup installer for Windows
-- [ ] Add AppImage generation for Linux
-- [ ] Add optional macOS code signing (certificate-based)
-- [ ] Bundle VC++ redistributable for Windows
+- [x] Add NSIS installer for Windows (`--nsis` flag, `resources/installer/installer.nsi.in`)
+- [x] Add AppImage generation for Linux (`--appimage` flag, via linuxdeployqt + appimagetool)
+- [x] Add optional macOS code signing (`--sign` flag, stub — future implementation)
+- [ ] Bundle VC++ redistributable for Windows (deferred — users install from Microsoft)
 
-**前提**: 所有功能稳定，测试覆盖完整
+**前提**: 所有功能稳定，测试覆盖完整 → **Feature 3 completed 2026-05-09**
 
 ---
 
@@ -410,7 +417,8 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
 | `src/girlfriend/girlfriendwindow.cpp` | 1,937       | ⚠️ **DEFERRED** - Phase 4.1                                  |
 | `src/ui/mainwindow.cpp`               | 1,678       | ⚠️ **DEFERRED** - Phase 4.2                                  |
 | `src/girlfriend/voicemanager.cpp`     | 1,505       | ⚠️ **DEFERRED** - Phase 4.3                                  |
-| `scripts/build.sh`                    | 1,278       | 🟡 Phase 3.3 (fix prompt) → Phase 7.2 (split)                |
+| `scripts/build.sh`                    | ~~1,278~~ 1,058 | 🟢 Phase 7.2 done — packaging extracted to `scripts/package.sh` |
+| `scripts/package.sh`                  | 797         | 🟢 Phase 7.2 new — standalone packaging script                |
 | `src/cli/cli_application.cpp`         | ~~1,165~~ 1,179 | ⚠️ **DEFERRED** - Phase 4.4 + AgentLoop integration        |
 | `src/ui/markdownrenderer.cpp`         | 855         | 🟡 Phase 3.2 (if needed)                                     |
 | `CMakeLists.txt`                      | 788         | 🟢 Phase 7.1 (optional)                                      |
