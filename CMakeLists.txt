@@ -119,23 +119,26 @@ if(Qt6LinguistTools_FOUND)
     set(TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
                  ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts)
 
-    # qt_add_lrelease interface changed in Qt 6.5
-    if(Qt6_VERSION VERSION_GREATER_EQUAL "6.5.0")
-        qt_add_lrelease(TS_FILES ${TS_FILES} LRELEASE_TARGET translations_target)
-    else()
-        qt_add_lrelease(translations_target TS_FILES ${TS_FILES})
-    endif()
-    add_custom_target(translations ALL DEPENDS ${translations_target})
-
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/translations)
+    # Direct lrelease avoids qt_add_lrelease API differences across Qt 6.x versions
+    set(QM_DIR ${CMAKE_CURRENT_BINARY_DIR}/translations)
+    set(QM_FILES
+        ${QM_DIR}/localai_zh_CN.qm
+        ${QM_DIR}/localai_en.qm)
 
     add_custom_command(
-        TARGET translations_target
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/localai_zh_CN.qm
-                ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/localai_en.qm
-                ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm)
+        OUTPUT ${QM_FILES}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${QM_DIR}
+        COMMAND $<TARGET_FILE:Qt6::lrelease>
+                ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
+                -qm ${QM_DIR}/localai_zh_CN.qm
+        COMMAND $<TARGET_FILE:Qt6::lrelease>
+                ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts
+                -qm ${QM_DIR}/localai_en.qm
+        DEPENDS ${TS_FILES}
+        COMMENT "Generating .qm translation files with lrelease")
+
+    add_custom_target(translations_target DEPENDS ${QM_FILES})
+    add_custom_target(translations ALL DEPENDS translations_target)
 else()
     message(STATUS "Qt6 LinguistTools not found, translations disabled")
     add_custom_target(translations ALL)  # dummy target for add_dependencies

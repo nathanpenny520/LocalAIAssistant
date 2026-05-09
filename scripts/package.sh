@@ -355,13 +355,15 @@ package_windows() {
     cd "$OUTPUT_DIR"
     if command -v zip &>/dev/null; then
         zip -rq "$zip_name" "staging"
-        echo "  === Windows package created ==="
-        echo "  $OUTPUT_DIR/$zip_name"
+    elif command -v powershell &>/dev/null; then
+        powershell -Command "Compress-Archive -Path staging\* -DestinationPath $zip_name -Force"
     else
-        echo "  Error: 'zip' command not found"
+        echo "  Error: neither 'zip' nor 'powershell' found"
         cd "$PROJECT_ROOT"
         return 1
     fi
+    echo "  === Windows package created ==="
+    echo "  $OUTPUT_DIR/$zip_name"
     cd "$PROJECT_ROOT"
 
     # --- Optional NSIS installer ---
