@@ -44,6 +44,10 @@ private:
     void executeConfirmedPlan();
     QString formatCommandResult(int index, const CommandResult& result) const;
 
+    // Path violation toggling (interactive mode)
+    void renderPathViolationToggles() const;
+    void clearPendingPlan();
+
     // File commands
     void handleFileCommand(const QString& command);
     void listFiles();
@@ -76,6 +80,10 @@ private:
     OperationPlan m_pendingPlan;
     bool m_hasPendingPlan = false;
     bool m_autoConfirm = false;
+
+    // Path violation toggle state (interactive mode)
+    QVector<PathViolation> m_pendingViolations;
+    QVector<int> m_pendingViolationResponses; // 0=Deny, 1=Allow Once, 2=Always Allow
 };
 
 #endif

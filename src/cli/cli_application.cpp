@@ -329,6 +329,47 @@ void CLIApplication::readInput() {
         return;
     }
 
+    // Intercept single-key path violation toggles (interactive mode)
+    if (m_hasPendingPlan && !m_pendingViolations.isEmpty()) {
+        // Only intercept single-character inputs; longer input is a chat message
+        if (qInput.length() == 1) {
+            QChar c = qInput[0];
+            if (c == QLatin1Char('a')) {
+                m_pendingViolationResponses.fill(1);
+                renderPathViolationToggles();
+                QTimer::singleShot(0, this, &CLIApplication::readInput);
+                return;
+            }
+            if (c == QLatin1Char('p')) {
+                m_pendingViolationResponses.fill(2);
+                renderPathViolationToggles();
+                QTimer::singleShot(0, this, &CLIApplication::readInput);
+                return;
+            }
+            if (c == QLatin1Char('d')) {
+                m_pendingViolationResponses.fill(0);
+                renderPathViolationToggles();
+                QTimer::singleShot(0, this, &CLIApplication::readInput);
+                return;
+            }
+            bool ok;
+            int idx = qInput.toInt(&ok);
+            if (ok && idx >= 1 && idx <= m_pendingViolations.size()) {
+                // Cycle: Deny(0) → Allow Once(1) → Always Allow(2) → Deny(0)
+                int& resp = m_pendingViolationResponses[idx - 1];
+                resp = (resp + 1) % 3;
+                renderPathViolationToggles();
+                QTimer::singleShot(0, this, &CLIApplication::readInput);
+                return;
+            }
+            // Single char but not a valid toggle key
+            std::cout << "Invalid input. Use a/p/d/number, /confirm, or /cancel." << std::endl;
+            QTimer::singleShot(0, this, &CLIApplication::readInput);
+            return;
+        }
+        // Longer input falls through to handleCommand or chat routing
+    }
+
     if (qInput.startsWith("/")) {
         handleCommand(qInput);
         return;
@@ -421,12 +462,18 @@ void CLIApplication::handleCommand(const QString& command) {
         std::cout << "Example: /search hello" << std::endl;
     } else if (cmd == "/confirm") {
         if (AgentLoop::instance()->state() == AgentLoop::AwaitingUserConfirm) {
-            // Auto-allow all path violations for this session (CLI convenience)
             SafetyChecker& sc = m_taskEngine->safetyChecker();
-            QVector<PathViolation> violations = sc.lastPathViolations();
-            for (const auto& v : violations) {
-                sc.temporarilyAllowPath(v.path);
+            for (int i = 0; i < m_pendingViolations.size(); ++i) {
+                const auto& v = m_pendingViolations[i];
+                int resp = m_pendingViolationResponses.value(i, 1);
+                if (resp == 2) {
+                    sc.persistentlyAllowPath(v.path);
+                } else if (resp == 1) {
+                    sc.temporarilyAllowPath(v.path);
+                }
+                // resp == 0: Deny — plan still executes for other paths
             }
+            clearPendingPlan();
             AgentLoop::instance()->confirmPlan();
         } else if (m_hasPendingPlan) {
             executeConfirmedPlan();
@@ -435,10 +482,10 @@ void CLIApplication::handleCommand(const QString& command) {
         }
     } else if (cmd == "/cancel") {
         if (AgentLoop::instance()->state() == AgentLoop::AwaitingUserConfirm) {
+            clearPendingPlan();
             AgentLoop::instance()->cancelPlan();
         } else if (m_hasPendingPlan) {
-            m_hasPendingPlan = false;
-            m_pendingPlan = OperationPlan();
+            clearPendingPlan();
             std::cout << "Pending command plan cancelled." << std::endl;
         } else {
             std::cout << "No pending command plan to cancel." << std::endl;
@@ -1123,15 +1170,19 @@ void CLIApplication::onAgentLoopPlanConfirm(const OperationPlan& plan,
             std::cout << "  " << (i + 1) << ". " << icon.toStdString()
                       << sysTag.toStdString() << " " << v.path.toStdString() << std::endl;
         }
-        std::cout << "\na=allow all once, p=permanently allow all, d=deny all, "
-                  << "or enter number to toggle" << std::endl;
     }
 
     if (m_interactiveMode) {
-        std::cout << "Type /confirm to execute, /cancel to abort, "
-                  << "or handle path violations first." << std::endl;
         m_pendingPlan = plan;
         m_hasPendingPlan = true;
+        m_pendingViolations = violations;
+        m_pendingViolationResponses.resize(violations.size());
+        m_pendingViolationResponses.fill(1); // Default: Allow Once
+
+        if (!violations.isEmpty()) {
+            renderPathViolationToggles();
+        }
+        std::cout << "\nType /confirm to execute, /cancel to abort." << std::endl;
     } else {
         if (m_autoConfirm) {
             std::cout << "Auto-confirming (--yes)..." << std::endl;
@@ -1171,6 +1222,30 @@ void CLIApplication::onAgentLoopFinished(const QString& summary, const QString& 
     } else {
         quit();
     }
+}
+
+void CLIApplication::renderPathViolationToggles() const {
+    static const char* labels[] = {"DENY", "ALLOW ONCE", "ALWAYS ALLOW"};
+    std::cout << "\n*** Path access toggles ***" << std::endl;
+    for (int i = 0; i < m_pendingViolations.size(); ++i) {
+        const auto& v = m_pendingViolations[i];
+        int resp = m_pendingViolationResponses[i];
+        QString icon = v.isWriteOp ? QStringLiteral("[WRITE]") : QStringLiteral("[READ]");
+        QString sysTag = v.violationType == PathViolation::SystemPath
+                                 ? QStringLiteral(" [SYSTEM PATH]")
+                                 : QStringLiteral(" [OUTSIDE WHITELIST]");
+        std::cout << "  " << (i + 1) << ". " << icon.toStdString() << sysTag.toStdString()
+                  << " " << v.path.toStdString() << " → " << labels[resp] << std::endl;
+    }
+    std::cout << "a=allow all once  p=always allow all  d=deny all  "
+              << "number=toggle single" << std::endl;
+}
+
+void CLIApplication::clearPendingPlan() {
+    m_hasPendingPlan = false;
+    m_pendingPlan = OperationPlan();
+    m_pendingViolations.clear();
+    m_pendingViolationResponses.clear();
 }
 
 void CLIApplication::quit() {
