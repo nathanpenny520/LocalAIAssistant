@@ -37,6 +37,7 @@ protected:
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;
     bool eventFilter(QObject *obj, QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private slots:
     void onSendClicked();
@@ -111,6 +112,7 @@ private:
     QWidget *m_leftPanel;            // 左侧面板（历史列表）
 
     bool m_isStreaming;
+    bool m_firstShow = true;
     bool m_suppressRender = false;   // 仅阻止 onSendClicked 期间的 renderCurrentSession
     QString m_streamingContent;
     bool m_streamEndedWithNewline = false;

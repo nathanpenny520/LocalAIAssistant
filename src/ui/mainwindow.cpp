@@ -232,7 +232,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Load saved sessions from disk
     SessionManager::instance()->loadSessionsFromFile();
-    updateSessionList();
     renderCurrentSession();
 
     StyleSheetManager::instance()->applyTheme(this);
@@ -242,6 +241,15 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Install global event filter to catch IME composition events (e.g. pinyin)
     qApp->installEventFilter(this);
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    if (m_firstShow) {
+        m_firstShow = false;
+        updateSessionList();
+    }
 }
 
 MainWindow::~MainWindow()
@@ -342,7 +350,6 @@ void MainWindow::setupUI()
     }
 #endif
 
-    updateSessionList();
 }
 
 void MainWindow::setupMenuBar()
@@ -893,6 +900,7 @@ void MainWindow::onToggleHistoryPanel()
     if (m_leftPanel->width() <= m_leftPanel->minimumWidth()) {
         m_splitter->setSizes({kSidebarWidth, m_splitter->width() - kSidebarWidth});
         m_toggleHistoryAction->setChecked(true);
+        updateSessionList();
     } else {
         // 隐藏面板（设置为最小宽度）
         m_splitter->setSizes({0, m_splitter->width()});
