@@ -5,6 +5,8 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QProcessEnvironment>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTimer>
 
@@ -67,6 +69,8 @@ QString CommandExecutor::expandPath(const QString& path) {
     if (path.isEmpty()) return path;
 
     QString expanded = path;
+
+    // Expand ~/ and ~\ to home directory
     if (expanded.startsWith(QLatin1String("~/"))) {
         expanded.replace(0, 1, QDir::homePath());
     } else if (expanded.startsWith(QLatin1String("~\\"))) {
@@ -74,6 +78,33 @@ QString CommandExecutor::expandPath(const QString& path) {
     } else if (expanded == QLatin1String("~")) {
         expanded = QDir::homePath();
     }
+
+    // Expand Windows-style %VAR% environment variables (e.g. %APPDATA%, %USERPROFILE%)
+    static QRegularExpression winEnvVar(QStringLiteral("%([A-Za-z_][A-Za-z0-9_]*)%"));
+    QRegularExpressionMatch m;
+    while ((m = winEnvVar.match(expanded)).hasMatch()) {
+        QString varName = m.captured(1);
+        QString varValue = QProcessEnvironment::systemEnvironment().value(varName);
+        if (varValue.isEmpty()) break;  // unknown variable, stop to avoid infinite loop
+        expanded.replace(m.capturedStart(), m.capturedLength(), varValue);
+    }
+
+    // Expand Unix-style $VAR and ${VAR} environment variables
+    static QRegularExpression unixEnvVar(QStringLiteral("\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}"));
+    while ((m = unixEnvVar.match(expanded)).hasMatch()) {
+        QString varName = m.captured(1);
+        QString varValue = QProcessEnvironment::systemEnvironment().value(varName);
+        if (varValue.isEmpty()) break;
+        expanded.replace(m.capturedStart(), m.capturedLength(), varValue);
+    }
+    static QRegularExpression unixEnvVarShort(QStringLiteral("\\$([A-Za-z_][A-Za-z0-9_]*)"));
+    while ((m = unixEnvVarShort.match(expanded)).hasMatch()) {
+        QString varName = m.captured(1);
+        QString varValue = QProcessEnvironment::systemEnvironment().value(varName);
+        if (varValue.isEmpty()) break;
+        expanded.replace(m.capturedStart(), m.capturedLength(), varValue);
+    }
+
     return QDir::cleanPath(expanded);
 }
 
@@ -189,10 +220,14 @@ CommandResult CommandExecutor::executeDeleteFile(const ShellOperation& op) {
     }
 
     bool ok = false;
+    QString errorDetail;
     if (info.isDir()) {
         ok = QDir(src).removeRecursively();
+        if (!ok) errorDetail = tr("(directory may be non-empty or permission denied)");
     } else {
-        ok = QFile::remove(src);
+        QFile file(src);
+        ok = file.remove();
+        if (!ok) errorDetail = file.errorString();
     }
 
     if (ok) {
@@ -202,7 +237,7 @@ CommandResult CommandExecutor::executeDeleteFile(const ShellOperation& op) {
     } else {
         result.success = false;
         result.exitCode = 1;
-        result.errorMessage = tr("删除失败: %1").arg(src);
+        result.errorMessage = tr("删除失败: %1 — %2").arg(src, errorDetail);
     }
     result.elapsedMs = timer.elapsed();
     return result;

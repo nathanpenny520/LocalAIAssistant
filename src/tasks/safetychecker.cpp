@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QProcessEnvironment>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QStandardPaths>
@@ -494,6 +495,18 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const
         paths.append(m.captured(0));
     }
 
+    // Expand environment variables in all extracted paths so safety checks
+    // operate on resolved paths (e.g. %SystemRoot% → C:\Windows)
+    static QRegularExpression winVar(QStringLiteral("%([A-Za-z_][A-Za-z0-9_]*)%"));
+    for (auto& p : paths) {
+        QRegularExpressionMatch vm;
+        while ((vm = winVar.match(p)).hasMatch()) {
+            QString val = QProcessEnvironment::systemEnvironment().value(vm.captured(1));
+            if (val.isEmpty()) break;
+            p.replace(vm.capturedStart(), vm.capturedLength(), val);
+        }
+    }
+
     return paths;
 }
 
@@ -717,6 +730,41 @@ bool SafetyChecker::isReadOnlyCommand(const QString& command) {
         if (winReadOnly.contains(firstWord.toLower())) continue;
 
         if (unixReadOnly.contains(firstWord)) continue;
+
+        // Tool commands with read-only subcommands (git, npm, pip, docker, etc.)
+        // Pattern must match from the start of the trimmed command
+        {
+            static const QStringList toolReadOnly = {
+                // git
+                QStringLiteral("^git\\s+(status|log|diff|show|branch|tag|blame|remote|stash\\s+(list|show)|describe|rev-parse|rev-list|ls-files|ls-tree)"),
+                QStringLiteral("^git\\s+config\\s+.*(--list|--get)"),
+                // npm
+                QStringLiteral("^npm\\s+(list|ls|outdated|view|search|info)"),
+                // pip
+                QStringLiteral("^pip3?\\s+(list|freeze|show|search)"),
+                // docker
+                QStringLiteral("^docker\\s+(ps|images|inspect|logs|stats|info|version|history|top|port)"),
+                // kubectl
+                QStringLiteral("^kubectl\\s+(get|describe|logs|top|explain|api-resources|api-versions|cluster-info)"),
+                // gh (GitHub CLI)
+                QStringLiteral("^gh\\s+(issue\\s+(list|view|status)|pr\\s+(list|view|status|diff|checks?)|release\\s+(list|view)|repo\\s+(list|view)|status|run\\s+(list|view)|workflow\\s+(list|view))"),
+                // cargo
+                QStringLiteral("^cargo\\s+(search|tree)"),
+                // go
+                QStringLiteral("^go\\s+(list|env|version|doc)"),
+                // misc Unix
+                QStringLiteral("^(ps|top|free|uptime|uname|hostname|whoami|id|groups|date|env|printenv|diff|cmp|sort|uniq|cut|tr|od|strings|nm|objdump|readelf)$"),
+            };
+            bool matched = false;
+            for (const auto& pattern : toolReadOnly) {
+                QRegularExpression re(pattern);
+                if (re.match(trimmed).hasMatch()) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) continue;
+        }
 
         // Unknown command — assume it could write
         return false;

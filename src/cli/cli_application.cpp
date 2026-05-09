@@ -270,6 +270,25 @@ int CLIApplication::runInteractiveMode(QCoreApplication& app, const QCommandLine
               << "\n";
     std::cout << "Streaming: " << (m_networkManager->isStreamingEnabled() ? "ON" : "OFF") << "\n";
     std::cout << "------------------------------------\n";
+
+    // Preflight: warn if using default API config that likely has no server
+    {
+        QSettings settings("LocalAIAssistant", "Settings");
+        QString currentUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString();
+        QString currentKey = settings.value("apiKey", "").toString();
+        if (currentUrl == QStringLiteral("http://127.0.0.1:8080") && currentKey.isEmpty()) {
+            std::cout << "\n*** API not configured ***\n";
+            std::cout << "The app is using the default local API (http://127.0.0.1:8080).\n";
+            std::cout << "To use the assistant, you need a running LLM server:\n";
+            std::cout << "  - Ollama:  run 'ollama serve' then 'ollama pull <model>'\n";
+            std::cout << "  - llama.cpp: run './llama-server -m <model.gguf>'\n";
+            std::cout << "  - Or configure via: ai config --api-url <url> --api-key <key> --api-type <type>\n";
+            std::cout << "  - Or use the GUI Settings dialog\n";
+            std::cout << "\n";
+        }
+    }
+
+    std::cout << "------------------------------------\n";
     std::cout << "Commands:\n";
     std::cout << "  /help     - Show help\n";
     std::cout << "  /new      - Create new session\n";
@@ -373,6 +392,12 @@ void CLIApplication::readInput() {
     if (qInput.startsWith("/")) {
         handleCommand(qInput);
         return;
+    }
+
+    // Abandon any pending plan when user sends a new chat message
+    if (m_hasPendingPlan) {
+        clearPendingPlan();
+        AgentLoop::instance()->cancelPlan();
     }
 
     m_running = true;
@@ -894,6 +919,18 @@ void CLIApplication::onResponseReceived(const QString& response) {
 
     // Route to AgentLoop if it's running (continuation response)
     if (AgentLoop::instance()->state() == AgentLoop::Running) {
+        // Guard: detect empty/stub response and retry once with explicit prompt
+        if (response.trimmed().isEmpty()) {
+            std::cerr << "Warning: AI returned empty response during task loop, retrying..."
+                      << std::endl;
+            QString retryMsg =
+                tr("You MUST respond. Output [TASK_COMPLETE] with a summary if all "
+                   "operations succeeded, or [TASK_PLAN] for next steps.");
+            SessionManager::instance()->addMessageToCurrentSession("user", retryMsg);
+            QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+            m_networkManager->sendChatRequestWithContext(messages);
+            return;
+        }
         AgentLoop::instance()->continueWithResponse(response);
         return;
     }

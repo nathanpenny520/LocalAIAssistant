@@ -42,6 +42,8 @@ OperationPlan TaskEngine::parsePlanFromAIResponse(const QString& aiResponse) con
 
         QJsonDocument doc = QJsonDocument::fromJson(content.toUtf8());
         if (doc.isObject()) return parsePlanFromJson(doc.object());
+        qWarning() << "TaskEngine: [TASK_PLAN] found but JSON parse failed:"
+                   << doc.isNull() << content.left(200);
     }
 
     // Fallback: if no TASK_PLAN tags found, try parsing the entire response as JSON
@@ -94,8 +96,10 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject& json) const {
             op.type = ShellOperation::WriteFile;
         else if (typeStr == QStringLiteral("search"))
             op.type = ShellOperation::SearchFiles;
-        else
+        else {
+            qWarning() << "TaskEngine: unrecognized operation type" << typeStr;
             continue;
+        }
 
         op.command = opObj[QStringLiteral("command")].toString();
         op.source = opObj[QStringLiteral("source")].toString();
