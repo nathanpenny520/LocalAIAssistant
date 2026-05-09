@@ -7,9 +7,6 @@ on:
   pull_request:
     branches: [main, master]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   test-linux:
     runs-on: ubuntu-24.04
@@ -32,11 +29,19 @@ jobs:
 
           # libzip-dev is installed for find_library; broken CMake config is bypassed
 
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1
+      - name: Cache ccache
+        uses: actions/cache@v5
         with:
+          path: ~/.ccache
           key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: ccache-${{ runner.os }}-
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Setup ccache
+        run: |
+          ccache --version
+          ccache --max-size=1G
+          ccache --zero-stats
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
@@ -70,13 +75,21 @@ jobs:
 
       - name: Install Qt6 and dependencies
         run: |
-          brew install qt@6 poppler libzip pugixml ninja
+          brew install --quiet qt@6 poppler libzip pugixml ninja
+
+      - name: Cache ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
 
       - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1
-        with:
-          key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: ccache-${{ runner.os }}-
+        run: |
+          ccache --version
+          ccache --max-size=1G
+          ccache --zero-stats
 
       - name: Configure
         run:
@@ -119,11 +132,19 @@ jobs:
           modules: 'qtmultimedia qtwebsockets'
           cache: true
 
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1
+      - name: Cache ccache
+        uses: actions/cache@v5
         with:
+          path: ~/.ccache
           key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
-          restore-keys: ccache-${{ runner.os }}-
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Setup ccache
+        run: |
+          ccache --version
+          ccache --max-size=1G
+          ccache --zero-stats
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
