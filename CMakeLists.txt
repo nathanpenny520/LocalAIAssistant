@@ -773,7 +773,7 @@ if(APPLE)
 endif()
 
 if(WIN32)
-    install(TARGETS ${PROJECT_NAME}
+    install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}-CLI
         RUNTIME DESTINATION bin
     )
     install(FILES
@@ -783,6 +783,19 @@ if(WIN32)
     install(DIRECTORY
         ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts/
         DESTINATION bin/prompts
+    )
+    install(DIRECTORY
+        ${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend/
+        DESTINATION bin/AIGirlfriend
+    )
+    install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/personality.md
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/memory.md
+        DESTINATION bin/girlfriend
+    )
+    install(DIRECTORY
+        ${CMAKE_CURRENT_SOURCE_DIR}/docs/
+        DESTINATION bin/docs
     )
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm

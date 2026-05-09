@@ -111,14 +111,15 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 **收益**: Light theme 可正常使用. Full refactoring introduced `AppTheme` unified color token system (~40 semantic tokens) serving as single source of truth for all UI colors.
 
-#### 2.3 Windows resource copying 🟢 **功能缺失**
+#### 2.3 Windows resource copying 🟢 **DONE**
 **风险**: 低（添加缺失的资源复制）  
 **重要性**: 中（功能完整性）
 
-- [ ] Add `docs/` copy to CMakeLists.txt WIN32 block (mirror macOS lines 391-400)
-- [ ] Add `AIGirlfriend` image copy for CLI on Windows
+- [x] Add `docs/`, `AIGirlfriend/`, `girlfriend/` to WIN32 `install()` block
+- [x] Add `${PROJECT_NAME}-CLI` to WIN32 `install(TARGETS ...)`
+- [x] `AIGirlfriend` for CLI: **不需要** — CLI 不链接 GirlfriendModule，无法显示图片
 
-**收益**: Windows 帮助文档可正常显示
+**收益**: Windows 打包分发时资源完整，帮助文档可正常显示
 
 ---
 
