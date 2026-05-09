@@ -26,6 +26,11 @@ jobs:
             libpugixml-dev \
             cmake ninja-build
 
+          # Workaround for broken libzip-dev CMake config (references missing zipcmp)
+          if [ ! -f /usr/bin/zipcmp ]; then
+            sudo ln -s /usr/bin/true /usr/bin/zipcmp
+          fi
+
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
@@ -94,7 +99,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.*'
-          modules: 'qtmultimedia qtwebsockets qttools'
+          modules: 'qtmultimedia qtwebsockets'
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release

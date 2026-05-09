@@ -44,12 +44,12 @@ find_package(
     Qt6 REQUIRED
     COMPONENTS Widgets
                Network
-               LinguistTools
                Multimedia
                MultimediaWidgets
                WebSockets
                Sql
                Test)
+find_package(Qt6 QUIET COMPONENTS LinguistTools)
 enable_testing()
 find_package(PkgConfig QUIET)
 if(PkgConfig_FOUND)
@@ -119,25 +119,30 @@ elseif(PUGIXML_FOUND)
     target_compile_definitions(FileParser PUBLIC HAS_PUGIXML)
 endif()
 
-set(TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
-             ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts)
+if(Qt6LinguistTools_FOUND)
+    set(TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
+                 ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts)
 
-qt_add_lrelease(
-    TS_FILES
-    ${TS_FILES}
-    LRELEASE_TARGET
-    translations_target)
-add_custom_target(translations ALL DEPENDS ${translations_target})
+    qt_add_lrelease(
+        TS_FILES
+        ${TS_FILES}
+        LRELEASE_TARGET
+        translations_target)
+    add_custom_target(translations ALL DEPENDS ${translations_target})
 
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/translations)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/translations)
 
-add_custom_command(
-    TARGET translations_target
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/localai_zh_CN.qm
-            ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/localai_en.qm
-            ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm)
+    add_custom_command(
+        TARGET translations_target
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/localai_zh_CN.qm
+                ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/localai_en.qm
+                ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm)
+else()
+    message(STATUS "Qt6 LinguistTools not found, translations disabled")
+    add_custom_target(translations ALL)  # dummy target for add_dependencies
+endif()
 
 add_library(
     LocalAIAssistantCore
@@ -484,12 +489,14 @@ if(APPLE)
         COMMENT "Copying model files to app bundle Resources")
 
     # Copy .env to app bundle Resources (if exists)
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/.env
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/.env
-        COMMENT "Copying .env to app bundle Resources (if exists)")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
+        add_custom_command(
+            TARGET ${PROJECT_NAME}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/.env"
+                    ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/.env
+            COMMENT "Copying .env to app bundle Resources")
+    endif()
 
     add_dependencies(${PROJECT_NAME} app_icon copy_prompts_dev)
 
@@ -639,20 +646,22 @@ if(WIN32)
             COMMENT "Copying .env to build directory")
     endif()
 
-    # Copy translations to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_zh_CN.qm"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
-        COMMENT "Copying translations to build directory")
+    # Copy translations to build directory (if LinguistTools available)
+    if(Qt6LinguistTools_FOUND)
+        add_custom_command(
+            TARGET ${PROJECT_NAME}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
+            COMMAND
+                ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_zh_CN.qm"
+            COMMAND
+                ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
+            COMMENT "Copying translations to build directory")
+    endif()
 
     # Copy usage docs to build directory
     add_custom_command(
@@ -749,20 +758,22 @@ if(UNIX AND NOT APPLE)
             COMMENT "Copying .env to build directory")
     endif()
 
-    # Copy translations to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_zh_CN.qm"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
-        COMMENT "Copying translations to build directory")
+    # Copy translations to build directory (if LinguistTools available)
+    if(Qt6LinguistTools_FOUND)
+        add_custom_command(
+            TARGET ${PROJECT_NAME}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
+            COMMAND
+                ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_zh_CN.qm"
+            COMMAND
+                ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm"
+                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
+            COMMENT "Copying translations to build directory")
+    endif()
 
     # Copy ONNX models to build directory (if exists)
     add_custom_command(
@@ -804,9 +815,11 @@ install(TARGETS ${PROJECT_NAME}-CLI RUNTIME DESTINATION bin)
 
 if(APPLE)
     install(TARGETS ${PROJECT_NAME} BUNDLE DESTINATION /Applications)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
-                  ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm
-            DESTINATION LocalAIAssistant.app/Contents/Resources/translations)
+    if(Qt6LinguistTools_FOUND)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
+                      ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm
+                DESTINATION LocalAIAssistant.app/Contents/Resources/translations)
+    endif()
     install(
         FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
         DESTINATION LocalAIAssistant.app/Contents/Resources
@@ -825,9 +838,11 @@ if(WIN32)
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/personality.md
                   ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/memory.md DESTINATION bin/girlfriend)
     install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/docs/ DESTINATION bin/docs)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
-                  ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm
-            DESTINATION bin/translations)
+    if(Qt6LinguistTools_FOUND)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
+                      ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm
+                DESTINATION bin/translations)
+    endif()
 endif()
 
 if(UNIX AND NOT APPLE)
@@ -841,9 +856,11 @@ if(UNIX AND NOT APPLE)
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/personality.md
                   ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/memory.md
             DESTINATION share/localaiassistant/girlfriend)
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
-                  ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm
-            DESTINATION share/localaiassistant/translations)
+    if(Qt6LinguistTools_FOUND)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
+                      ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_en.qm
+                DESTINATION share/localaiassistant/translations)
+    endif()
     # Install ONNX models (if exist)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx")
         install(

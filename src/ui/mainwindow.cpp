@@ -757,6 +757,17 @@ void MainWindow::onNetworkFinished(const QString& response) {
     m_isStreaming = false;
     m_streamingContent.clear();
 
+    // Guard: detect empty/stub response during active agent loop
+    if (AgentLoop::instance()->state() == AgentLoop::Running && response.trimmed().isEmpty()) {
+        qWarning() << "AI returned empty response during task loop, retrying...";
+        QString retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] with a summary if all "
+                              "operations succeeded, or [TASK_PLAN] for next steps.");
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
+        QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+        m_networkManager->sendChatRequestWithContext(messages);
+        return;
+    }
+
     // Check if response contains a task plan
     if (response.contains(QStringLiteral("[TASK_PLAN]"))) {
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
@@ -856,6 +867,18 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
     }
 
     m_isStreaming = false;
+
+    // Guard: detect empty/stub response during active agent loop
+    if (AgentLoop::instance()->state() == AgentLoop::Running && fullContent.trimmed().isEmpty()) {
+        qWarning() << "AI returned empty response during task loop, retrying...";
+        QString retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] with a summary if all "
+                              "operations succeeded, or [TASK_PLAN] for next steps.");
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
+        QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+        m_networkManager->sendChatRequestWithContext(messages);
+        m_streamingContent.clear();
+        return;
+    }
 
     // Check if response contains a task plan
     if (fullContent.contains(QStringLiteral("[TASK_PLAN]"))) {

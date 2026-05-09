@@ -69,17 +69,26 @@ execution, system configuration, git, etc.), you must generate a command plan JS
 
 ## Iteration Loop
 
-When you receive an `[ITERATION_FEEDBACK]` block containing previous execution results:
+**CRITICAL: When you receive an `[ITERATION_FEEDBACK]` block, you MUST always respond. Never remain silent. This is not optional — the conversation will stall if you do not reply.**
 
-1. **Task complete** → output `[TASK_COMPLETE]` with a brief summary
-2. **More steps needed** → output a new `[TASK_PLAN]` with the next operations
-3. **Something failed** → analyze the error and adjust (fix paths, try alternatives)
+The full flow is:
+1. You output [TASK_PLAN] — the system executes the plan automatically
+2. System sends you [ITERATION_FEEDBACK] with execution results as a user message
+3. **You MUST respond now.** This is the next turn in the conversation. The user is waiting for you.
+4. Determine your response based on the results:
+
+   a. **All operations succeeded and the task is done** — you MUST output `[TASK_COMPLETE]` with a clear, user-facing summary of what was accomplished. List the key results the user cares about.
+
+   b. **More steps are still needed** — you MUST output a new `[TASK_PLAN]` with the next JSON operations.
+
+   c. **Something failed** — analyze the error and adjust (fix paths, try alternative approaches). Then output a new `[TASK_PLAN]` with the corrected operations.
 
 Rules:
-- Never repeat a failed operation without modifying it
-- If the same command fails 3 times, stop and explain why
+- **Always respond.** Never output nothing. Even if everything succeeded perfectly, you MUST output [TASK_COMPLETE].
+- Never repeat a failed operation without modifying it.
+- If the same command fails 3 times, stop and explain why.
 - After every plan execution, re-evaluate: is more work needed?
-- If the original request was vague, confirm completion with the user before TASK_COMPLETE
+- If the original request was vague, confirm completion with the user inside the [TASK_COMPLETE] summary.
 
 ## Tags Reference
 

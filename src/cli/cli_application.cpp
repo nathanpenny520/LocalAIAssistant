@@ -857,12 +857,21 @@ void CLIApplication::onStreamFinished(const QString& fullContent) {
 
         // Route to AgentLoop if it's running (continuation response)
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
-            if (fullContent.contains(QStringLiteral("[TASK_PLAN]")) ||
-                fullContent.contains(QStringLiteral("[TASK_COMPLETE]"), Qt::CaseInsensitive)) {
-                AgentLoop::instance()->continueWithResponse(fullContent);
+            // Guard: detect empty/stub response and retry once with explicit prompt
+            if (fullContent.trimmed().isEmpty()) {
+                std::cerr << "Warning: AI returned empty response during task loop, retrying..."
+                          << std::endl;
+                QString retryMsg =
+                    tr("You MUST respond. Output [TASK_COMPLETE] with a summary if all "
+                       "operations succeeded, or [TASK_PLAN] for next steps.");
+                SessionManager::instance()->addMessageToCurrentSession("user", retryMsg);
+                QVector<ChatMessage> messages =
+                    SessionManager::instance()->currentSession().messages;
+                m_isStreaming = false;
+                m_streamingContent.clear();
+                m_networkManager->sendChatRequestWithContext(messages);
                 return;
             }
-            // Loop ended naturally (no TASK_PLAN in response)
             AgentLoop::instance()->continueWithResponse(fullContent);
             return;
         }
@@ -880,6 +889,12 @@ void CLIApplication::onStreamFinished(const QString& fullContent) {
 
 void CLIApplication::onResponseReceived(const QString& response) {
     if (m_isStreaming) {
+        return;
+    }
+
+    // Route to AgentLoop if it's running (continuation response)
+    if (AgentLoop::instance()->state() == AgentLoop::Running) {
+        AgentLoop::instance()->continueWithResponse(response);
         return;
     }
 

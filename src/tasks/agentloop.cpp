@@ -163,7 +163,9 @@ QString AgentLoop::buildResultFeedback(const QVector<CommandResult>& results) co
 
     feedback += tr("  Total: %1 succeeded, %2 failed\n").arg(successCount).arg(failCount);
     feedback += QStringLiteral("\n");
-    feedback += tr("Continue if more work is needed. Output [TASK_COMPLETE] when done.");
+    feedback += tr("You MUST respond now. If all operations succeeded, output [TASK_COMPLETE] with "
+                   "a user-facing summary of what was accomplished. If more work is needed, output "
+                   "a new [TASK_PLAN]. Never remain silent — the conversation will stall.");
 
     return feedback;
 }
