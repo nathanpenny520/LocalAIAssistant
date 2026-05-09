@@ -352,16 +352,13 @@ void SettingsDialog::showUsageHelp()
     QString docName = (locale == "zh_CN") ? "USAGE_zh_CN.md" : "USAGE.md";
     QString appDir = QApplication::applicationDirPath();
 
-    QStringList searchPaths;
-    searchPaths << QDir::cleanPath(appDir + "/../Resources/docs/" + docName);
-    searchPaths << QDir::cleanPath(appDir + "/docs/" + docName);
-
-    QString docPath;
-    for (const QString &path : searchPaths) {
-        if (QFile::exists(path)) {
-            docPath = path;
-            break;
-        }
+#ifdef Q_OS_MACOS
+    QString docPath = QDir::cleanPath(appDir + "/../Resources/docs/" + docName);
+#else
+    QString docPath = QDir::cleanPath(appDir + "/docs/" + docName);
+#endif
+    if (!QFile::exists(docPath)) {
+        docPath.clear();
     }
 
     QDialog *dialog = new QDialog(this);

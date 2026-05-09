@@ -32,6 +32,9 @@ public:
     void saveSessionsToFile();
     void loadSessionsFromFile();
 
+    int maxMessages() const { return m_maxMessages; }
+    void setMaxMessages(int limit);
+
 signals:
     void sessionChanged(const QString &sessionId);
 
@@ -41,7 +44,9 @@ private:
     static SessionManager *m_instance;
     QMap<QString, ChatSession> m_sessions;
     QString m_currentSessionId;
+    int m_maxMessages;
     QString getStorageFilePath() const;
+    void truncateSession(const QString &sessionId);
 };
 
 #endif

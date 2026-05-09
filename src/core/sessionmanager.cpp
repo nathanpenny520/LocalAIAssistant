@@ -11,6 +11,11 @@ SessionManager* SessionManager::m_instance = nullptr;
 SessionManager::SessionManager(QObject *parent)
     : QObject(parent)
 {
+    QSettings settings("LocalAIAssistant", "Settings");
+    m_maxMessages = settings.value("sessionMaxMessages", 500).toInt();
+    if (m_maxMessages > 0 && m_maxMessages < 10) {
+        m_maxMessages = 10;
+    }
     createNewSession();
 }
 
@@ -57,6 +62,7 @@ void SessionManager::switchToSession(const QString &sessionId)
 void SessionManager::addMessageToCurrentSession(const QString &role, const QString &content)
 {
     m_sessions[m_currentSessionId].messages.append(ChatMessage(role, content));
+    truncateSession(m_currentSessionId);
     saveSessionsToFile();
     emit sessionChanged(m_currentSessionId);
 }
@@ -66,6 +72,7 @@ void SessionManager::addMessageToCurrentSession(const QString &role, const QStri
     ChatMessage msg(role, content);
     msg.attachments = attachments;
     m_sessions[m_currentSessionId].messages.append(msg);
+    truncateSession(m_currentSessionId);
     saveSessionsToFile();
     emit sessionChanged(m_currentSessionId);
 }
@@ -74,6 +81,7 @@ void SessionManager::addMessageToSession(const QString &sessionId, const QString
 {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].messages.append(ChatMessage(role, content));
+        truncateSession(sessionId);
         saveSessionsToFile();
         emit sessionChanged(sessionId);
     }
@@ -99,6 +107,41 @@ void SessionManager::setSessionPinned(const QString &sessionId, bool pinned)
 void SessionManager::removeSession(const QString &sessionId)
 {
     m_sessions.remove(sessionId);
+}
+
+void SessionManager::truncateSession(const QString &sessionId)
+{
+    if (m_maxMessages <= 0 || !m_sessions.contains(sessionId)) {
+        return;
+    }
+
+    ChatSession &session = m_sessions[sessionId];
+    int removed = session.messages.size() - m_maxMessages;
+    if (removed <= 0) {
+        return;
+    }
+
+    session.messages.remove(0, removed);
+
+    // Prepend system message to inform user about truncation
+    QString info = QString("Session auto-trimmed, keeping last %1 messages")
+                       .arg(m_maxMessages);
+    session.messages.prepend(ChatMessage("system", info));
+}
+
+void SessionManager::setMaxMessages(int limit)
+{
+    if (limit > 0 && limit < 10) {
+        limit = 10;
+    }
+    m_maxMessages = limit;
+
+    QSettings settings("LocalAIAssistant", "Settings");
+    settings.setValue("sessionMaxMessages", limit);
+
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        truncateSession(it.key());
+    }
 }
 
 QString SessionManager::getStorageFilePath() const

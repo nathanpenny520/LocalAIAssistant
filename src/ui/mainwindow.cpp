@@ -41,15 +41,13 @@ QMap<QString, QString> MainWindow::parseThinkingContent(const QString &content)
     result["thinking"] = "";
     result["response"] = content;
 
-    // Match <think>...</think> or ৻... pracu tags (common thinking tags)
-    QRegularExpression thinkingRegex(R"(<think>(.*?)</think>|৻(.*?)pracu)",
+    // Match <think>...</think> tags
+    QRegularExpression thinkingRegex(R"(<think>(.*?)</think>)",
                                       QRegularExpression::DotMatchesEverythingOption);
 
     QRegularExpressionMatch match = thinkingRegex.match(content);
     if (match.hasMatch()) {
-        // Extract thinking content
-        QString thinkingContent = match.captured(1).isEmpty() ? match.captured(2) : match.captured(1);
-        thinkingContent = thinkingContent.trimmed();
+        QString thinkingContent = match.captured(1).trimmed();
 
         // Remove thinking tags from original content to get pure response
         QString pureResponse = content;
@@ -103,7 +101,7 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     html += QString("<p style='margin:0 0 8px 0;'><b style='color:%1; font-size:18px;'>%2</b></p>")
             .arg(t.accent.name(), aiLabel);
 
-    // Thinking content: collapsible, no enclosing box, left accent line only
+    // Thinking content: visually distinguished block with muted colors
     if (!thinking.isEmpty()) {
         QString escapedThinking = thinking;
         escapedThinking.replace("&", "&amp;");
@@ -111,18 +109,16 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedThinking.replace(">", "&gt;");
         escapedThinking.replace("\n", "<br>");
 
-        bool isDark = t.windowBg.lightness() < 128;
-        QString accentColor = isDark ? "#555" : "#d0d0d0";
-
         html += QString(
-            "<details open style='margin-bottom:14px; color:%1; font-size:13px;'>"
-            "<summary style='cursor:pointer; color:%2; font-size:14px; font-weight:bold; "
-            "  margin-bottom:6px;'>&#9654; %3</summary>"
-            "<div style='margin-top:6px; padding-left:12px; "
-            "  border-left:2px solid %4; color:%5; line-height:1.6;'>%6</div>"
-            "</details>"
-        ).arg(t.textSecondary.name(), t.textSecondary.name(), thinkingLabel,
-              accentColor, t.textSecondary.name(), escapedThinking);
+            "<div style='margin-bottom:14px; padding:10px 14px;"
+            "  background-color:%1; border-left:3px solid %2; border-radius:4px;'>"
+            "<div style='font-weight:bold; font-size:14px; color:%3; margin-bottom:6px;'>"
+            "%4</div>"
+            "<div style='font-size:13px; color:%5; line-height:1.6;'>"
+            "%6</div>"
+            "</div>"
+        ).arg(t.surfaceBg.name(), t.quoteBorder.name(), t.accent.name(),
+              thinkingLabel, t.textSecondary.name(), escapedThinking);
     }
 
     // AI response: pure markdown
@@ -179,7 +175,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_inputLine->setPlaceholderText(m_inputPlaceholder);
     m_inputLine->setMaximumHeight(m_maxInputHeight);
     m_inputLine->setTabChangesFocus(true);
-    m_inputLine->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_inputLine->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     // Dynamic height: grow from 1 line, cap at m_maxInputHeight
     connect(m_inputLine, &QPlainTextEdit::textChanged, this, [this]() {
         // Hide placeholder when user has typed anything; restore when empty
@@ -469,6 +465,7 @@ void MainWindow::renderCurrentSession()
 
     const auto &session = SessionManager::instance()->currentSession();
 
+    m_chatDisplay->setUpdatesEnabled(false);
     m_chatDisplay->clear();
     QTextCursor cursor = m_chatDisplay->textCursor();
 
@@ -516,6 +513,8 @@ void MainWindow::renderCurrentSession()
 
     QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
+
+    m_chatDisplay->setUpdatesEnabled(true);
 
     m_isRendering = false;
 }

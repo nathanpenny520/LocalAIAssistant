@@ -95,7 +95,7 @@ private:
     QListWidget *m_historyList;
     QTextBrowser *m_chatDisplay;
     QPlainTextEdit *m_inputLine;
-    int m_maxInputHeight = 120;          // 输入框最大高度
+    int m_maxInputHeight = 300;          // 输入框最大高度
     QString m_inputPlaceholder;          // 保存占位符文本用于恢复
     QPushButton *m_sendButton;
     QPushButton *m_newChatButton;
