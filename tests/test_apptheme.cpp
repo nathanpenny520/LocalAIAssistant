@@ -1,24 +1,21 @@
-#include <QtTest>
 #include <QApplication>
+#include <QtTest>
+
 #include "apptheme.h"
 #include "stylesheetmanager.h"
 
-class TestAppTheme : public QObject
-{
+class TestAppTheme : public QObject {
     Q_OBJECT
 
 private slots:
-    void initTestCase()
-    {
+    void initTestCase() {
         static int argc = 0;
-        static char *argv[] = {nullptr};
-        if (!QApplication::instance())
-            new QApplication(argc, argv);
+        static char* argv[] = {nullptr};
+        if (!QApplication::instance()) new QApplication(argc, argv);
         StyleSheetManager::instance()->setTheme(StyleSheetManager::LightTheme);
     }
 
-    void testLightFactory_AllTokensSet()
-    {
+    void testLightFactory_AllTokensSet() {
         const AppTheme& t = AppTheme::light();
         QVERIFY(t.windowBg.isValid());
         QVERIFY(t.surfaceBg.isValid());
@@ -61,8 +58,7 @@ private slots:
         QVERIFY(t.girlfriendAccentPressed.isValid());
     }
 
-    void testDarkFactory_AllTokensSet()
-    {
+    void testDarkFactory_AllTokensSet() {
         const AppTheme& t = AppTheme::dark();
         QVERIFY(t.windowBg.isValid());
         QVERIFY(t.surfaceBg.isValid());
@@ -71,8 +67,7 @@ private slots:
         QVERIFY(t.syntaxKeyword.isValid());
     }
 
-    void testDarkVsLight_Differ()
-    {
+    void testDarkVsLight_Differ() {
         const AppTheme& light = AppTheme::light();
         const AppTheme& dark = AppTheme::dark();
         QVERIFY(light.windowBg != dark.windowBg);
@@ -81,23 +76,20 @@ private slots:
         QVERIFY(light.border != dark.border);
     }
 
-    void testGirlfriendAccent_SameBothThemes()
-    {
+    void testGirlfriendAccent_SameBothThemes() {
         const AppTheme& light = AppTheme::light();
         const AppTheme& dark = AppTheme::dark();
         QCOMPARE(light.girlfriendAccent, dark.girlfriendAccent);
         QCOMPARE(light.girlfriendAccent.name(), QStringLiteral("#e91e63"));
     }
 
-    void testCurrent_Cached()
-    {
+    void testCurrent_Cached() {
         const AppTheme& a = AppTheme::current();
         const AppTheme& b = AppTheme::current();
         QCOMPARE(&a, &b);
     }
 
-    void testCurrent_ChangesWithTheme()
-    {
+    void testCurrent_ChangesWithTheme() {
         StyleSheetManager::instance()->setTheme(StyleSheetManager::LightTheme);
         QColor lightBg = AppTheme::current().windowBg;
 

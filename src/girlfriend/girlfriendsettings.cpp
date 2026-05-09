@@ -1,22 +1,19 @@
 #include "girlfriendsettings.h"
+
+#include <QCoreApplication>
 #include <QDebug>
 #include <QJsonDocument>
-#include <QCoreApplication>
 
-GirlfriendSettings* GirlfriendSettings::instance()
-{
+GirlfriendSettings* GirlfriendSettings::instance() {
     static GirlfriendSettings s_instance;
     return &s_instance;
 }
 
-GirlfriendSettings::GirlfriendSettings()
-    : QObject(nullptr)
-{
+GirlfriendSettings::GirlfriendSettings() : QObject(nullptr) {
     load();
 }
 
-QString GirlfriendSettings::settingsPath() const
-{
+QString GirlfriendSettings::settingsPath() const {
     QString baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QString girlfriendDir = baseDir + "/girlfriend";
     QDir dir(girlfriendDir);
@@ -26,8 +23,7 @@ QString GirlfriendSettings::settingsPath() const
     return girlfriendDir + "/settings.json";
 }
 
-QString GirlfriendSettings::avatarLevelPath() const
-{
+QString GirlfriendSettings::avatarLevelPath() const {
     QString appDir = QCoreApplication::applicationDirPath();
     QString basePath;
 
@@ -56,8 +52,7 @@ QString GirlfriendSettings::avatarLevelPath() const
     return basePath + "/level-1-belle";
 }
 
-void GirlfriendSettings::setAvatarLevel(AvatarLevel level)
-{
+void GirlfriendSettings::setAvatarLevel(AvatarLevel level) {
     if (m_avatarLevel != level) {
         m_avatarLevel = level;
         save();
@@ -65,8 +60,7 @@ void GirlfriendSettings::setAvatarLevel(AvatarLevel level)
     }
 }
 
-void GirlfriendSettings::setMoodInfluence(MoodInfluenceLevel level)
-{
+void GirlfriendSettings::setMoodInfluence(MoodInfluenceLevel level) {
     if (m_moodInfluence != level) {
         m_moodInfluence = level;
         save();
@@ -74,8 +68,7 @@ void GirlfriendSettings::setMoodInfluence(MoodInfluenceLevel level)
     }
 }
 
-void GirlfriendSettings::setVideoSoundEnabled(bool enabled)
-{
+void GirlfriendSettings::setVideoSoundEnabled(bool enabled) {
     if (m_videoSoundEnabled != enabled) {
         m_videoSoundEnabled = enabled;
         save();
@@ -83,8 +76,7 @@ void GirlfriendSettings::setVideoSoundEnabled(bool enabled)
     }
 }
 
-void GirlfriendSettings::setVoiceOutputEnabled(bool enabled)
-{
+void GirlfriendSettings::setVoiceOutputEnabled(bool enabled) {
     if (m_voiceOutputEnabled != enabled) {
         m_voiceOutputEnabled = enabled;
         save();
@@ -92,8 +84,7 @@ void GirlfriendSettings::setVoiceOutputEnabled(bool enabled)
     }
 }
 
-void GirlfriendSettings::setCurrentSessionId(const QString &id)
-{
+void GirlfriendSettings::setCurrentSessionId(const QString& id) {
     if (m_currentSessionId != id) {
         m_currentSessionId = id;
         save();
@@ -101,8 +92,7 @@ void GirlfriendSettings::setCurrentSessionId(const QString &id)
     }
 }
 
-void GirlfriendSettings::setXfyunAppId(const QString &id)
-{
+void GirlfriendSettings::setXfyunAppId(const QString& id) {
     if (m_xfyunAppId != id) {
         m_xfyunAppId = id;
         save();
@@ -110,8 +100,7 @@ void GirlfriendSettings::setXfyunAppId(const QString &id)
     }
 }
 
-void GirlfriendSettings::setXfyunApiKey(const QString &key)
-{
+void GirlfriendSettings::setXfyunApiKey(const QString& key) {
     if (m_xfyunApiKey != key) {
         m_xfyunApiKey = key;
         save();
@@ -119,8 +108,7 @@ void GirlfriendSettings::setXfyunApiKey(const QString &key)
     }
 }
 
-void GirlfriendSettings::setXfyunApiSecret(const QString &secret)
-{
+void GirlfriendSettings::setXfyunApiSecret(const QString& secret) {
     if (m_xfyunApiSecret != secret) {
         m_xfyunApiSecret = secret;
         save();
@@ -128,8 +116,7 @@ void GirlfriendSettings::setXfyunApiSecret(const QString &secret)
     }
 }
 
-void GirlfriendSettings::setXfyunAsrUrl(const QString &url)
-{
+void GirlfriendSettings::setXfyunAsrUrl(const QString& url) {
     if (m_xfyunAsrUrl != url) {
         m_xfyunAsrUrl = url;
         save();
@@ -137,8 +124,7 @@ void GirlfriendSettings::setXfyunAsrUrl(const QString &url)
     }
 }
 
-void GirlfriendSettings::setXfyunTtsUrl(const QString &url)
-{
+void GirlfriendSettings::setXfyunTtsUrl(const QString& url) {
     if (m_xfyunTtsUrl != url) {
         m_xfyunTtsUrl = url;
         save();
@@ -146,8 +132,7 @@ void GirlfriendSettings::setXfyunTtsUrl(const QString &url)
     }
 }
 
-void GirlfriendSettings::setXfyunVoiceType(const QString &type)
-{
+void GirlfriendSettings::setXfyunVoiceType(const QString& type) {
     if (m_xfyunVoiceType != type) {
         m_xfyunVoiceType = type;
         save();
@@ -155,13 +140,11 @@ void GirlfriendSettings::setXfyunVoiceType(const QString &type)
     }
 }
 
-bool GirlfriendSettings::isXfyunConfigured() const
-{
+bool GirlfriendSettings::isXfyunConfigured() const {
     return !m_xfyunAppId.isEmpty() && !m_xfyunApiKey.isEmpty() && !m_xfyunApiSecret.isEmpty();
 }
 
-void GirlfriendSettings::save()
-{
+void GirlfriendSettings::save() {
     QJsonObject json = toJson();
     QJsonDocument doc(json);
 
@@ -172,12 +155,12 @@ void GirlfriendSettings::save()
         file.close();
         qDebug() << "GirlfriendSettings saved to:" << path;
     } else {
-        qWarning() << "GirlfriendSettings failed to open file for writing:" << path << file.errorString();
+        qWarning() << "GirlfriendSettings failed to open file for writing:" << path
+                   << file.errorString();
     }
 }
 
-void GirlfriendSettings::load()
-{
+void GirlfriendSettings::load() {
     QString path = settingsPath();
     QFile file(path);
     if (file.exists() && file.open(QIODevice::ReadOnly)) {
@@ -192,8 +175,7 @@ void GirlfriendSettings::load()
     }
 }
 
-QJsonObject GirlfriendSettings::toJson() const
-{
+QJsonObject GirlfriendSettings::toJson() const {
     QJsonObject json;
     json["avatarLevel"] = static_cast<int>(m_avatarLevel);
     json["moodInfluence"] = static_cast<int>(m_moodInfluence);
@@ -202,34 +184,29 @@ QJsonObject GirlfriendSettings::toJson() const
     json["currentSessionId"] = m_currentSessionId;
 
     // XFYUN credentials
-    if (!m_xfyunAppId.isEmpty())
-        json["xfyun_app_id"] = m_xfyunAppId;
-    if (!m_xfyunApiKey.isEmpty())
-        json["xfyun_api_key"] = m_xfyunApiKey;
-    if (!m_xfyunApiSecret.isEmpty())
-        json["xfyun_api_secret"] = m_xfyunApiSecret;
-    if (!m_xfyunAsrUrl.isEmpty())
-        json["xfyun_asr_url"] = m_xfyunAsrUrl;
-    if (!m_xfyunTtsUrl.isEmpty())
-        json["xfyun_tts_url"] = m_xfyunTtsUrl;
-    if (!m_xfyunVoiceType.isEmpty())
-        json["xfyun_voice_type"] = m_xfyunVoiceType;
+    if (!m_xfyunAppId.isEmpty()) json["xfyun_app_id"] = m_xfyunAppId;
+    if (!m_xfyunApiKey.isEmpty()) json["xfyun_api_key"] = m_xfyunApiKey;
+    if (!m_xfyunApiSecret.isEmpty()) json["xfyun_api_secret"] = m_xfyunApiSecret;
+    if (!m_xfyunAsrUrl.isEmpty()) json["xfyun_asr_url"] = m_xfyunAsrUrl;
+    if (!m_xfyunTtsUrl.isEmpty()) json["xfyun_tts_url"] = m_xfyunTtsUrl;
+    if (!m_xfyunVoiceType.isEmpty()) json["xfyun_voice_type"] = m_xfyunVoiceType;
 
     return json;
 }
 
-void GirlfriendSettings::fromJson(const QJsonObject &json)
-{
+void GirlfriendSettings::fromJson(const QJsonObject& json) {
     int avatarLevelInt = json["avatarLevel"].toInt(0);
     if (avatarLevelInt < 0 || avatarLevelInt > 2) {
-        qWarning() << "GirlfriendSettings: Invalid avatarLevel value" << avatarLevelInt << ", defaulting to 0";
+        qWarning() << "GirlfriendSettings: Invalid avatarLevel value" << avatarLevelInt
+                   << ", defaulting to 0";
         avatarLevelInt = 0;
     }
     m_avatarLevel = static_cast<AvatarLevel>(avatarLevelInt);
 
     int moodInfluenceInt = json["moodInfluence"].toInt(1);
     if (moodInfluenceInt < 0 || moodInfluenceInt > 2) {
-        qWarning() << "GirlfriendSettings: Invalid moodInfluence value" << moodInfluenceInt << ", defaulting to 1";
+        qWarning() << "GirlfriendSettings: Invalid moodInfluence value" << moodInfluenceInt
+                   << ", defaulting to 1";
         moodInfluenceInt = 1;
     }
     m_moodInfluence = static_cast<MoodInfluenceLevel>(moodInfluenceInt);

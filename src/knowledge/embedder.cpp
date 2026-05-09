@@ -1,15 +1,17 @@
 #include "embedder.h"
+
+#include <algorithm>
+
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QSysInfo>
-#include <QCryptographicHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonArray>
+#include <QSysInfo>
 #include <QtMath>
-#include <algorithm>
 
 // ============================================================
 // Embedder — all-MiniLM-L6-v2 via ONNX Runtime
@@ -20,23 +22,20 @@ Embedder::~Embedder() = default;
 
 // ── Model loading ────────────────────────────────────────────
 
-static QString findTokenizerPath(const QString &modelPath)
-{
+static QString findTokenizerPath(const QString& modelPath) {
     QFileInfo fi(modelPath);
     QDir dir = fi.dir();
     const QStringList candidates = {
-        dir.filePath(QStringLiteral("tokenizer.json")),
-        dir.filePath(QStringLiteral("../tokenizer.json")),
+            dir.filePath(QStringLiteral("tokenizer.json")),
+            dir.filePath(QStringLiteral("../tokenizer.json")),
     };
-    for (const auto &path : candidates) {
-        if (QFileInfo::exists(QDir::cleanPath(path)))
-            return QDir::cleanPath(path);
+    for (const auto& path : candidates) {
+        if (QFileInfo::exists(QDir::cleanPath(path))) return QDir::cleanPath(path);
     }
     return {};
 }
 
-bool Embedder::loadModel(const QString &modelPath)
-{
+bool Embedder::loadModel(const QString& modelPath) {
     m_modelPath = modelPath;
     m_loaded = false;
 
@@ -51,11 +50,13 @@ bool Embedder::loadModel(const QString &modelPath)
     if (tokenizerPath.isEmpty()) {
         // Try the standard resource paths
         QStringList searchPaths = {
-            QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/models/tokenizer.json"),
-            QCoreApplication::applicationDirPath() + QStringLiteral("/../resources/models/tokenizer.json"),
-            QDir::homePath() + QStringLiteral("/.locai/models/tokenizer.json"),
+                QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/models/"
+                                                                        "tokenizer.json"),
+                QCoreApplication::applicationDirPath() + QStringLiteral("/../resources/models/"
+                                                                        "tokenizer.json"),
+                QDir::homePath() + QStringLiteral("/.locai/models/tokenizer.json"),
         };
-        for (const auto &p : searchPaths) {
+        for (const auto& p : searchPaths) {
             QString clean = QDir::cleanPath(p);
             if (QFileInfo::exists(clean)) {
                 tokenizerPath = clean;
@@ -79,14 +80,13 @@ bool Embedder::loadModel(const QString &modelPath)
         m_env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "Embedder");
         m_sessionOpts = std::make_unique<Ort::SessionOptions>();
         m_sessionOpts->SetIntraOpNumThreads(4);
-        m_sessionOpts->SetGraphOptimizationLevel(
-            GraphOptimizationLevel::ORT_ENABLE_ALL);
+        m_sessionOpts->SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
-        m_session = std::make_unique<Ort::Session>(
-            *m_env, modelPath.toUtf8().constData(), *m_sessionOpts);
+        m_session = std::make_unique<Ort::Session>(*m_env, modelPath.toUtf8().constData(),
+                                                   *m_sessionOpts);
 
         m_memoryInfo = std::make_unique<Ort::MemoryInfo>(
-            Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeDefault));
+                Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeDefault));
 
         // Query input names
         Ort::AllocatorWithDefaultOptions allocator;
@@ -95,8 +95,7 @@ bool Embedder::loadModel(const QString &modelPath)
             auto name = m_session->GetInputNameAllocated(i, allocator);
             QByteArray ba(name.get());
             m_onnxInputNames.append(qstrdup(ba.constData()));
-            if (ba == "token_type_ids")
-                m_hasTokenTypeIds = true;
+            if (ba == "token_type_ids") m_hasTokenTypeIds = true;
         }
 
         // Query output names and shape
@@ -111,14 +110,12 @@ bool Embedder::loadModel(const QString &modelPath)
             auto shape = tensorInfo.GetShape();
             // 2D output (e.g. [batch, 384]) → already pooled
             m_outputIsPooled = (shape.size() == 2);
-            if (shape.size() >= 2)
-                m_dimension = static_cast<int>(shape.back());
+            if (shape.size() >= 2) m_dimension = static_cast<int>(shape.back());
         }
 
-        qInfo("Embedder: ONNX model loaded, %zu inputs, %zu outputs, dim=%d%s",
-              numInputs, numOutputs, m_dimension,
-              m_outputIsPooled ? " (pooled)" : " (hidden states)");
-    } catch (const Ort::Exception &e) {
+        qInfo("Embedder: ONNX model loaded, %zu inputs, %zu outputs, dim=%d%s", numInputs,
+              numOutputs, m_dimension, m_outputIsPooled ? " (pooled)" : " (hidden states)");
+    } catch (const Ort::Exception& e) {
         qWarning("Embedder: ONNX error: %s", e.what());
         return false;
     }
@@ -133,13 +130,16 @@ bool Embedder::loadModel(const QString &modelPath)
 #endif
 }
 
-bool Embedder::isLoaded() const { return m_loaded; }
-int Embedder::dimension() const { return m_dimension; }
+bool Embedder::isLoaded() const {
+    return m_loaded;
+}
+int Embedder::dimension() const {
+    return m_dimension;
+}
 
 // ── Tokenizer loading ────────────────────────────────────────
 
-bool Embedder::loadTokenizer(const QString &tokenizerPath)
-{
+bool Embedder::loadTokenizer(const QString& tokenizerPath) {
     QFile file(tokenizerPath);
     if (!file.open(QIODevice::ReadOnly)) {
         qWarning("Embedder: cannot open tokenizer: %s", qUtf8Printable(tokenizerPath));
@@ -160,8 +160,7 @@ bool Embedder::loadTokenizer(const QString &tokenizerPath)
     QJsonObject vocab = model.value("vocab").toObject();
 
     m_vocab.clear();
-    for (auto it = vocab.begin(); it != vocab.end(); ++it)
-        m_vocab[it.key()] = it.value().toInt();
+    for (auto it = vocab.begin(); it != vocab.end(); ++it) m_vocab[it.key()] = it.value().toInt();
 
     // Special token IDs (standard BERT)
     m_padTokenId = m_vocab.value(QStringLiteral("[PAD]"), 0);
@@ -183,18 +182,18 @@ bool Embedder::loadTokenizer(const QString &tokenizerPath)
         }
     }
 
-    qInfo("Embedder: tokenizer loaded, vocab size=%lld, max_length=%d", static_cast<long long>(m_vocab.size()), m_maxLength);
+    qInfo("Embedder: tokenizer loaded, vocab size=%lld, max_length=%d",
+          static_cast<long long>(m_vocab.size()), m_maxLength);
     return true;
 }
 
 // ── Preprocessing ────────────────────────────────────────────
 
-QString Embedder::preprocessChineseChars(const QString &text)
-{
+QString Embedder::preprocessChineseChars(const QString& text) {
     // Add spaces around CJK characters
     QString result;
     result.reserve(text.size() * 2);
-    for (const QChar &ch : text) {
+    for (const QChar& ch : text) {
         ushort u = ch.unicode();
         if ((u >= 0x2E80 && u <= 0x2FDF) ||  // CJK Radicals
             (u >= 0x3000 && u <= 0x303F) ||  // CJK Symbols
@@ -220,8 +219,7 @@ QString Embedder::preprocessChineseChars(const QString &text)
     return result;
 }
 
-QString Embedder::preprocessPunctuation(const QString &text)
-{
+QString Embedder::preprocessPunctuation(const QString& text) {
     // Split ASCII punctuation from words (BERT basic tokenizer behavior)
     QString result;
     result.reserve(text.size() * 2);
@@ -233,24 +231,18 @@ QString Embedder::preprocessPunctuation(const QString &text)
         }
         ushort u = ch.unicode();
         // Don't split CJK or Unicode punctuation
-        if (u >= 0x2000)
-            result.append(ch);
+        if (u >= 0x2000) result.append(ch);
         // ASCII punctuation to split
-        else if (ch == QLatin1Char(',') || ch == QLatin1Char('.') ||
-                 ch == QLatin1Char('!') || ch == QLatin1Char('?') ||
-                 ch == QLatin1Char(';') || ch == QLatin1Char(':') ||
-                 ch == QLatin1Char('"') || ch == QLatin1Char('\'') ||
-                 ch == QLatin1Char('(') || ch == QLatin1Char(')') ||
-                 ch == QLatin1Char('[') || ch == QLatin1Char(']') ||
-                 ch == QLatin1Char('{') || ch == QLatin1Char('}') ||
-                 ch == QLatin1Char('/') || ch == QLatin1Char('\\') ||
-                 ch == QLatin1Char('@') || ch == QLatin1Char('#') ||
-                 ch == QLatin1Char('$') || ch == QLatin1Char('%') ||
-                 ch == QLatin1Char('^') || ch == QLatin1Char('&') ||
-                 ch == QLatin1Char('*') || ch == QLatin1Char('+') ||
-                 ch == QLatin1Char('-') || ch == QLatin1Char('=') ||
-                 ch == QLatin1Char('<') || ch == QLatin1Char('>') ||
-                 ch == QLatin1Char('`')  || ch == QLatin1Char('~') ||
+        else if (ch == QLatin1Char(',') || ch == QLatin1Char('.') || ch == QLatin1Char('!') ||
+                 ch == QLatin1Char('?') || ch == QLatin1Char(';') || ch == QLatin1Char(':') ||
+                 ch == QLatin1Char('"') || ch == QLatin1Char('\'') || ch == QLatin1Char('(') ||
+                 ch == QLatin1Char(')') || ch == QLatin1Char('[') || ch == QLatin1Char(']') ||
+                 ch == QLatin1Char('{') || ch == QLatin1Char('}') || ch == QLatin1Char('/') ||
+                 ch == QLatin1Char('\\') || ch == QLatin1Char('@') || ch == QLatin1Char('#') ||
+                 ch == QLatin1Char('$') || ch == QLatin1Char('%') || ch == QLatin1Char('^') ||
+                 ch == QLatin1Char('&') || ch == QLatin1Char('*') || ch == QLatin1Char('+') ||
+                 ch == QLatin1Char('-') || ch == QLatin1Char('=') || ch == QLatin1Char('<') ||
+                 ch == QLatin1Char('>') || ch == QLatin1Char('`') || ch == QLatin1Char('~') ||
                  ch == QLatin1Char('|')) {
             result.append(QChar::Space);
             result.append(ch);
@@ -262,8 +254,7 @@ QString Embedder::preprocessPunctuation(const QString &text)
     return result;
 }
 
-QStringList Embedder::preTokenize(const QString &text) const
-{
+QStringList Embedder::preTokenize(const QString& text) const {
     QString normalized = m_doLowerCase ? text.toLower() : text;
     normalized = normalized.trimmed();
 
@@ -275,8 +266,8 @@ QStringList Embedder::preTokenize(const QString &text) const
 
     // Split on whitespace, filter empties
     QStringList tokens;
-    for (const QString &tok : normalized.split(QRegularExpression(QStringLiteral("\\s+")),
-                                                Qt::SkipEmptyParts))
+    for (const QString& tok :
+         normalized.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts))
         tokens.append(tok);
 
     return tokens;
@@ -284,18 +275,15 @@ QStringList Embedder::preTokenize(const QString &text) const
 
 // ── WordPiece ────────────────────────────────────────────────
 
-int Embedder::vocabId(const QString &token) const
-{
+int Embedder::vocabId(const QString& token) const {
     auto it = m_vocab.constFind(token);
     return (it != m_vocab.constEnd()) ? it.value() : -1;
 }
 
-QVector<int> Embedder::wordPieceTokenizeWord(const QString &word) const
-{
+QVector<int> Embedder::wordPieceTokenizeWord(const QString& word) const {
     QVector<int> ids;
 
-    if (word.isEmpty())
-        return ids;
+    if (word.isEmpty()) return ids;
 
     // If whole word is in vocab, use it directly
     int id = vocabId(word);
@@ -339,8 +327,7 @@ QVector<int> Embedder::wordPieceTokenizeWord(const QString &word) const
 
 // ── Tokenization ─────────────────────────────────────────────
 
-Embedder::TokenizerResult Embedder::tokenize(const QString &text) const
-{
+Embedder::TokenizerResult Embedder::tokenize(const QString& text) const {
     TokenizerResult result;
 
     // Pre-tokenize
@@ -348,10 +335,9 @@ Embedder::TokenizerResult Embedder::tokenize(const QString &text) const
 
     // WordPiece tokenization
     QVector<int> ids;
-    ids.append(m_clsTokenId); // [CLS]
-    for (const QString &token : tokens)
-        ids.append(wordPieceTokenizeWord(token));
-    ids.append(m_sepTokenId); // [SEP]
+    ids.append(m_clsTokenId);  // [CLS]
+    for (const QString& token : tokens) ids.append(wordPieceTokenizeWord(token));
+    ids.append(m_sepTokenId);  // [SEP]
 
     // Truncate to max_length
     int len = qMin(ids.size(), m_maxLength);
@@ -379,10 +365,8 @@ Embedder::TokenizerResult Embedder::tokenize(const QString &text) const
 
 // ── Embedding ────────────────────────────────────────────────
 
-QVector<float> Embedder::embed(const QString &text) const
-{
-    if (text.isEmpty())
-        return QVector<float>(m_dimension, 0.0f);
+QVector<float> Embedder::embed(const QString& text) const {
+    if (text.isEmpty()) return QVector<float>(m_dimension, 0.0f);
 
 #ifdef ONNXRUNTIME_AVAILABLE
     if (m_session) {
@@ -394,12 +378,11 @@ QVector<float> Embedder::embed(const QString &text) const
 
             // Create input tensors
             auto inputTensor = Ort::Value::CreateTensor<int64_t>(
-                *m_memoryInfo, inputIds.data(), inputIds.size(),
-                shape.data(), shape.size());
+                    *m_memoryInfo, inputIds.data(), inputIds.size(), shape.data(), shape.size());
 
-            auto maskTensor = Ort::Value::CreateTensor<int64_t>(
-                *m_memoryInfo, attentionMask.data(), attentionMask.size(),
-                shape.data(), shape.size());
+            auto maskTensor = Ort::Value::CreateTensor<int64_t>(*m_memoryInfo, attentionMask.data(),
+                                                                attentionMask.size(), shape.data(),
+                                                                shape.size());
 
             // Run inference
             std::vector<Ort::Value> inputs;
@@ -411,25 +394,21 @@ QVector<float> Embedder::embed(const QString &text) const
             QVector<int64_t> tokenTypeIds;
             if (m_hasTokenTypeIds) {
                 tokenTypeIds.resize(m_maxLength, 0);
-                auto typeTensor = Ort::Value::CreateTensor<int64_t>(
-                    *m_memoryInfo, tokenTypeIds.data(), tokenTypeIds.size(),
-                    shape.data(), shape.size());
+                auto typeTensor = Ort::Value::CreateTensor<int64_t>(*m_memoryInfo,
+                                                                    tokenTypeIds.data(),
+                                                                    tokenTypeIds.size(),
+                                                                    shape.data(), shape.size());
                 inputs.push_back(std::move(typeTensor));
             }
 
-            auto outputs = m_session->Run(
-                Ort::RunOptions{nullptr},
-                m_onnxInputNames.constData(),
-                inputs.data(),
-                inputs.size(),
-                m_onnxOutputNames.constData(),
-                m_onnxOutputNames.size());
+            auto outputs = m_session->Run(Ort::RunOptions {nullptr}, m_onnxInputNames.constData(),
+                                          inputs.data(), inputs.size(),
+                                          m_onnxOutputNames.constData(), m_onnxOutputNames.size());
 
-            if (outputs.empty())
-                return QVector<float>(m_dimension, 0.0f);
+            if (outputs.empty()) return QVector<float>(m_dimension, 0.0f);
 
             // Extract embedding
-            float *rawData = outputs[0].GetTensorMutableData<float>();
+            float* rawData = outputs[0].GetTensorMutableData<float>();
             auto outShape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
 
             if (m_outputIsPooled) {
@@ -442,7 +421,7 @@ QVector<float> Embedder::embed(const QString &text) const
                 for (float v : vec) norm += v * v;
                 norm = qSqrt(norm);
                 if (norm > 0.0f)
-                    for (float &v : vec) v /= norm;
+                    for (float& v : vec) v /= norm;
                 return vec;
             } else {
                 // Output is last_hidden_state: [1, seq_len, 384]
@@ -453,18 +432,15 @@ QVector<float> Embedder::embed(const QString &text) const
                 QVector<float> pooled(dim, 0.0f);
                 float maskSum = 0.0f;
                 for (int i = 0; i < seqLen; ++i) {
-                    if (i < attentionMask.size() && attentionMask[i] == 0)
-                        continue;
+                    if (i < attentionMask.size() && attentionMask[i] == 0) continue;
                     float weight = 1.0f;
                     maskSum += weight;
-                    float *tokenEmb = rawData + i * dim;
-                    for (int j = 0; j < dim; ++j)
-                        pooled[j] += tokenEmb[j] * weight;
+                    float* tokenEmb = rawData + i * dim;
+                    for (int j = 0; j < dim; ++j) pooled[j] += tokenEmb[j] * weight;
                 }
 
                 if (maskSum > 0.0f) {
-                    for (int j = 0; j < dim; ++j)
-                        pooled[j] /= maskSum;
+                    for (int j = 0; j < dim; ++j) pooled[j] /= maskSum;
                 }
 
                 // L2 normalize
@@ -472,11 +448,11 @@ QVector<float> Embedder::embed(const QString &text) const
                 for (float v : pooled) norm += v * v;
                 norm = qSqrt(norm);
                 if (norm > 0.0f)
-                    for (float &v : pooled) v /= norm;
+                    for (float& v : pooled) v /= norm;
 
                 return pooled;
             }
-        } catch (const Ort::Exception &e) {
+        } catch (const Ort::Exception& e) {
             qWarning("Embedder: inference error: %s", e.what());
         }
     }
@@ -485,19 +461,15 @@ QVector<float> Embedder::embed(const QString &text) const
     return placeholderEmbed(text);
 }
 
-QVector<QVector<float>> Embedder::embedBatch(const QStringList &texts) const
-{
+QVector<QVector<float>> Embedder::embedBatch(const QStringList& texts) const {
     QVector<QVector<float>> results;
     results.reserve(texts.size());
-    for (const auto &text : texts)
-        results.append(embed(text));
+    for (const auto& text : texts) results.append(embed(text));
     return results;
 }
 
-float Embedder::cosineSimilarity(const QVector<float> &a, const QVector<float> &b)
-{
-    if (a.size() != b.size() || a.isEmpty())
-        return 0.0f;
+float Embedder::cosineSimilarity(const QVector<float>& a, const QVector<float>& b) {
+    if (a.size() != b.size() || a.isEmpty()) return 0.0f;
 
     float dot = 0.0f, normA = 0.0f, normB = 0.0f;
     for (int i = 0; i < a.size(); ++i) {
@@ -506,16 +478,14 @@ float Embedder::cosineSimilarity(const QVector<float> &a, const QVector<float> &
         normB += b[i] * b[i];
     }
 
-    if (normA == 0.0f || normB == 0.0f)
-        return 0.0f;
+    if (normA == 0.0f || normB == 0.0f) return 0.0f;
 
     return dot / (qSqrt(normA) * qSqrt(normB));
 }
 
 // ── Model path discovery ─────────────────────────────────────
 
-QString Embedder::findModelPath()
-{
+QString Embedder::findModelPath() {
     QString modelName;
     QString arch = QSysInfo::currentCpuArchitecture();
 
@@ -526,16 +496,17 @@ QString Embedder::findModelPath()
     }
 
     QStringList searchPaths = {
-        QCoreApplication::applicationDirPath() + QStringLiteral("/../resources/models/") + modelName,
-        QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/models/") + modelName,
-        QDir::homePath() + QStringLiteral("/.locai/models/") + modelName,
-        QCoreApplication::applicationDirPath() + QStringLiteral("/models/") + modelName,
+            QCoreApplication::applicationDirPath() + QStringLiteral("/../resources/models/") +
+                    modelName,
+            QCoreApplication::applicationDirPath() + QStringLiteral("/../Resources/models/") +
+                    modelName,
+            QDir::homePath() + QStringLiteral("/.locai/models/") + modelName,
+            QCoreApplication::applicationDirPath() + QStringLiteral("/models/") + modelName,
     };
 
-    for (const auto &path : searchPaths) {
+    for (const auto& path : searchPaths) {
         QString cleanPath = QDir::cleanPath(path);
-        if (QFileInfo::exists(cleanPath))
-            return cleanPath;
+        if (QFileInfo::exists(cleanPath)) return cleanPath;
     }
 
     return {};
@@ -543,11 +514,9 @@ QString Embedder::findModelPath()
 
 // ── Placeholder embedding ────────────────────────────────────
 
-QVector<float> Embedder::placeholderEmbed(const QString &text) const
-{
+QVector<float> Embedder::placeholderEmbed(const QString& text) const {
     QVector<float> vec(m_dimension, 0.0f);
-    if (text.isEmpty())
-        return vec;
+    if (text.isEmpty()) return vec;
 
     QString normalized = text.toLower().trimmed();
 
@@ -571,13 +540,11 @@ QVector<float> Embedder::placeholderEmbed(const QString &text) const
 
     // L2 normalization
     float norm = 0.0f;
-    for (float v : vec)
-        norm += v * v;
+    for (float v : vec) norm += v * v;
     norm = qSqrt(norm);
 
     if (norm > 0.0f) {
-        for (float &v : vec)
-            v /= norm;
+        for (float& v : vec) v /= norm;
     }
 
     return vec;

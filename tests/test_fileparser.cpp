@@ -1,25 +1,22 @@
-#include <QtTest>
 #include <QCoreApplication>
-#include <QFile>
 #include <QDir>
+#include <QFile>
 #include <QTemporaryFile>
+#include <QtTest>
+
 #include "filemanager.h"
 
-class TestFileParser : public QObject
-{
+class TestFileParser : public QObject {
     Q_OBJECT
 
 private slots:
-    void initTestCase()
-    {
+    void initTestCase() {
         static int argc = 0;
-        static char *argv[] = {nullptr};
-        if (!QCoreApplication::instance())
-            new QCoreApplication(argc, argv);
+        static char* argv[] = {nullptr};
+        if (!QCoreApplication::instance()) new QCoreApplication(argc, argv);
     }
 
-    void testIsTextFile_KnownExtensions()
-    {
+    void testIsTextFile_KnownExtensions() {
         QVERIFY(FileManager::isTextFile("/path/to/file.txt"));
         QVERIFY(FileManager::isTextFile("/path/to/file.md"));
         QVERIFY(FileManager::isTextFile("/path/to/file.cpp"));
@@ -32,29 +29,25 @@ private slots:
         QVERIFY(FileManager::isTextFile("/path/to/file.js"));
     }
 
-    void testIsTextFile_CaseInsensitive()
-    {
+    void testIsTextFile_CaseInsensitive() {
         QVERIFY(FileManager::isTextFile("/path/to/file.TXT"));
         QVERIFY(FileManager::isTextFile("/path/to/file.MD"));
         QVERIFY(FileManager::isTextFile("/path/to/file.Py"));
     }
 
-    void testIsTextFile_SpecialNames()
-    {
+    void testIsTextFile_SpecialNames() {
         QVERIFY(FileManager::isTextFile("/path/to/Dockerfile"));
         QVERIFY(FileManager::isTextFile("/path/to/Makefile"));
     }
 
-    void testIsTextFile_NotText()
-    {
+    void testIsTextFile_NotText() {
         QVERIFY(!FileManager::isTextFile("/path/to/file.png"));
         QVERIFY(!FileManager::isTextFile("/path/to/file.jpg"));
         QVERIFY(!FileManager::isTextFile("/path/to/file.exe"));
         QVERIFY(!FileManager::isTextFile("/path/to/file.zip"));
     }
 
-    void testIsImageFile()
-    {
+    void testIsImageFile() {
         QVERIFY(FileManager::isImageFile("/path/to/file.png"));
         QVERIFY(FileManager::isImageFile("/path/to/file.jpg"));
         QVERIFY(FileManager::isImageFile("/path/to/file.jpeg"));
@@ -62,14 +55,12 @@ private slots:
         QVERIFY(FileManager::isImageFile("/path/to/file.svg"));
     }
 
-    void testIsImageFile_NotImage()
-    {
+    void testIsImageFile_NotImage() {
         QVERIFY(!FileManager::isImageFile("/path/to/file.txt"));
         QVERIFY(!FileManager::isImageFile("/path/to/file.mp4"));
     }
 
-    void testAddTextFile()
-    {
+    void testAddTextFile() {
         QTemporaryFile tmpFile(QDir::tempPath() + "/test_locai_XXXXXX.txt");
         QVERIFY(tmpFile.open());
         tmpFile.write("Hello, this is test content.\nSecond line.");
@@ -87,16 +78,14 @@ private slots:
         QVERIFY(att.content.contains("Second line"));
     }
 
-    void testAddFile_Nonexistent()
-    {
+    void testAddFile_Nonexistent() {
         FileManager fm;
         bool added = fm.addFile("/tmp/nonexistent_file_xyz_123.txt");
         QVERIFY(!added);
         QCOMPARE(fm.pendingFileCount(), 0);
     }
 
-    void testClearPendingFiles()
-    {
+    void testClearPendingFiles() {
         QTemporaryFile tmpFile(QDir::tempPath() + "/test_locai_XXXXXX.txt");
         QVERIFY(tmpFile.open());
         tmpFile.write("test");
@@ -109,8 +98,7 @@ private slots:
         QCOMPARE(fm.pendingFileCount(), 0);
     }
 
-    void testFileListSummary()
-    {
+    void testFileListSummary() {
         QTemporaryFile tmpFile(QDir::tempPath() + "/test_locai_XXXXXX.txt");
         QVERIFY(tmpFile.open());
         tmpFile.write("test content");
@@ -123,8 +111,7 @@ private slots:
         QVERIFY(summary.contains("test_locai"));
     }
 
-    void testPendingFiles_ReturnsCopy()
-    {
+    void testPendingFiles_ReturnsCopy() {
         FileManager fm;
         QVector<FileAttachment> files1 = fm.pendingFiles();
         QCOMPARE(files1.size(), 0);

@@ -1,18 +1,14 @@
 #include "ollama_provider.h"
 
-OllamaProvider::OllamaProvider(QObject *parent)
-    : ApiProvider(parent)
-{
+OllamaProvider::OllamaProvider(QObject* parent) : ApiProvider(parent) {
     m_isLocalMode = true;
 }
 
-QString OllamaProvider::endpointPath() const
-{
+QString OllamaProvider::endpointPath() const {
     return QStringLiteral("api/chat");
 }
 
-QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage> &messages) const
-{
+QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage>& messages) const {
     QJsonArray jsonMessages;
 
     QJsonObject systemObj;
@@ -24,7 +20,7 @@ QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage> &messag
     int startIndex = qMax(0, totalCount - m_maxContext);
 
     for (int i = startIndex; i < totalCount; ++i) {
-        const ChatMessage &msg = messages[i];
+        const ChatMessage& msg = messages[i];
         QJsonObject msgObj;
         msgObj["role"] = msg.role;
         msgObj["content"] = msg.content;
@@ -32,13 +28,12 @@ QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage> &messag
         if (!msg.attachments.isEmpty()) {
             QJsonArray imagesArray;
 
-            for (const FileAttachment &file : msg.attachments) {
+            for (const FileAttachment& file : msg.attachments) {
                 if (file.type == "image") {
                     QString base64Data = file.content;
                     if (base64Data.startsWith("data:")) {
                         int commaPos = base64Data.indexOf(',');
-                        if (commaPos > 0)
-                            base64Data = base64Data.mid(commaPos + 1);
+                        if (commaPos > 0) base64Data = base64Data.mid(commaPos + 1);
                     }
                     imagesArray.append(base64Data);
                 } else {
@@ -48,8 +43,7 @@ QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage> &messag
                 }
             }
 
-            if (!imagesArray.isEmpty())
-                msgObj["images"] = imagesArray;
+            if (!imagesArray.isEmpty()) msgObj["images"] = imagesArray;
         }
 
         jsonMessages.append(msgObj);
@@ -58,20 +52,16 @@ QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage> &messag
     return jsonMessages;
 }
 
-QString OllamaProvider::extractDeltaFromSSE(const QByteArray &data)
-{
+QString OllamaProvider::extractDeltaFromSSE(const QByteArray& data) {
     QString result;
     QString text = QString::fromUtf8(data).trimmed();
 
-    if (text.isEmpty())
-        return result;
+    if (text.isEmpty()) return result;
 
-    if (text == "[DONE]")
-        return result;
+    if (text == "[DONE]") return result;
 
     QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
-    if (doc.isNull() || !doc.isObject())
-        return result;
+    if (doc.isNull() || !doc.isObject()) return result;
 
     QJsonObject root = doc.object();
     if (root.contains("error")) {
@@ -88,18 +78,15 @@ QString OllamaProvider::extractDeltaFromSSE(const QByteArray &data)
         result += root["response"].toString();
     } else if (root.contains("message")) {
         QJsonObject message = root["message"].toObject();
-        if (message.contains("content"))
-            result += message["content"].toString();
+        if (message.contains("content")) result += message["content"].toString();
     }
 
     return result;
 }
 
-QString OllamaProvider::extractContentFromResponse(const QByteArray &data)
-{
+QString OllamaProvider::extractContentFromResponse(const QByteArray& data) {
     QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (doc.isNull() || !doc.isObject())
-        return "Response format error";
+    if (doc.isNull() || !doc.isObject()) return "Response format error";
 
     QJsonObject root = doc.object();
 
@@ -108,13 +95,11 @@ QString OllamaProvider::extractContentFromResponse(const QByteArray &data)
         return "API Error: " + errorObj["message"].toString("Unknown error");
     }
 
-    if (root.contains("response"))
-        return root["response"].toString().trimmed();
+    if (root.contains("response")) return root["response"].toString().trimmed();
 
     if (root.contains("message")) {
         QJsonObject message = root["message"].toObject();
-        if (message.contains("content"))
-            return message["content"].toString().trimmed();
+        if (message.contains("content")) return message["content"].toString().trimmed();
     }
 
     return "Failed to parse valid content";

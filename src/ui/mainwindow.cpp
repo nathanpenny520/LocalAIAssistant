@@ -1,49 +1,51 @@
 #include "mainwindow.h"
+
+#include <algorithm>
+
+#include <QApplication>
+#include <QCoreApplication>
+#include <QEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QHBoxLayout>
+#include <QIcon>
+#include <QInputDialog>
+#include <QInputMethodEvent>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMessageBox>
+#include <QPalette>
+#include <QRegularExpression>
+#include <QScrollBar>
+#include <QSettings>
+#include <QTextBlock>
+#include <QTextCharFormat>
+#include <QTextCursor>
+#include <QVBoxLayout>
+#include <QWidget>
+
+#include "filemanager.h"
+#include "markdownrenderer.h"
+#include "operationconfirmdialog.h"
 #include "stylesheetmanager.h"
 #include "translationmanager.h"
-#include "markdownrenderer.h"
-#include "filemanager.h"
-#include "operationconfirmdialog.h"
-#include <QApplication>
-#include <QSettings>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QWidget>
-#include <QLabel>
-#include <QMenuBar>
-#include <QMenu>
-#include <QScrollBar>
-#include <QTextBlock>
-#include <QTextCursor>
-#include <QEvent>
-#include <QKeyEvent>
-#include <QInputMethodEvent>
-#include <QInputDialog>
-#include <QRegularExpression>
-#include <algorithm>
-#include <QFileDialog>
-#include <QMessageBox>
-#include <QIcon>
-#include <QFile>
-#include <QCoreApplication>
-#include <QTextCharFormat>
-#include <QPalette>
 
 namespace {
-    constexpr int kSidebarWidth = 200;
+constexpr int kSidebarWidth = 200;
 }
 
 // Parse thinking content from AI response
 // Returns a map with "thinking" and "response" keys
-QMap<QString, QString> MainWindow::parseThinkingContent(const QString &content)
-{
+QMap<QString, QString> MainWindow::parseThinkingContent(const QString& content) {
     QMap<QString, QString> result;
     result["thinking"] = "";
     result["response"] = content;
 
     // Match <think>...</think> tags
     QRegularExpression thinkingRegex(R"(<think>(.*?)</think>)",
-                                      QRegularExpression::DotMatchesEverythingOption);
+                                     QRegularExpression::DotMatchesEverythingOption);
 
     QRegularExpressionMatch match = thinkingRegex.match(content);
     if (match.hasMatch()) {
@@ -61,8 +63,7 @@ QMap<QString, QString> MainWindow::parseThinkingContent(const QString &content)
     return result;
 }
 
-QString MainWindow::formatMessageWithThinking(const QString &role, const QString &content)
-{
+QString MainWindow::formatMessageWithThinking(const QString& role, const QString& content) {
     QString thinkingLabel = tr("思考过程");
     QString userLabel = tr("用户");
     QString aiLabel = tr("AI");
@@ -78,16 +79,17 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedContent.replace("\n", "<br>");
 
         bool isDark = t.windowBg.lightness() < 128;
-        QString boxBg    = isDark ? "#1e2a3a" : "#f6f7fa";
-        QString boxBorder = isDark ? "#334"      : "#d8dce6";
+        QString boxBg = isDark ? "#1e2a3a" : "#f6f7fa";
+        QString boxBorder = isDark ? "#334" : "#d8dce6";
 
-        return QString(
-            "<table width='100%%' cellpadding='0' cellspacing='0' "
-            "style='background:%1; border:1px solid %2; margin-top:18px; margin-bottom:4px;'>"
-            "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
-            "<b style='color:%4; font-size:18px;'>%5</b><br>%6"
-            "</td></tr></table>"
-        ).arg(boxBg, boxBorder, t.textPrimary.name(), t.accent.name(), userLabel, escapedContent);
+        return QString("<table width='100%%' cellpadding='0' cellspacing='0' "
+                       "style='background:%1; border:1px solid %2; margin-top:18px; "
+                       "margin-bottom:4px;'>"
+                       "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
+                       "<b style='color:%4; font-size:18px;'>%5</b><br>%6"
+                       "</td></tr></table>")
+                .arg(boxBg, boxBorder, t.textPrimary.name(), t.accent.name(), userLabel,
+                     escapedContent);
     }
 
     // AI message
@@ -99,7 +101,7 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
 
     // AI label
     html += QString("<p style='margin:0 0 8px 0;'><b style='color:%1; font-size:18px;'>%2</b></p>")
-            .arg(t.accent.name(), aiLabel);
+                    .arg(t.accent.name(), aiLabel);
 
     // Thinking content: visually distinguished block with muted colors
     if (!thinking.isEmpty()) {
@@ -109,16 +111,16 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
         escapedThinking.replace(">", "&gt;");
         escapedThinking.replace("\n", "<br>");
 
-        html += QString(
-            "<div style='margin-bottom:14px; padding:10px 14px;"
-            "  background-color:%1; border-left:3px solid %2; border-radius:4px;'>"
-            "<div style='font-weight:bold; font-size:14px; color:%3; margin-bottom:6px;'>"
-            "%4</div>"
-            "<div style='font-size:13px; color:%5; line-height:1.6;'>"
-            "%6</div>"
-            "</div>"
-        ).arg(t.surfaceBg.name(), t.quoteBorder.name(), t.accent.name(),
-              thinkingLabel, t.textSecondary.name(), escapedThinking);
+        html += QString("<div style='margin-bottom:14px; padding:10px 14px;"
+                        "  background-color:%1; border-left:3px solid %2; border-radius:4px;'>"
+                        "<div style='font-weight:bold; font-size:14px; color:%3; "
+                        "margin-bottom:6px;'>"
+                        "%4</div>"
+                        "<div style='font-size:13px; color:%5; line-height:1.6;'>"
+                        "%6</div>"
+                        "</div>")
+                        .arg(t.surfaceBg.name(), t.quoteBorder.name(), t.accent.name(),
+                             thinkingLabel, t.textSecondary.name(), escapedThinking);
     }
 
     // AI response: pure markdown
@@ -131,39 +133,38 @@ QString MainWindow::formatMessageWithThinking(const QString &role, const QString
     return html;
 }
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , m_historyList(new QListWidget(this))
-    , m_chatDisplay(new QTextBrowser(this))
-    , m_inputLine(new QPlainTextEdit(this))
-    , m_sendButton(new QPushButton(tr("发送"), this))
-    , m_newChatButton(new QPushButton(tr("+ 新建对话"), this))
-    , m_settingsAction(new QAction(tr("设置"), this))
-    , m_toggleHistoryAction(new QAction(tr("显示历史面板"), this))
-    , m_contextMenu(new QMenu(this))
-    , m_deleteAction(new QAction(tr("删除该对话"), this))
-    , m_renameAction(new QAction(tr("重命名"), this))
-    , m_pinAction(new QAction(tr("置顶"), this))
-    , m_networkManager(new NetworkManager(this))
-    , m_markdownDoc(new QTextDocument(this))
-    , m_splitter(nullptr)
-    , m_leftPanel(nullptr)
-    , m_isStreaming(false)
-    , m_fileManager(new FileManager(this))
-    , m_fileButton(new QPushButton(this))
-    , m_fileListArea(nullptr)
-    , m_fileListLayout(nullptr)
-    , m_searchBar(nullptr)
-    , m_searchInput(nullptr)
-    , m_searchPrevBtn(nullptr)
-    , m_searchNextBtn(nullptr)
-    , m_searchCloseBtn(nullptr)
-    , m_searchResultLabel(nullptr)
-    , m_searchAction(new QAction(tr("搜索"), this))
-    , m_girlfriendAction(new QAction(tr("AI女友"), this))
-    , m_currentMatchIndex(0)
-    , m_totalMatches(0)
-{
+MainWindow::MainWindow(QWidget* parent)
+        : QMainWindow(parent)
+        , m_historyList(new QListWidget(this))
+        , m_chatDisplay(new QTextBrowser(this))
+        , m_inputLine(new QPlainTextEdit(this))
+        , m_sendButton(new QPushButton(tr("发送"), this))
+        , m_newChatButton(new QPushButton(tr("+ 新建对话"), this))
+        , m_settingsAction(new QAction(tr("设置"), this))
+        , m_toggleHistoryAction(new QAction(tr("显示历史面板"), this))
+        , m_contextMenu(new QMenu(this))
+        , m_deleteAction(new QAction(tr("删除该对话"), this))
+        , m_renameAction(new QAction(tr("重命名"), this))
+        , m_pinAction(new QAction(tr("置顶"), this))
+        , m_networkManager(new NetworkManager(this))
+        , m_markdownDoc(new QTextDocument(this))
+        , m_splitter(nullptr)
+        , m_leftPanel(nullptr)
+        , m_isStreaming(false)
+        , m_fileManager(new FileManager(this))
+        , m_fileButton(new QPushButton(this))
+        , m_fileListArea(nullptr)
+        , m_fileListLayout(nullptr)
+        , m_searchBar(nullptr)
+        , m_searchInput(nullptr)
+        , m_searchPrevBtn(nullptr)
+        , m_searchNextBtn(nullptr)
+        , m_searchCloseBtn(nullptr)
+        , m_searchResultLabel(nullptr)
+        , m_searchAction(new QAction(tr("搜索"), this))
+        , m_girlfriendAction(new QAction(tr("AI女友"), this))
+        , m_currentMatchIndex(0)
+        , m_totalMatches(0) {
     setupUI();
     setupMenuBar();
 
@@ -193,22 +194,28 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_deleteAction, &QAction::triggered, this, &MainWindow::onDeleteSession);
     connect(m_renameAction, &QAction::triggered, this, &MainWindow::onRenameSession);
     connect(m_pinAction, &QAction::triggered, this, &MainWindow::onTogglePinSession);
-    connect(m_historyList, &QWidget::customContextMenuRequested, this, &MainWindow::onCustomContextMenuRequested);
+    connect(m_historyList, &QWidget::customContextMenuRequested, this,
+            &MainWindow::onCustomContextMenuRequested);
 
-    connect(m_networkManager, &NetworkManager::responseReceived, this, &MainWindow::onNetworkFinished);
-    connect(m_networkManager, &NetworkManager::streamChunkReceived, this, &MainWindow::onStreamChunkReceived);
+    connect(m_networkManager, &NetworkManager::responseReceived, this,
+            &MainWindow::onNetworkFinished);
+    connect(m_networkManager, &NetworkManager::streamChunkReceived, this,
+            &MainWindow::onStreamChunkReceived);
     connect(m_networkManager, &NetworkManager::streamFinished, this, &MainWindow::onStreamFinished);
     connect(m_networkManager, &NetworkManager::errorOccurred, this, &MainWindow::onNetworkError);
-    connect(SessionManager::instance(), &SessionManager::sessionChanged, this, [this](const QString &sessionId) {
-        // Only re-render if the changed session is currently being displayed.
-        // Background updates (e.g. streaming to another session) should not
-        // disrupt the current view.
-        if (sessionId == SessionManager::instance()->currentSessionId()) {
-            renderCurrentSession();
-        }
-    });
-    connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this, &MainWindow::onThemeChanged);
-    connect(TranslationManager::instance(), &TranslationManager::languageChanged, this, &MainWindow::onLanguageChanged);
+    connect(SessionManager::instance(), &SessionManager::sessionChanged, this,
+            [this](const QString& sessionId) {
+                // Only re-render if the changed session is currently being displayed.
+                // Background updates (e.g. streaming to another session) should not
+                // disrupt the current view.
+                if (sessionId == SessionManager::instance()->currentSessionId()) {
+                    renderCurrentSession();
+                }
+            });
+    connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this,
+            &MainWindow::onThemeChanged);
+    connect(TranslationManager::instance(), &TranslationManager::languageChanged, this,
+            &MainWindow::onLanguageChanged);
 
     // 搜索功能连接
     m_searchAction->setShortcut(QKeySequence::Find);  // Ctrl+F / Cmd+F
@@ -236,8 +243,7 @@ MainWindow::MainWindow(QWidget *parent)
     qApp->installEventFilter(this);
 }
 
-void MainWindow::showEvent(QShowEvent *event)
-{
+void MainWindow::showEvent(QShowEvent* event) {
     QMainWindow::showEvent(event);
     // Widget geometry is now valid — set correct initial input height
     adjustInputHeight();
@@ -247,19 +253,16 @@ void MainWindow::showEvent(QShowEvent *event)
     }
 }
 
-MainWindow::~MainWindow()
-{
+MainWindow::~MainWindow() {
     delete m_markdownDoc;
 }
 
-void MainWindow::closeEvent(QCloseEvent *event)
-{
+void MainWindow::closeEvent(QCloseEvent* event) {
     SessionManager::instance()->saveSessionsToFile();
     event->accept();
 }
 
-void MainWindow::changeEvent(QEvent *event)
-{
+void MainWindow::changeEvent(QEvent* event) {
     if (event->type() == QEvent::LanguageChange) {
         retranslateUi();
         setupMenuBar();
@@ -268,15 +271,14 @@ void MainWindow::changeEvent(QEvent *event)
     QMainWindow::changeEvent(event);
 }
 
-void MainWindow::setupUI()
-{
-    QWidget *centralWidget = new QWidget(this);
+void MainWindow::setupUI() {
+    QWidget* centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
 
     m_splitter = new QSplitter(Qt::Horizontal, this);
 
     m_leftPanel = new QWidget(m_splitter);
-    QVBoxLayout *leftLayout = new QVBoxLayout(m_leftPanel);
+    QVBoxLayout* leftLayout = new QVBoxLayout(m_leftPanel);
     leftLayout->setContentsMargins(5, 5, 5, 5);
     m_newChatButton->setObjectName(QStringLiteral("newChatButton"));
     leftLayout->addWidget(m_newChatButton);
@@ -287,8 +289,8 @@ void MainWindow::setupUI()
     // 设置左侧面板最小宽度，防止完全关闭
     m_leftPanel->setMinimumWidth(140);
 
-    QWidget *rightPanel = new QWidget(m_splitter);
-    QVBoxLayout *rightLayout = new QVBoxLayout(rightPanel);
+    QWidget* rightPanel = new QWidget(m_splitter);
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(5, 5, 5, 5);
 
     // 搜索栏（默认隐藏，Ctrl+F时显示）
@@ -301,12 +303,12 @@ void MainWindow::setupUI()
     m_fileListArea = new QWidget(rightPanel);
     m_fileListLayout = new QHBoxLayout(m_fileListArea);
     m_fileListLayout->setContentsMargins(0, 0, 0, 5);
-    m_fileListLayout->addStretch();  // 左侧留空，文件标签靠左排列
+    m_fileListLayout->addStretch();     // 左侧留空，文件标签靠左排列
     m_fileListArea->setVisible(false);  // 默认隐藏，有文件时显示
     rightLayout->addWidget(m_fileListArea);
 
     // 输入区域（输入框 + 文件按钮 + 发送按钮）
-    QHBoxLayout *inputLayout = new QHBoxLayout();
+    QHBoxLayout* inputLayout = new QHBoxLayout();
     inputLayout->addWidget(m_inputLine, 1);  // 输入框占主要空间
     inputLayout->addWidget(m_fileButton);    // 新增：文件按钮
     inputLayout->addWidget(m_sendButton);
@@ -321,7 +323,7 @@ void MainWindow::setupUI()
 
     m_splitter->setSizes({kSidebarWidth, 580});
 
-    QHBoxLayout *mainLayout = new QHBoxLayout(centralWidget);
+    QHBoxLayout* mainLayout = new QHBoxLayout(centralWidget);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->addWidget(m_splitter);
 
@@ -344,48 +346,46 @@ void MainWindow::setupUI()
         setWindowIcon(QIcon(iconPath));
     }
 #endif
-
 }
 
-void MainWindow::setupMenuBar()
-{
+void MainWindow::setupMenuBar() {
     if (menuBar()) {
         menuBar()->clear();
     }
 
-    QMenuBar *bar = menuBar() ? menuBar() : new QMenuBar(this);
+    QMenuBar* bar = menuBar() ? menuBar() : new QMenuBar(this);
 
 #ifdef Q_OS_MACOS
     bar->setNativeMenuBar(true);
 
-    QMenu *appMenu = bar->addMenu(tr("本地AI助手"));
-    QAction *prefAction = appMenu->addAction(tr("偏好设置..."));
+    QMenu* appMenu = bar->addMenu(tr("本地AI助手"));
+    QAction* prefAction = appMenu->addAction(tr("偏好设置..."));
     prefAction->setMenuRole(QAction::PreferencesRole);
     prefAction->setShortcut(QKeySequence::StandardKey::Preferences);
     connect(prefAction, &QAction::triggered, this, &MainWindow::onSettingsClicked);
 
     appMenu->addSeparator();
 
-    QAction *quitAction = appMenu->addAction(tr("退出 本地AI助手"));
+    QAction* quitAction = appMenu->addAction(tr("退出 本地AI助手"));
     quitAction->setMenuRole(QAction::QuitRole);
     quitAction->setShortcut(QKeySequence::StandardKey::Quit);
     connect(quitAction, &QAction::triggered, qApp, &QApplication::quit);
 
-    QMenu *fileMenu = bar->addMenu(tr("文件"));
+    QMenu* fileMenu = bar->addMenu(tr("文件"));
 #else
-    QMenu *fileMenu = bar->addMenu(tr("文件"));
+    QMenu* fileMenu = bar->addMenu(tr("文件"));
 
     m_settingsAction->setText(tr("设置..."));
     fileMenu->addAction(m_settingsAction);
 
     fileMenu->addSeparator();
 
-    QAction *exitAction = fileMenu->addAction(tr("退出"));
+    QAction* exitAction = fileMenu->addAction(tr("退出"));
     exitAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
 #endif
 
-    QMenu *viewMenu = bar->addMenu(tr("视图"));
+    QMenu* viewMenu = bar->addMenu(tr("视图"));
 
     m_toggleHistoryAction->setText(tr("显示历史面板"));
     m_toggleHistoryAction->setCheckable(true);
@@ -393,7 +393,7 @@ void MainWindow::setupMenuBar()
     m_toggleHistoryAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
     viewMenu->addAction(m_toggleHistoryAction);
 
-    QMenu *editMenu = bar->addMenu(tr("编辑"));
+    QMenu* editMenu = bar->addMenu(tr("编辑"));
 
     m_searchAction->setText(tr("查找..."));
     editMenu->addAction(m_searchAction);
@@ -408,8 +408,7 @@ void MainWindow::setupMenuBar()
     }
 }
 
-void MainWindow::retranslateUi()
-{
+void MainWindow::retranslateUi() {
     m_sendButton->setText(tr("发送"));
     m_newChatButton->setText(tr("+ 新建对话"));
     m_renameAction->setText(tr("重命名"));
@@ -447,9 +446,7 @@ void MainWindow::retranslateUi()
     setInputEnabled(!m_isStreaming);
 }
 
-
-void MainWindow::renderCurrentSession()
-{
+void MainWindow::renderCurrentSession() {
     if (m_isRendering) {
         return;
     }
@@ -463,37 +460,44 @@ void MainWindow::renderCurrentSession()
 
     m_isRendering = true;
 
-    const auto &session = SessionManager::instance()->currentSession();
+    const auto& session = SessionManager::instance()->currentSession();
 
     m_chatDisplay->setUpdatesEnabled(false);
     m_chatDisplay->clear();
     QTextCursor cursor = m_chatDisplay->textCursor();
 
     for (int i = 0; i < session.messages.size(); ++i) {
-        const auto &msg = session.messages[i];
+        const auto& msg = session.messages[i];
         QString rendered = formatMessageWithThinking(msg.role, msg.content);
 
         if (msg.role == "user" && !msg.attachments.isEmpty()) {
             QString attachmentHtml;
-            for (const auto &attachment : msg.attachments) {
+            for (const auto& attachment : msg.attachments) {
                 if (attachment.type == "image") {
-                    attachmentHtml += QString(
-                        "<div style='margin:8px 0;'>"
-                        "<img src='%1' style='max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;' />"
-                        "</div>"
-                    ).arg(attachment.content);
+                    attachmentHtml += QString("<div style='margin:8px 0;'>"
+                                              "<img src='%1' style='max-width:300px; "
+                                              "max-height:200px; border-radius:8px; border:1px "
+                                              "solid #ccc;' />"
+                                              "</div>")
+                                              .arg(attachment.content);
                 } else {
                     QString iconColor = (attachment.type == "text") ? "#4CAF50" : "#FF9800";
                     QString typeLabel = (attachment.type == "text") ? tr("文本") : tr("二进制");
                     QFileInfo info(attachment.path);
-                    attachmentHtml += QString(
-                        "<div style='margin:8px 0; padding:8px 12px; background:#f5f5f5; border-radius:6px; display:inline-block;'>"
-                        "<span style='color:%1; font-weight:bold;'>[%2]</span> %3 (%4 KB)"
-                        "</div>"
-                    ).arg(iconColor).arg(typeLabel).arg(info.fileName()).arg(attachment.size / 1024);
+                    attachmentHtml += QString("<div style='margin:8px 0; padding:8px 12px; "
+                                              "background:#f5f5f5; border-radius:6px; "
+                                              "display:inline-block;'>"
+                                              "<span style='color:%1; "
+                                              "font-weight:bold;'>[%2]</span> %3 (%4 KB)"
+                                              "</div>")
+                                              .arg(iconColor)
+                                              .arg(typeLabel)
+                                              .arg(info.fileName())
+                                              .arg(attachment.size / 1024);
                 }
             }
-            rendered = rendered.replace(QStringLiteral("</table>"), attachmentHtml + QStringLiteral("</table>"));
+            rendered = rendered.replace(QStringLiteral("</table>"),
+                                        attachmentHtml + QStringLiteral("</table>"));
         }
 
         cursor.insertHtml(rendered);
@@ -505,13 +509,13 @@ void MainWindow::renderCurrentSession()
     }
 
     // Remove trailing empty block so subsequent cursor API appends don't create a gap
-    QTextDocument *doc = m_chatDisplay->document();
+    QTextDocument* doc = m_chatDisplay->document();
     if (doc->blockCount() > 1 && doc->lastBlock().text().isEmpty()) {
         QTextCursor cleanup(doc->lastBlock());
         cleanup.deletePreviousChar();
     }
 
-    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    QScrollBar* scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
 
     m_chatDisplay->setUpdatesEnabled(true);
@@ -519,8 +523,8 @@ void MainWindow::renderCurrentSession()
     m_isRendering = false;
 }
 
-void MainWindow::appendUserMessageToDisplay(const QString &text, const QVector<FileAttachment> &attachments)
-{
+void MainWindow::appendUserMessageToDisplay(const QString& text,
+                                            const QVector<FileAttachment>& attachments) {
     QTextCursor cursor = m_chatDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
 
@@ -535,78 +539,86 @@ void MainWindow::appendUserMessageToDisplay(const QString &text, const QVector<F
 
     // User message: table-based box (Qt handles tables reliably)
     bool isDark = t.windowBg.lightness() < 128;
-    QString boxBg    = isDark ? "#1e2a3a" : "#f6f7fa";
-    QString boxBorder = isDark ? "#334"      : "#d8dce6";
+    QString boxBg = isDark ? "#1e2a3a" : "#f6f7fa";
+    QString boxBorder = isDark ? "#334" : "#d8dce6";
 
-    cursor.insertHtml(QString(
-        "<table width='100%%' cellpadding='0' cellspacing='0' "
-        "style='background:%1; border:1px solid %2; margin-top:18px; margin-bottom:4px;'>"
-        "<tr><td style='padding:10px 14px; border:none; color:%3; line-height:1.6;'>"
-        "<b style='color:%4; font-size:18px;'>%5</b><br>%6"
-        "</td></tr></table>"
-    ).arg(boxBg, boxBorder, t.textPrimary.name(), t.accent.name(), tr("用户"), escaped));
+    cursor.insertHtml(QString("<table width='100%%' cellpadding='0' cellspacing='0' "
+                              "style='background:%1; border:1px solid %2; margin-top:18px; "
+                              "margin-bottom:4px;'>"
+                              "<tr><td style='padding:10px 14px; border:none; color:%3; "
+                              "line-height:1.6;'>"
+                              "<b style='color:%4; font-size:18px;'>%5</b><br>%6"
+                              "</td></tr></table>")
+                              .arg(boxBg, boxBorder, t.textPrimary.name(), t.accent.name(),
+                                   tr("用户"), escaped));
 
     // Append attachment info if any
-    for (const auto &attachment : attachments) {
+    for (const auto& attachment : attachments) {
         if (attachment.type == QStringLiteral("image")) {
             cursor.insertBlock();
-            cursor.insertHtml(QStringLiteral(
-                "<div style='margin:8px 0;'>"
-                "<img src='%1' style='max-width:300px; max-height:200px; border-radius:8px; border:1px solid #ccc;' />"
-                "</div>").arg(attachment.content));
+            cursor.insertHtml(QStringLiteral("<div style='margin:8px 0;'>"
+                                             "<img src='%1' style='max-width:300px; "
+                                             "max-height:200px; border-radius:8px; border:1px "
+                                             "solid #ccc;' />"
+                                             "</div>")
+                                      .arg(attachment.content));
         } else {
-            QString iconColor = (attachment.type == QStringLiteral("text")) ? QStringLiteral("#4CAF50") : QStringLiteral("#FF9800");
-            QString typeLabel = (attachment.type == QStringLiteral("text")) ? tr("文本") : tr("二进制");
+            QString iconColor = (attachment.type == QStringLiteral("text"))
+                                        ? QStringLiteral("#4CAF50")
+                                        : QStringLiteral("#FF9800");
+            QString typeLabel = (attachment.type == QStringLiteral("text")) ? tr("文本")
+                                                                            : tr("二进制");
             QFileInfo info(attachment.path);
             cursor.insertBlock();
-            cursor.insertHtml(QStringLiteral(
-                "<div style='margin:8px 0; padding:8px 12px; background:#f5f5f5; border-radius:6px; display:inline-block;'>"
-                "<span style='color:%1; font-weight:bold;'>[%2]</span> %3 (%4 KB)"
-                "</div>").arg(iconColor, typeLabel, info.fileName()).arg(attachment.size / 1024));
+            cursor.insertHtml(QStringLiteral("<div style='margin:8px 0; padding:8px 12px; "
+                                             "background:#f5f5f5; border-radius:6px; "
+                                             "display:inline-block;'>"
+                                             "<span style='color:%1; "
+                                             "font-weight:bold;'>[%2]</span> %3 (%4 KB)"
+                                             "</div>")
+                                      .arg(iconColor, typeLabel, info.fileName())
+                                      .arg(attachment.size / 1024));
         }
     }
 
     // Scroll to show the new message
-    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    QScrollBar* scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
 }
 
-void MainWindow::updateSessionList()
-{
+void MainWindow::updateSessionList() {
     m_sessionItemMap.clear();
     m_historyList->clear();
 
-    const auto &sessions = SessionManager::instance()->allSessions();
+    const auto& sessions = SessionManager::instance()->allSessions();
 
     // Sort: pinned first, then by title
     QVector<ChatSession> sorted;
-    for (const auto &s : sessions)
-        sorted.append(s);
-    std::sort(sorted.begin(), sorted.end(), [](const ChatSession &a, const ChatSession &b) {
-        if (a.pinned != b.pinned)
-            return a.pinned > b.pinned;
+    for (const auto& s : sessions) sorted.append(s);
+    std::sort(sorted.begin(), sorted.end(), [](const ChatSession& a, const ChatSession& b) {
+        if (a.pinned != b.pinned) return a.pinned > b.pinned;
         return a.title.toLower() < b.title.toLower();
     });
 
     QString currentId = SessionManager::instance()->currentSessionId();
     const AppTheme& theme = AppTheme::current();
 
-    for (const auto &session : sorted) {
-        QListWidgetItem *item = new QListWidgetItem();
+    for (const auto& session : sorted) {
+        QListWidgetItem* item = new QListWidgetItem();
         item->setData(Qt::UserRole, session.id);
         item->setSizeHint(QSize(0, 44));
 
         // Custom widget: [pin icon] title
-        QWidget *itemWidget = new QWidget();
+        QWidget* itemWidget = new QWidget();
         itemWidget->setStyleSheet(QStringLiteral("background: transparent;"));
         itemWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        QHBoxLayout *layout = new QHBoxLayout(itemWidget);
+        QHBoxLayout* layout = new QHBoxLayout(itemWidget);
         layout->setContentsMargins(6, 1, 4, 1);
         layout->setSpacing(4);
 
         QString displayTitle = session.title.isEmpty() ? tr("新对话") : session.title;
 
-        QLabel *titleLabel = new QLabel(displayTitle);
+        QLabel* titleLabel = new QLabel(displayTitle);
         titleLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
         titleLabel->setWordWrap(false);
         titleLabel->setTextFormat(Qt::PlainText);
@@ -632,8 +644,7 @@ void MainWindow::updateSessionList()
     }
 }
 
-void MainWindow::setInputEnabled(bool enabled)
-{
+void MainWindow::setInputEnabled(bool enabled) {
     m_inputLine->setReadOnly(!enabled);
 
     if (enabled) {
@@ -647,23 +658,21 @@ void MainWindow::setInputEnabled(bool enabled)
     }
 }
 
-void MainWindow::stopCurrentStreamingSession()
-{
+void MainWindow::stopCurrentStreamingSession() {
     m_networkManager->abortCurrentRequest();
     if (!m_streamingContent.isEmpty()) {
-        SessionManager::instance()->addMessageToSession(
-            m_requestSessionId, "assistant", m_streamingContent);
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant",
+                                                        m_streamingContent);
     }
     m_isStreaming = false;
     m_streamingContent.clear();
     m_requestSessionId.clear();
 }
 
-void MainWindow::onSendClicked()
-{
+void MainWindow::onSendClicked() {
     // If another session is streaming, stop it first, then proceed with normal send
-    if (m_isStreaming && !m_requestSessionId.isEmpty()
-        && m_requestSessionId != SessionManager::instance()->currentSessionId()) {
+    if (m_isStreaming && !m_requestSessionId.isEmpty() &&
+        m_requestSessionId != SessionManager::instance()->currentSessionId()) {
         stopCurrentStreamingSession();
         // Fall through to normal send below
     }
@@ -693,11 +702,10 @@ void MainWindow::onSendClicked()
     }
 
     // 检索知识库，将结果注入系统提示（而非用户消息），避免污染对话上下文
-    KnowledgeBase *kb = KnowledgeBase::instance();
+    KnowledgeBase* kb = KnowledgeBase::instance();
     if (kb->isReady()) {
         QString context = kb->generateContext(userInput);
-        if (!context.isEmpty())
-            m_networkManager->setKnowledgeContext(context);
+        if (!context.isEmpty()) m_networkManager->setKnowledgeContext(context);
     }
 
     // Suppress renderCurrentSession while we add the user message, so the
@@ -731,8 +739,7 @@ void MainWindow::onSendClicked()
     m_networkManager->sendChatRequestWithContext(messages);
 }
 
-void MainWindow::onNetworkFinished(const QString &response)
-{
+void MainWindow::onNetworkFinished(const QString& response) {
     // 验证响应是否属于发起请求时的会话
     if (m_requestSessionId.isEmpty()) {
         return;
@@ -758,8 +765,7 @@ void MainWindow::onNetworkFinished(const QString &response)
     setInputEnabled(true);
 }
 
-void MainWindow::onNetworkError(const QString &error)
-{
+void MainWindow::onNetworkError(const QString& error) {
     // 验证响应是否属于发起请求时的会话
     if (m_requestSessionId.isEmpty()) {
         return;
@@ -769,7 +775,8 @@ void MainWindow::onNetworkError(const QString &error)
     m_streamingContent.clear();
 
     // 直接添加错误消息到原会话
-    SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", tr("错误: ") + error);
+    SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant",
+                                                    tr("错误: ") + error);
 
     // renderCurrentSession() is triggered via sessionChanged signal
 
@@ -777,8 +784,7 @@ void MainWindow::onNetworkError(const QString &error)
     setInputEnabled(true);
 }
 
-void MainWindow::onStreamChunkReceived(const QString &chunk)
-{
+void MainWindow::onStreamChunkReceived(const QString& chunk) {
     if (!m_isStreaming || m_requestSessionId != SessionManager::instance()->currentSessionId()) {
         return;
     }
@@ -823,12 +829,11 @@ void MainWindow::onStreamChunkReceived(const QString &chunk)
     }
     m_streamEndedWithNewline = chunk.endsWith(QLatin1Char('\n'));
 
-    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    QScrollBar* scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
 }
 
-void MainWindow::onStreamFinished(const QString &fullContent)
-{
+void MainWindow::onStreamFinished(const QString& fullContent) {
     // 验证响应是否属于发起请求时的会话
     if (!m_isStreaming || m_requestSessionId.isEmpty()) {
         return;
@@ -849,12 +854,12 @@ void MainWindow::onStreamFinished(const QString &fullContent)
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullContent);
 
     // 自动命名：如果对话尚未自动命名，根据用户第一条消息生成标题
-    const auto &sessions = SessionManager::instance()->allSessions();
+    const auto& sessions = SessionManager::instance()->allSessions();
     if (sessions.contains(m_requestSessionId)) {
-        const auto &session = sessions[m_requestSessionId];
+        const auto& session = sessions[m_requestSessionId];
         if (!session.autoNamed && session.messages.size() >= 2) {
             QString firstUserMsg;
-            for (const auto &msg : session.messages) {
+            for (const auto& msg : session.messages) {
                 if (msg.role == "user") {
                     firstUserMsg = msg.content;
                     break;
@@ -881,20 +886,15 @@ void MainWindow::onStreamFinished(const QString &fullContent)
     setInputEnabled(true);
 }
 
-void MainWindow::onSettingsClicked()
-{
+void MainWindow::onSettingsClicked() {
     SettingsDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
-        m_networkManager->updateSettings(
-            dialog.getApiBaseUrl(),
-            dialog.getApiKey(),
-            dialog.getModelName(),
-            dialog.getApiType()
-        );
+        m_networkManager->updateSettings(dialog.getApiBaseUrl(), dialog.getApiKey(),
+                                         dialog.getModelName(), dialog.getApiType());
         m_networkManager->setStreamingEnabled(dialog.isStreamingEnabled());
 
         // 同步路径白名单到 SafetyChecker
-        SafetyChecker &checker = TaskEngine::instance()->safetyChecker();
+        SafetyChecker& checker = TaskEngine::instance()->safetyChecker();
         QStringList customWhitelist = dialog.pathWhitelist();
         if (!customWhitelist.isEmpty()) {
             checker.setAllowedPaths(customWhitelist);
@@ -904,10 +904,9 @@ void MainWindow::onSettingsClicked()
     }
 }
 
-void MainWindow::onNewChatClicked()
-{
-    QString defaultTitle = TranslationManager::instance()->currentLocale() == "en"
-        ? "New Chat" : tr("新对话");
+void MainWindow::onNewChatClicked() {
+    QString defaultTitle = TranslationManager::instance()->currentLocale() == "en" ? "New Chat"
+                                                                                   : tr("新对话");
     SessionManager::instance()->createNewSession(defaultTitle);
     m_chatDisplay->clear();
     m_markdownDoc->clear();
@@ -921,8 +920,7 @@ void MainWindow::onNewChatClicked()
     }
 }
 
-void MainWindow::onToggleHistoryPanel()
-{
+void MainWindow::onToggleHistoryPanel() {
     if (!m_splitter || !m_leftPanel) {
         return;
     }
@@ -939,8 +937,7 @@ void MainWindow::onToggleHistoryPanel()
     }
 }
 
-void MainWindow::onSessionItemClicked(QListWidgetItem *item)
-{
+void MainWindow::onSessionItemClicked(QListWidgetItem* item) {
     if (!item) {
         return;
     }
@@ -957,44 +954,37 @@ void MainWindow::onSessionItemClicked(QListWidgetItem *item)
     updateSessionList();
 
     // Re-enable input when switching to a non-streaming session
-    if (m_isStreaming && !m_requestSessionId.isEmpty()
-        && sessionId != m_requestSessionId) {
+    if (m_isStreaming && !m_requestSessionId.isEmpty() && sessionId != m_requestSessionId) {
         setInputEnabled(true);
     }
     // Restore stop button when switching back to the streaming session
-    else if (m_isStreaming && !m_requestSessionId.isEmpty()
-             && sessionId == m_requestSessionId) {
+    else if (m_isStreaming && !m_requestSessionId.isEmpty() && sessionId == m_requestSessionId) {
         setInputEnabled(false);
     }
 }
 
-void MainWindow::onDeleteSession()
-{
+void MainWindow::onDeleteSession() {
     QString sessionId = m_contextMenuSessionId;
-    if (sessionId.isEmpty())
-        return;
+    if (sessionId.isEmpty()) return;
 
-    const auto &sessions = SessionManager::instance()->allSessions();
+    const auto& sessions = SessionManager::instance()->allSessions();
 
     // Don't allow deleting the last remaining session
-    if (sessions.size() <= 1)
-        return;
+    if (sessions.size() <= 1) return;
 
     // Don't allow deleting a session that has an active stream in flight
-    if (m_isStreaming && sessionId == m_requestSessionId)
-        return;
+    if (m_isStreaming && sessionId == m_requestSessionId) return;
 
     // If deleting the current active session, switch to another first
     if (sessionId == SessionManager::instance()->currentSessionId()) {
         QString targetId;
-        for (const auto &s : sessions) {
+        for (const auto& s : sessions) {
             if (s.id != sessionId) {
                 targetId = s.id;
                 break;
             }
         }
-        if (!targetId.isEmpty())
-            SessionManager::instance()->switchToSession(targetId);
+        if (!targetId.isEmpty()) SessionManager::instance()->switchToSession(targetId);
     }
 
     SessionManager::instance()->removeSession(sessionId);
@@ -1005,60 +995,52 @@ void MainWindow::onDeleteSession()
     updateSessionList();
 }
 
-void MainWindow::onRenameSession()
-{
+void MainWindow::onRenameSession() {
     QString sessionId = m_contextMenuSessionId;
-    if (sessionId.isEmpty())
-        return;
+    if (sessionId.isEmpty()) return;
 
-    const auto &sessions = SessionManager::instance()->allSessions();
-    if (!sessions.contains(sessionId))
-        return;
+    const auto& sessions = SessionManager::instance()->allSessions();
+    if (!sessions.contains(sessionId)) return;
 
     QString oldTitle = sessions[sessionId].title;
     bool ok = false;
-    QString newTitle = QInputDialog::getText(this, tr("重命名"), tr("新名称:"),
-                                              QLineEdit::Normal, oldTitle, &ok);
+    QString newTitle = QInputDialog::getText(this, tr("重命名"), tr("新名称:"), QLineEdit::Normal,
+                                             oldTitle, &ok);
     if (ok && !newTitle.trimmed().isEmpty()) {
         SessionManager::instance()->updateSessionTitle(sessionId, newTitle.trimmed());
         updateSessionList();
     }
 }
 
-void MainWindow::onTogglePinSession()
-{
+void MainWindow::onTogglePinSession() {
     QString sessionId = m_contextMenuSessionId;
-    if (sessionId.isEmpty())
-        return;
+    if (sessionId.isEmpty()) return;
 
-    const auto &sessions = SessionManager::instance()->allSessions();
-    if (!sessions.contains(sessionId))
-        return;
+    const auto& sessions = SessionManager::instance()->allSessions();
+    if (!sessions.contains(sessionId)) return;
 
     bool newPinned = !sessions[sessionId].pinned;
     SessionManager::instance()->setSessionPinned(sessionId, newPinned);
     updateSessionList();
 }
 
-void MainWindow::onCustomContextMenuRequested(const QPoint &pos)
-{
-    QListWidgetItem *item = m_historyList->itemAt(pos);
+void MainWindow::onCustomContextMenuRequested(const QPoint& pos) {
+    QListWidgetItem* item = m_historyList->itemAt(pos);
     if (item) {
         m_contextMenuSessionId = item->data(Qt::UserRole).toString();
 
         // Update pin action text
-        const auto &sessions = SessionManager::instance()->allSessions();
+        const auto& sessions = SessionManager::instance()->allSessions();
         if (sessions.contains(m_contextMenuSessionId)) {
-            m_pinAction->setText(sessions[m_contextMenuSessionId].pinned
-                                     ? tr("取消置顶") : tr("置顶"));
+            m_pinAction->setText(sessions[m_contextMenuSessionId].pinned ? tr("取消置顶")
+                                                                         : tr("置顶"));
         }
 
         m_contextMenu->exec(m_historyList->mapToGlobal(pos));
     }
 }
 
-void MainWindow::onThemeChanged(int theme)
-{
+void MainWindow::onThemeChanged(int theme) {
     Q_UNUSED(theme);
     // Clear search highlights first to avoid display issues
     if (m_searchBar && m_searchBar->isVisible()) {
@@ -1077,7 +1059,7 @@ void MainWindow::onThemeChanged(int theme)
         QString keyword = m_searchInput->text().trimmed();
         if (!keyword.isEmpty()) {
             // Recalculate match count after re-render
-            QTextDocument *doc = m_chatDisplay->document();
+            QTextDocument* doc = m_chatDisplay->document();
             QTextCursor cursor(doc);
             m_totalMatches = 0;
             while (!cursor.isNull()) {
@@ -1095,25 +1077,18 @@ void MainWindow::onThemeChanged(int theme)
     }
 }
 
-void MainWindow::onLanguageChanged()
-{
+void MainWindow::onLanguageChanged() {
     retranslateUi();
     setupMenuBar();
     renderCurrentSession();
 }
 
-void MainWindow::onFileButtonClicked()
-{
+void MainWindow::onFileButtonClicked() {
     // macOS 原生文件对话框的语言由系统语言偏好顺序决定
     // 无法通过 Qt 应用代码直接控制
     // 如需英文对话框，请在 macOS 系统设置中将英文设为首选语言
 
-    QStringList filePaths = QFileDialog::getOpenFileNames(
-        this,
-        QString(),
-        QString(),
-        QString()
-    );
+    QStringList filePaths = QFileDialog::getOpenFileNames(this, QString(), QString(), QString());
 
     if (filePaths.isEmpty()) {
         return;
@@ -1121,7 +1096,7 @@ void MainWindow::onFileButtonClicked()
 
     QString errorTitle = tr("错误");
 
-    for (const QString &path : filePaths) {
+    for (const QString& path : filePaths) {
         QFileInfo info(path);
         if (!info.exists()) {
             QMessageBox::warning(this, errorTitle, tr("文件不存在: %1").arg(path));
@@ -1141,8 +1116,7 @@ void MainWindow::onFileButtonClicked()
     updateFileListDisplay();
 }
 
-void MainWindow::updateFileListDisplay()
-{
+void MainWindow::updateFileListDisplay() {
     // 清除现有文件标签
     clearFileListDisplay();
 
@@ -1154,10 +1128,10 @@ void MainWindow::updateFileListDisplay()
 
     m_fileListArea->setVisible(true);
 
-    for (const FileAttachment &file : files) {
+    for (const FileAttachment& file : files) {
         // 创建文件标签 widget
-        QWidget *fileTag = new QWidget(m_fileListArea);
-        QHBoxLayout *tagLayout = new QHBoxLayout(fileTag);
+        QWidget* fileTag = new QWidget(m_fileListArea);
+        QHBoxLayout* tagLayout = new QHBoxLayout(fileTag);
         tagLayout->setContentsMargins(4, 2, 4, 2);
         tagLayout->setSpacing(4);
 
@@ -1177,18 +1151,18 @@ void MainWindow::updateFileListDisplay()
             displayName = displayName.left(17) + "...";
         }
 
-        QLabel *nameLabel = new QLabel(displayName, fileTag);
+        QLabel* nameLabel = new QLabel(displayName, fileTag);
 
         const AppTheme& t = AppTheme::current();
 
-        nameLabel->setStyleSheet(QString(
-            "QLabel { color: %1; font-size: 12px; padding: 2px 6px; "
-            "border: 1px solid %2; border-radius: 4px; background: %3; }"
-        ).arg(t.textPrimary.name(), borderColor, t.surfaceBg.name()));
+        nameLabel->setStyleSheet(
+                QString("QLabel { color: %1; font-size: 12px; padding: 2px 6px; "
+                        "border: 1px solid %2; border-radius: 4px; background: %3; }")
+                        .arg(t.textPrimary.name(), borderColor, t.surfaceBg.name()));
         tagLayout->addWidget(nameLabel);
 
         // 删除按钮 - 使用主题适配的关闭图标
-        QPushButton *removeBtn = new QPushButton(fileTag);
+        QPushButton* removeBtn = new QPushButton(fileTag);
         QIcon closeIcon = QApplication::style()->standardIcon(QStyle::SP_TitleBarCloseButton);
         removeBtn->setIcon(closeIcon);
         removeBtn->setIconSize(QSize(16, 16));
@@ -1197,11 +1171,14 @@ void MainWindow::updateFileListDisplay()
         bool isDark = t.windowBg.lightness() < 128;
         QString removeBtnStyle;
         if (isDark) {
-            removeBtnStyle = "QPushButton { border: none; background: transparent; padding: 2px; }"
-                             "QPushButton:hover { background: rgba(255, 59, 48, 0.2); border-radius: 12px; }";
+            removeBtnStyle =
+                    "QPushButton { border: none; background: transparent; padding: 2px; }"
+                    "QPushButton:hover { background: rgba(255, 59, 48, 0.2); border-radius: 12px; "
+                    "}";
         } else {
-            removeBtnStyle = "QPushButton { border: none; background: transparent; padding: 2px; }"
-                             "QPushButton:hover { background: #ffebeb; border-radius: 12px; }";
+            removeBtnStyle =
+                    "QPushButton { border: none; background: transparent; padding: 2px; }"
+                    "QPushButton:hover { background: #ffebeb; border-radius: 12px; }";
         }
         removeBtn->setStyleSheet(removeBtnStyle);
         removeBtn->setProperty("filePath", file.path);  // 存储文件路径用于删除
@@ -1216,11 +1193,10 @@ void MainWindow::updateFileListDisplay()
     m_fileButton->setToolTip(tr("添加文件 (%1 个待发送)").arg(files.size()));
 }
 
-void MainWindow::clearFileListDisplay()
-{
+void MainWindow::clearFileListDisplay() {
     // 删除所有文件标签 widget（保留 stretch）
     while (m_fileListLayout->count() > 1) {
-        QLayoutItem *item = m_fileListLayout->takeAt(0);
+        QLayoutItem* item = m_fileListLayout->takeAt(0);
         if (item->widget()) {
             item->widget()->deleteLater();
         }
@@ -1228,9 +1204,8 @@ void MainWindow::clearFileListDisplay()
     }
 }
 
-void MainWindow::onRemoveFileClicked()
-{
-    QPushButton *btn = qobject_cast<QPushButton*>(sender());
+void MainWindow::onRemoveFileClicked() {
+    QPushButton* btn = qobject_cast<QPushButton*>(sender());
     if (!btn) {
         return;
     }
@@ -1240,7 +1215,7 @@ void MainWindow::onRemoveFileClicked()
     // 从 FileManager 中移除文件
     QVector<FileAttachment> files = m_fileManager->pendingFiles();
     QVector<FileAttachment> newFiles;
-    for (const FileAttachment &file : files) {
+    for (const FileAttachment& file : files) {
         if (file.path != filePath) {
             newFiles.append(file);
         }
@@ -1248,7 +1223,7 @@ void MainWindow::onRemoveFileClicked()
 
     // 重建 pendingFiles（FileManager 没有 removeSingleFile 方法，需要清空再添加）
     m_fileManager->clearPendingFiles();
-    for (const FileAttachment &file : newFiles) {
+    for (const FileAttachment& file : newFiles) {
         m_fileManager->addFile(file.path);
     }
 
@@ -1257,13 +1232,12 @@ void MainWindow::onRemoveFileClicked()
 
 // ==================== 搜索功能实现 ====================
 
-void MainWindow::setupSearchBar()
-{
+void MainWindow::setupSearchBar() {
     m_searchBar = new QFrame(this);
     m_searchBar->setObjectName("searchBar");
     m_searchBar->setVisible(false);  // 默认隐藏
 
-    QHBoxLayout *searchLayout = new QHBoxLayout(m_searchBar);
+    QHBoxLayout* searchLayout = new QHBoxLayout(m_searchBar);
     searchLayout->setContentsMargins(10, 6, 10, 6);
     searchLayout->setSpacing(8);
 
@@ -1310,14 +1284,12 @@ void MainWindow::setupSearchBar()
     connect(m_searchCloseBtn, &QPushButton::clicked, this, &MainWindow::onSearchClose);
 }
 
-void MainWindow::updateSearchBarStyle()
-{
+void MainWindow::updateSearchBarStyle() {
     // 样式由全局样式表管理，主题切换时自动更新
     // 此方法保留以备将来需要额外样式调整时使用
 }
 
-void MainWindow::onSearchTriggered()
-{
+void MainWindow::onSearchTriggered() {
     if (!m_searchBar) {
         setupSearchBar();
     }
@@ -1330,8 +1302,7 @@ void MainWindow::onSearchTriggered()
     m_searchResultLabel->setText("");
 }
 
-void MainWindow::onSearchTextChanged()
-{
+void MainWindow::onSearchTextChanged() {
     QString keyword = m_searchInput->text().trimmed();
 
     if (keyword.isEmpty()) {
@@ -1343,7 +1314,7 @@ void MainWindow::onSearchTextChanged()
     }
 
     // 计算匹配数量
-    QTextDocument *doc = m_chatDisplay->document();
+    QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor(doc);
     m_totalMatches = 0;
 
@@ -1365,14 +1336,13 @@ void MainWindow::onSearchTextChanged()
     updateSearchResultLabel();
 }
 
-void MainWindow::onSearchNext()
-{
+void MainWindow::onSearchNext() {
     QString keyword = m_searchInput->text().trimmed();
     if (keyword.isEmpty()) {
         return;
     }
 
-    QTextDocument *doc = m_chatDisplay->document();
+    QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor = m_chatDisplay->textCursor();
 
     // 从当前位置向后搜索
@@ -1393,14 +1363,13 @@ void MainWindow::onSearchNext()
     }
 }
 
-void MainWindow::onSearchPrevious()
-{
+void MainWindow::onSearchPrevious() {
     QString keyword = m_searchInput->text().trimmed();
     if (keyword.isEmpty()) {
         return;
     }
 
-    QTextDocument *doc = m_chatDisplay->document();
+    QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor = m_chatDisplay->textCursor();
 
     // 从当前位置向前搜索
@@ -1420,15 +1389,13 @@ void MainWindow::onSearchPrevious()
     }
 }
 
-void MainWindow::onSearchClose()
-{
+void MainWindow::onSearchClose() {
     clearHighlights();
     m_searchBar->setVisible(false);
     m_inputLine->setFocus();
 }
 
-void MainWindow::highlightAllMatches()
-{
+void MainWindow::highlightAllMatches() {
     QString keyword = m_searchInput->text().trimmed();
     if (keyword.isEmpty()) {
         return;
@@ -1445,7 +1412,7 @@ void MainWindow::highlightAllMatches()
     // 当前匹配高亮颜色（橙色背景，更醒目）
     QColor currentMatchColor = isDark ? QColor(255, 165, 0, 200) : QColor(255, 180, 60);
 
-    QTextDocument *doc = m_chatDisplay->document();
+    QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor(doc);
     int matchIndex = 0;
 
@@ -1455,7 +1422,8 @@ void MainWindow::highlightAllMatches()
         if (!cursor.isNull()) {
             QTextEdit::ExtraSelection selection;
             selection.cursor = cursor;
-            selection.format.setBackground(matchIndex == m_currentMatchIndex - 1 ? currentMatchColor : matchColor);
+            selection.format.setBackground(matchIndex == m_currentMatchIndex - 1 ? currentMatchColor
+                                                                                 : matchColor);
             // 不使用 FullWidthSelection，只高亮匹配的文字
             extraSelections.append(selection);
             matchIndex++;
@@ -1465,8 +1433,7 @@ void MainWindow::highlightAllMatches()
     m_chatDisplay->setExtraSelections(extraSelections);
 }
 
-void MainWindow::clearHighlights()
-{
+void MainWindow::clearHighlights() {
     // 清除所有高亮
     m_chatDisplay->setExtraSelections(QList<QTextEdit::ExtraSelection>());
     // 清除选中状态
@@ -1475,14 +1442,13 @@ void MainWindow::clearHighlights()
     m_chatDisplay->setTextCursor(cursor);
 }
 
-void MainWindow::updateCurrentMatchIndex()
-{
+void MainWindow::updateCurrentMatchIndex() {
     QString keyword = m_searchInput->text().trimmed();
     if (keyword.isEmpty() || m_totalMatches == 0) {
         return;
     }
 
-    QTextDocument *doc = m_chatDisplay->document();
+    QTextDocument* doc = m_chatDisplay->document();
     QTextCursor currentCursor = m_chatDisplay->textCursor();
     QTextCursor cursor(doc);
     int index = 0;
@@ -1501,8 +1467,7 @@ void MainWindow::updateCurrentMatchIndex()
     updateSearchResultLabel();
 }
 
-void MainWindow::updateSearchResultLabel()
-{
+void MainWindow::updateSearchResultLabel() {
     if (m_totalMatches == 0) {
         m_searchResultLabel->setText(tr("无结果"));
     } else {
@@ -1510,8 +1475,7 @@ void MainWindow::updateSearchResultLabel()
     }
 }
 
-void MainWindow::appendCommandOutput(const QString &line)
-{
+void MainWindow::appendCommandOutput(const QString& line) {
     QTextCursor cursor = m_chatDisplay->textCursor();
     cursor.movePosition(QTextCursor::End);
 
@@ -1528,13 +1492,12 @@ void MainWindow::appendCommandOutput(const QString &line)
     cursor.insertText(line, monoFormat);
     cursor.insertBlock();
 
-    QScrollBar *scrollBar = m_chatDisplay->verticalScrollBar();
+    QScrollBar* scrollBar = m_chatDisplay->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
 }
 
-void MainWindow::handleTaskResponse(const QString &response)
-{
-    TaskEngine *engine = TaskEngine::instance();
+void MainWindow::handleTaskResponse(const QString& response) {
+    TaskEngine* engine = TaskEngine::instance();
     OperationPlan plan = engine->parsePlanFromAIResponse(response);
 
     if (plan.isEmpty()) {
@@ -1549,8 +1512,7 @@ void MainWindow::handleTaskResponse(const QString &response)
     // 安全检查
     SafetyChecker::Result safetyResult = engine->validatePlan(plan);
     if (safetyResult == SafetyChecker::Blocked) {
-        QString errMsg = tr("⚠️ 操作被安全拦截：%1")
-                             .arg(engine->safetyChecker().lastBlockReason());
+        QString errMsg = tr("⚠️ 操作被安全拦截：%1").arg(engine->safetyChecker().lastBlockReason());
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", errMsg);
         if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
             renderCurrentSession();
@@ -1564,29 +1526,27 @@ void MainWindow::handleTaskResponse(const QString &response)
 
     if (dialog.isConfirmed()) {
         // 用户确认，连接 CommandExecutor 信号以展示实时输出
-        CommandExecutor *executor = engine->executor();
+        CommandExecutor* executor = engine->executor();
         QString accumulatedOutput;
 
-        QMetaObject::Connection connStart = connect(
-            executor, &CommandExecutor::operationStarted, this,
-            [this](int index, const QString &command) {
-                Q_UNUSED(index);
-                appendCommandOutput(QStringLiteral("$ %1").arg(command));
-            });
+        QMetaObject::Connection connStart =
+                connect(executor, &CommandExecutor::operationStarted, this,
+                        [this](int index, const QString& command) {
+                            Q_UNUSED(index);
+                            appendCommandOutput(QStringLiteral("$ %1").arg(command));
+                        });
 
-        QMetaObject::Connection connStdout = connect(
-            executor, &CommandExecutor::stdoutLineReceived, this,
-            [this](const QString &line, int index) {
-                Q_UNUSED(index);
-                appendCommandOutput(line);
-            });
+        QMetaObject::Connection connStdout = connect(executor, &CommandExecutor::stdoutLineReceived,
+                                                     this, [this](const QString& line, int index) {
+                                                         Q_UNUSED(index);
+                                                         appendCommandOutput(line);
+                                                     });
 
-        QMetaObject::Connection connStderr = connect(
-            executor, &CommandExecutor::stderrLineReceived, this,
-            [this](const QString &line, int index) {
-                Q_UNUSED(index);
-                appendCommandOutput(line);
-            });
+        QMetaObject::Connection connStderr = connect(executor, &CommandExecutor::stderrLineReceived,
+                                                     this, [this](const QString& line, int index) {
+                                                         Q_UNUSED(index);
+                                                         appendCommandOutput(line);
+                                                     });
 
         // 执行命令
         QVector<CommandResult> results = engine->executePlan(plan);
@@ -1600,7 +1560,7 @@ void MainWindow::handleTaskResponse(const QString &response)
         QString resultMsg;
         int successCount = 0;
         int failCount = 0;
-        for (const auto &r : results) {
+        for (const auto& r : results) {
             if (r.success)
                 successCount++;
             else {
@@ -1611,25 +1571,24 @@ void MainWindow::handleTaskResponse(const QString &response)
         }
 
         resultMsg = tr("✅ 命令执行完成：%1 成功").arg(successCount);
-        if (failCount > 0)
-            resultMsg += tr("，%1 失败").arg(failCount);
+        if (failCount > 0) resultMsg += tr("，%1 失败").arg(failCount);
 
         if (engine->canUndo())
             resultMsg += QLatin1String("\n\n") + tr("💡 提示：可以输入「撤销刚才的操作」来恢复");
 
         // 将计划摘要和结果添加到聊天
-        QString fullMsg = plan.generateSummary()
-                          + QStringLiteral("\n\n") + resultMsg
-                          + QStringLiteral("\n\n") + response;
+        QString fullMsg = plan.generateSummary() + QStringLiteral("\n\n") + resultMsg +
+                          QStringLiteral("\n\n") + response;
 
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullMsg);
     } else if (dialog.isModifyRequested()) {
         // 用户请求修改计划
-        QString modifyMsg = tr("📝 请补充说明需要如何调整计划，例如：\n"
-                               "  • 修改目标路径\n"
-                               "  • 增加或减少操作\n"
-                               "  • 添加筛选条件\n"
-                               "我会根据你的反馈重新生成计划。");
+        QString modifyMsg =
+                tr("📝 请补充说明需要如何调整计划，例如：\n"
+                   "  • 修改目标路径\n"
+                   "  • 增加或减少操作\n"
+                   "  • 添加筛选条件\n"
+                   "我会根据你的反馈重新生成计划。");
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", modifyMsg);
     } else {
         // 用户取消
@@ -1642,9 +1601,8 @@ void MainWindow::handleTaskResponse(const QString &response)
     }
 }
 
-void MainWindow::onGirlfriendClicked()
-{
-    static GirlfriendWindow *girlfriendWindow = nullptr;
+void MainWindow::onGirlfriendClicked() {
+    static GirlfriendWindow* girlfriendWindow = nullptr;
 
     // 如果窗口已存在且可见，则关闭它
     if (girlfriendWindow && girlfriendWindow->isVisible()) {
@@ -1661,8 +1619,7 @@ void MainWindow::onGirlfriendClicked()
     girlfriendWindow->activateWindow();
 }
 
-void MainWindow::adjustInputHeight()
-{
+void MainWindow::adjustInputHeight() {
     // Force synchronous layout recalculation so document()->size() is current
     m_inputLine->document()->adjustSize();
 
@@ -1678,21 +1635,19 @@ void MainWindow::adjustInputHeight()
     }
 }
 
-void MainWindow::resizeEvent(QResizeEvent *event)
-{
+void MainWindow::resizeEvent(QResizeEvent* event) {
     QMainWindow::resizeEvent(event);
     adjustInputHeight();
 }
 
-bool MainWindow::eventFilter(QObject *obj, QEvent *event)
-{
+bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     // ——— IME composition handling (e.g. pinyin) ———
     // Works cross-platform: QEvent::InputMethod on Windows/Linux;
     // QEvent::InputMethodQuery is a reliable macOS fallback (the IME
     // queries cursor position to place the candidate window).
     if (obj == m_inputLine || obj == m_inputLine->viewport()) {
         if (event->type() == QEvent::InputMethod) {
-            auto *imeEvent = static_cast<QInputMethodEvent *>(event);
+            auto* imeEvent = static_cast<QInputMethodEvent*>(event);
             if (!imeEvent->preeditString().isEmpty()) {
                 m_inputLine->setPlaceholderText(QString());
             } else if (m_inputLine->toPlainText().isEmpty()) {
@@ -1714,7 +1669,7 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
         }
 
         if (event->type() == QEvent::KeyPress) {
-            auto *keyEvent = static_cast<QKeyEvent *>(event);
+            auto* keyEvent = static_cast<QKeyEvent*>(event);
             if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
                 // Shift+Enter: let QPlainTextEdit handle it (inserts newline)
                 if (keyEvent->modifiers() & Qt::ShiftModifier) {

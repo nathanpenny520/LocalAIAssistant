@@ -1,20 +1,18 @@
 #include "textchunker.h"
+
 #include <QRegularExpression>
 
 TextChunker::TextChunker() = default;
 
-void TextChunker::setMaxTokensPerChunk(int maxTokens)
-{
+void TextChunker::setMaxTokensPerChunk(int maxTokens) {
     m_maxTokensPerChunk = maxTokens;
 }
 
-int TextChunker::maxTokensPerChunk() const
-{
+int TextChunker::maxTokensPerChunk() const {
     return m_maxTokensPerChunk;
 }
 
-int TextChunker::estimateTokens(const QString &text)
-{
+int TextChunker::estimateTokens(const QString& text) {
     int tokens = 0;
     for (int i = 0; i < text.length(); ++i) {
         QChar ch = text[i];
@@ -35,9 +33,9 @@ int TextChunker::estimateTokens(const QString &text)
     int otherChars = 0;
     for (int i = 0; i < text.length(); ++i) {
         QChar ch = text[i];
-        if ((ch.unicode() >= 0x4E00 && ch.unicode() <= 0x9FFF)
-            || (ch.unicode() >= 0x3000 && ch.unicode() <= 0x303F)
-            || (ch.unicode() >= 0xFF00 && ch.unicode() <= 0xFFEF)) {
+        if ((ch.unicode() >= 0x4E00 && ch.unicode() <= 0x9FFF) ||
+            (ch.unicode() >= 0x3000 && ch.unicode() <= 0x303F) ||
+            (ch.unicode() >= 0xFF00 && ch.unicode() <= 0xFFEF)) {
             chineseChars++;
         } else if (!ch.isSpace()) {
             otherChars++;
@@ -48,42 +46,36 @@ int TextChunker::estimateTokens(const QString &text)
     return chineseChars + (otherChars / 4) + 1;
 }
 
-QVector<TextChunk> TextChunker::chunkText(const QString &text, const QString &documentPath) const
-{
+QVector<TextChunk> TextChunker::chunkText(const QString& text, const QString& documentPath) const {
     QStringList paragraphs = splitParagraphs(text);
     return mergeParagraphs(paragraphs, documentPath);
 }
 
-QStringList TextChunker::splitParagraphs(const QString &text) const
-{
+QStringList TextChunker::splitParagraphs(const QString& text) const {
     // 按双换行分段落
-    QStringList paragraphs = text.split(QRegularExpression(QStringLiteral("\n\n+")),
-                                         Qt::SkipEmptyParts);
+    QStringList paragraphs =
+            text.split(QRegularExpression(QStringLiteral("\n\n+")), Qt::SkipEmptyParts);
 
     QStringList result;
-    for (const auto &para : paragraphs) {
+    for (const auto& para : paragraphs) {
         QString trimmed = para.trimmed();
-        if (!trimmed.isEmpty())
-            result.append(trimmed);
+        if (!trimmed.isEmpty()) result.append(trimmed);
     }
 
     return result;
 }
 
-QVector<TextChunk> TextChunker::mergeParagraphs(
-    const QStringList &paragraphs,
-    const QString &documentPath) const
-{
+QVector<TextChunk> TextChunker::mergeParagraphs(const QStringList& paragraphs,
+                                                const QString& documentPath) const {
     QVector<TextChunk> chunks;
-    if (paragraphs.isEmpty())
-        return chunks;
+    if (paragraphs.isEmpty()) return chunks;
 
     QString currentText;
     int currentTokens = 0;
     int chunkIndex = 0;
     int charOffset = 0;
 
-    for (const auto &para : paragraphs) {
+    for (const auto& para : paragraphs) {
         int paraTokens = estimateTokens(para);
 
         // 如果单个段落超过上限，需要拆分
@@ -97,14 +89,15 @@ QVector<TextChunk> TextChunker::mergeParagraphs(
                 chunk.charOffset = charOffset;
                 chunk.estimatedTokens = currentTokens;
                 chunks.append(chunk);
-                charOffset += currentText.length() + 2; // +2 for \n\n
+                charOffset += currentText.length() + 2;  // +2 for \n\n
                 currentText.clear();
                 currentTokens = 0;
             }
 
             // 对超长段落按句子拆分
-            QStringList sentences = para.split(QRegularExpression(QStringLiteral("(?<=[。！？.!?])\\s*")));
-            for (const auto &sent : sentences) {
+            QStringList sentences =
+                    para.split(QRegularExpression(QStringLiteral("(?<=[。！？.!?])\\s*")));
+            for (const auto& sent : sentences) {
                 int sentTokens = estimateTokens(sent);
                 if (currentTokens + sentTokens > m_maxTokensPerChunk && !currentText.isEmpty()) {
                     TextChunk chunk;
@@ -119,8 +112,7 @@ QVector<TextChunk> TextChunker::mergeParagraphs(
                     currentTokens = 0;
                 }
                 if (!sent.trimmed().isEmpty()) {
-                    if (!currentText.isEmpty())
-                        currentText += QStringLiteral(" ");
+                    if (!currentText.isEmpty()) currentText += QStringLiteral(" ");
                     currentText += sent.trimmed();
                     currentTokens += sentTokens;
                 }
@@ -140,8 +132,7 @@ QVector<TextChunk> TextChunker::mergeParagraphs(
             currentText = para;
             currentTokens = paraTokens;
         } else {
-            if (!currentText.isEmpty())
-                currentText += QStringLiteral("\n\n");
+            if (!currentText.isEmpty()) currentText += QStringLiteral("\n\n");
             currentText += para;
             currentTokens += paraTokens;
         }

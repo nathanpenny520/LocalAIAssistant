@@ -1,4 +1,5 @@
 #include "operationundo.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -8,31 +9,29 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 
-OperationUndo::OperationUndo()
-{
+OperationUndo::OperationUndo() {
     loadLog();
 }
 
-QString OperationUndo::generateReverse(const ShellOperation &op)
-{
+QString OperationUndo::generateReverse(const ShellOperation& op) {
     // ── Native file operations: generate appropriate reverse ──
     switch (op.type) {
-    case ShellOperation::CreateDir:
-        return QStringLiteral("__script_reverse__");  // Can't auto-remove non-empty dirs
-    case ShellOperation::MoveFile:
-        // Reverse: move back
-        return QStringLiteral("__native_reverse_move__");
-    case ShellOperation::CopyFile:
-        // Reverse: delete the copy
-        return QStringLiteral("__native_reverse_delete__");
-    case ShellOperation::DeleteFile:
-        return QStringLiteral("__script_reverse__");  // Files are gone
-    case ShellOperation::WriteFile:
-        return QStringLiteral("__script_reverse__");  // Content overwritten
-    case ShellOperation::SearchFiles:
-        return QStringLiteral("__not_undoable__");    // Read-only
-    default:
-        break;
+        case ShellOperation::CreateDir:
+            return QStringLiteral("__script_reverse__");  // Can't auto-remove non-empty dirs
+        case ShellOperation::MoveFile:
+            // Reverse: move back
+            return QStringLiteral("__native_reverse_move__");
+        case ShellOperation::CopyFile:
+            // Reverse: delete the copy
+            return QStringLiteral("__native_reverse_delete__");
+        case ShellOperation::DeleteFile:
+            return QStringLiteral("__script_reverse__");  // Files are gone
+        case ShellOperation::WriteFile:
+            return QStringLiteral("__script_reverse__");  // Content overwritten
+        case ShellOperation::SearchFiles:
+            return QStringLiteral("__not_undoable__");  // Read-only
+        default:
+            break;
     }
 
     // ── Shell commands: parse command string ──
@@ -46,8 +45,7 @@ QString OperationUndo::generateReverse(const ShellOperation &op)
     }
 
     // 检测 mv SRC DEST → mv DEST SRC
-    static QRegularExpression mvRe(
-        QStringLiteral("^mv\\s+\"?(.+?)\"?\\s+\"?(.+?)\"?$"));
+    static QRegularExpression mvRe(QStringLiteral("^mv\\s+\"?(.+?)\"?\\s+\"?(.+?)\"?$"));
     m = mvRe.match(cmd);
     if (m.hasMatch()) {
         QString src = m.captured(1);
@@ -57,7 +55,7 @@ QString OperationUndo::generateReverse(const ShellOperation &op)
 
     // 检测 cp -r SRC DEST → rm -rf DEST
     static QRegularExpression cpRe(
-        QStringLiteral("^cp\\s+(-[a-zA-Z]*r[a-zA-Z]*\\s+)?\"?(.+?)\"?\\s+\"?(.+?)\"?$"));
+            QStringLiteral("^cp\\s+(-[a-zA-Z]*r[a-zA-Z]*\\s+)?\"?(.+?)\"?\\s+\"?(.+?)\"?$"));
     m = cpRe.match(cmd);
     if (m.hasMatch()) {
         QString dest = m.captured(3);
@@ -71,10 +69,9 @@ QString OperationUndo::generateReverse(const ShellOperation &op)
     }
 
     // 复杂操作（含管道、条件判断、循环）→ ScriptReverse
-    if (cmd.contains(QLatin1Char('|'))
-        || cmd.contains(QStringLiteral("&&"))
-        || cmd.contains(QStringLiteral("||"))
-        || cmd.contains(QRegularExpression("\\b(for|while|if|case)\\b"))) {
+    if (cmd.contains(QLatin1Char('|')) || cmd.contains(QStringLiteral("&&")) ||
+        cmd.contains(QStringLiteral("||")) ||
+        cmd.contains(QRegularExpression("\\b(for|while|if|case)\\b"))) {
         return QStringLiteral("__script_reverse__");
     }
 
@@ -87,8 +84,7 @@ QString OperationUndo::generateReverse(const ShellOperation &op)
     return QStringLiteral("__script_reverse__");
 }
 
-void OperationUndo::recordBefore(const ShellOperation &op)
-{
+void OperationUndo::recordBefore(const ShellOperation& op) {
     UndoEntry entry;
     entry.description = op.description;
 
@@ -115,7 +111,8 @@ void OperationUndo::recordBefore(const ShellOperation &op)
             entry.undoHint = tr("目录已创建，请手动删除空目录以撤销。");
         } else if (op.command.contains(QRegularExpression("\\brm\\b"))) {
             entry.undoHint = tr("文件已删除，无法自动恢复。请从备份或 Time Machine 恢复。");
-        } else if (op.command.contains(QLatin1Char('|')) || op.command.contains(QStringLiteral("&&"))) {
+        } else if (op.command.contains(QLatin1Char('|')) ||
+                   op.command.contains(QStringLiteral("&&"))) {
             entry.undoHint = tr("复杂命令，需手动撤销。建议确认操作结果。");
         } else {
             entry.undoHint = tr("此操作无自动逆向命令，请手动检查和撤销。");
@@ -132,14 +129,11 @@ void OperationUndo::recordBefore(const ShellOperation &op)
     }
 }
 
-void OperationUndo::recordBefore(const OperationPlan &plan)
-{
-    for (const auto &op : plan.operations)
-        recordBefore(op);
+void OperationUndo::recordBefore(const OperationPlan& plan) {
+    for (const auto& op : plan.operations) recordBefore(op);
 }
 
-QVector<CommandResult> OperationUndo::undoLastPlan()
-{
+QVector<CommandResult> OperationUndo::undoLastPlan() {
     QVector<CommandResult> results;
 
     if (m_undoStack.isEmpty()) {
@@ -155,7 +149,7 @@ QVector<CommandResult> OperationUndo::undoLastPlan()
 
     // 反向遍历撤销
     for (int i = m_undoStack.size() - 1; i >= 0; --i) {
-        const auto &entry = m_undoStack[i];
+        const auto& entry = m_undoStack[i];
         CommandResult r;
 
         if (entry.strategy == UndoEntry::AutoReverse) {
@@ -189,8 +183,7 @@ QVector<CommandResult> OperationUndo::undoLastPlan()
             r = executor.execute(op);
         } else if (entry.strategy == UndoEntry::ScriptReverse) {
             r.success = false;
-            r.errorMessage = tr("需手动撤销: %1 — %2")
-                .arg(entry.description, entry.undoHint);
+            r.errorMessage = tr("需手动撤销: %1 — %2").arg(entry.description, entry.undoHint);
         } else {
             r.success = false;
             r.errorMessage = tr("此操作不可撤销: %1").arg(entry.description);
@@ -204,22 +197,19 @@ QVector<CommandResult> OperationUndo::undoLastPlan()
     return results;
 }
 
-bool OperationUndo::canUndo() const
-{
+bool OperationUndo::canUndo() const {
     return !m_undoStack.isEmpty();
 }
 
-QString OperationUndo::logFilePath()
-{
-    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                      + QStringLiteral("/tasks");
+QString OperationUndo::logFilePath() {
+    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+                      QStringLiteral("/tasks");
     return dataDir + QStringLiteral("/operation_log.json");
 }
 
-void OperationUndo::saveLog()
-{
+void OperationUndo::saveLog() {
     QJsonArray arr;
-    for (const auto &e : m_undoStack) {
+    for (const auto& e : m_undoStack) {
         QJsonObject obj;
         obj[QStringLiteral("strategy")] = static_cast<int>(e.strategy);
         obj[QStringLiteral("reverseCommand")] = e.reverseCommand;
@@ -237,24 +227,20 @@ void OperationUndo::saveLog()
     }
 }
 
-void OperationUndo::loadLog()
-{
+void OperationUndo::loadLog() {
     QFile file(logFilePath());
-    if (!file.open(QIODevice::ReadOnly))
-        return;
+    if (!file.open(QIODevice::ReadOnly)) return;
 
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
 
-    if (!doc.isArray())
-        return;
+    if (!doc.isArray()) return;
 
     m_undoStack.clear();
-    for (const auto &val : doc.array()) {
+    for (const auto& val : doc.array()) {
         QJsonObject obj = val.toObject();
         UndoEntry entry;
-        entry.strategy = static_cast<UndoEntry::Strategy>(
-            obj[QStringLiteral("strategy")].toInt());
+        entry.strategy = static_cast<UndoEntry::Strategy>(obj[QStringLiteral("strategy")].toInt());
         entry.reverseCommand = obj[QStringLiteral("reverseCommand")].toString();
         entry.undoHint = obj[QStringLiteral("undoHint")].toString();
         entry.description = obj[QStringLiteral("description")].toString();

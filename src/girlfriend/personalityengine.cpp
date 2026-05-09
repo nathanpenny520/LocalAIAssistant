@@ -1,23 +1,21 @@
 #include "personalityengine.h"
-#include "../prompts/promptmanager.h"
-#include <QDebug>
-#include <QFile>
-#include <QDir>
+
 #include <QCoreApplication>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QTime>
-#include <QRandomGenerator>
 
-PersonalityEngine::PersonalityEngine(QObject *parent)
-    : QObject(parent)
-    , m_personalityPrompt()
-    , m_userNickname("你")
-{
+#include "../prompts/promptmanager.h"
+
+PersonalityEngine::PersonalityEngine(QObject* parent)
+        : QObject(parent), m_personalityPrompt(), m_userNickname("你") {
     loadFromFile();
 }
 
-void PersonalityEngine::loadFromFile()
-{
+void PersonalityEngine::loadFromFile() {
     m_personalityPrompt = PromptManager::instance()->girlfriendPrompt();
 
     if (m_personalityPrompt.isEmpty()) {
@@ -29,26 +27,22 @@ void PersonalityEngine::loadFromFile()
     }
 }
 
-void PersonalityEngine::parseTemplateConfig()
-{
+void PersonalityEngine::parseTemplateConfig() {
     m_templateConfig = PromptManager::instance()->girlfriendConfig();
 }
 
-QString PersonalityEngine::templateValue(const QString &key, const QString &fallback) const
-{
+QString PersonalityEngine::templateValue(const QString& key, const QString& fallback) const {
     return m_templateConfig.value(key, fallback);
 }
 
-QString PersonalityEngine::loadPersonalityPrompt()
-{
+QString PersonalityEngine::loadPersonalityPrompt() {
     if (m_personalityPrompt.isEmpty()) {
         loadFromFile();
     }
     return m_personalityPrompt;
 }
 
-QString PersonalityEngine::buildSystemPrompt(const QString &memoryContent)
-{
+QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
     QString prompt = m_personalityPrompt;
 
     prompt.replace(QStringLiteral("{{user_nickname}}"), m_userNickname);
@@ -59,8 +53,8 @@ QString PersonalityEngine::buildSystemPrompt(const QString &memoryContent)
         prompt.remove(QStringLiteral("\n{{mood_hint}}"));
     } else {
         prompt.replace(QStringLiteral("{{mood_hint}}"),
-                       templateValue(QStringLiteral("mood_prefix"),
-                                     QStringLiteral("当前心情：")) + moodHint + QLatin1Char('\n'));
+                       templateValue(QStringLiteral("mood_prefix"), QStringLiteral("当前心情：")) +
+                               moodHint + QLatin1Char('\n'));
     }
 
     // 时间提示
@@ -79,28 +73,41 @@ QString PersonalityEngine::buildSystemPrompt(const QString &memoryContent)
         timeKey = QStringLiteral("time_afternoon");
 
     int displayHour = (hour == 0) ? 12 : (hour > 12 ? hour - 12 : hour);
-    QString timeContext = templateValue(timeKey,
-        // 内置默认值 (中文, 仅 personality.md 缺少对应 key 时使用)
-        (timeKey == QStringLiteral("time_morning"))
-            ? QStringLiteral("早上%1点，用户刚起床，可以说早安、元气满满的话")
-        : (timeKey == QStringLiteral("time_noon"))
-            ? QStringLiteral("中午%1点，该吃午饭了")
-        : (timeKey == QStringLiteral("time_evening"))
-            ? QStringLiteral("晚上%1点，用户可能在休息")
-        : (timeKey == QStringLiteral("time_night"))
-            ? QStringLiteral("深夜%1点，用户该睡觉了，语气要温柔哄睡")
-            : QStringLiteral("下午%1点"))
-        .arg(displayHour);
+    QString timeContext =
+            templateValue(timeKey,
+                          // 内置默认值 (中文, 仅 personality.md 缺少对应 key 时使用)
+                          (timeKey == QStringLiteral("time_morning"))   ? QStringLiteral("早上%"
+                                                                                       "1点，用户刚"
+                                                                                       "起床，可以"
+                                                                                       "说早安、元"
+                                                                                       "气满满的话")
+                          : (timeKey == QStringLiteral("time_noon"))    ? QStringLiteral("中午%"
+                                                                                      "1点，该吃午"
+                                                                                      "饭了")
+                          : (timeKey == QStringLiteral("time_evening")) ? QStringLiteral("晚上%"
+                                                                                         "1点，用户"
+                                                                                         "可能在休"
+                                                                                         "息")
+                          : (timeKey == QStringLiteral("time_night"))   ? QStringLiteral("深夜%"
+                                                                                       "1点，用户该"
+                                                                                       "睡觉了，语"
+                                                                                       "气要温柔哄"
+                                                                                       "睡")
+                                                                      : QStringLiteral("下午%1点"))
+                    .arg(displayHour);
 
     prompt.replace(QStringLiteral("{{time_context}}"),
-                   templateValue(QStringLiteral("time_prefix"),
-                                 QStringLiteral("当前时间：")) + timeContext + QLatin1Char('\n'));
+                   templateValue(QStringLiteral("time_prefix"), QStringLiteral("当前时间：")) +
+                           timeContext + QLatin1Char('\n'));
 
     // 用户记忆注入
     if (!memoryContent.isEmpty()) {
-        QString memHeader = templateValue(QStringLiteral("memory_header"),
-                                          QStringLiteral("## 关于用户的记忆\n"));
-        prompt.replace(QStringLiteral("{{user_memories}}"), memHeader + memoryContent + QLatin1Char('\n'));
+        QString memHeader = templateValue(QStringLiteral("memory_header"), QStringLiteral("## "
+                                                                                          "关于用户"
+                                                                                          "的记忆"
+                                                                                          "\n"));
+        prompt.replace(QStringLiteral("{{user_memories}}"),
+                       memHeader + memoryContent + QLatin1Char('\n'));
     } else {
         prompt.remove(QStringLiteral("{{user_memories}}"));
     }
@@ -108,92 +115,82 @@ QString PersonalityEngine::buildSystemPrompt(const QString &memoryContent)
     return prompt;
 }
 
-QString PersonalityEngine::detectEmotion(const QString &text, double mood) const
-{
+QString PersonalityEngine::detectEmotion(const QString& text, double mood) const {
     // Get mood influence level from settings
     MoodInfluenceLevel influenceLevel = GirlfriendSettings::instance()->moodInfluence();
 
     // Strong emotion keywords → emotion mapping (这些关键词有明确的情绪倾向，不受心情影响)
-    static QMap<QString, QString> strongEmotionKeywords = {
-        // Happy
-        {"哈哈", "happy"},
-        {"太好了", "happy"},
-        {"开心", "happy"},
-        {"好棒", "happy"},
-        {"嘻嘻", "happy"},
-        {"呵呵", "happy"},
-        {"耶", "happy"},
-        // Hate/Annoyed
-        {"哼", "hate"},
-        {"讨厌", "hate"},
-        // Shy
-        {"害羞", "shy"},
-        {"不好意思", "shy"},
-        {" blush", "shy"},
-        {"脸红", "shy"},
-        // Love
-        {"喜欢", "love"},
-        {"想你", "love"},
-        {"爱你", "love"},
-        {"亲亲", "love"},
-        {"抱抱", "love"},
-        {"宝贝", "love"},
-        // Worried/Caring
-        {"担心", "worried"},
-        {"别累着", "worried"},
-        {"休息", "worried"},
-        {"辛苦", "worried"},
-        {"关心", "worried"},
-        {"照顾", "worried"},
-        {"注意身体", "worried"},
-        // Sad
-        {"难过", "sad"},
-        {"不开心", "sad"},
-        {"伤心", "sad"},
-        {"呜呜", "sad"},
-        {"哭", "crying"},
-        {"流泪", "crying"},
-        {"眼泪", "crying"},
-        // Angry
-        {"生气", "angry"},
-        {"气死", "angry"},
-        {"火大", "angry"},
-        // Studying
-        {"学习", "studying"},
-        {"思考", "studying"},
-        {"工作", "studying"},
-        {"代码", "studying"},
-        {"编程", "studying"},
-        // Travelling
-        {"旅行", "travelling"},
-        {"出门", "travelling"},
-        {"旅游", "travelling"},
-        {"出去玩", "travelling"}
-    };
+    static QMap<QString, QString> strongEmotionKeywords = {// Happy
+                                                           {"哈哈", "happy"},
+                                                           {"太好了", "happy"},
+                                                           {"开心", "happy"},
+                                                           {"好棒", "happy"},
+                                                           {"嘻嘻", "happy"},
+                                                           {"呵呵", "happy"},
+                                                           {"耶", "happy"},
+                                                           // Hate/Annoyed
+                                                           {"哼", "hate"},
+                                                           {"讨厌", "hate"},
+                                                           // Shy
+                                                           {"害羞", "shy"},
+                                                           {"不好意思", "shy"},
+                                                           {" blush", "shy"},
+                                                           {"脸红", "shy"},
+                                                           // Love
+                                                           {"喜欢", "love"},
+                                                           {"想你", "love"},
+                                                           {"爱你", "love"},
+                                                           {"亲亲", "love"},
+                                                           {"抱抱", "love"},
+                                                           {"宝贝", "love"},
+                                                           // Worried/Caring
+                                                           {"担心", "worried"},
+                                                           {"别累着", "worried"},
+                                                           {"休息", "worried"},
+                                                           {"辛苦", "worried"},
+                                                           {"关心", "worried"},
+                                                           {"照顾", "worried"},
+                                                           {"注意身体", "worried"},
+                                                           // Sad
+                                                           {"难过", "sad"},
+                                                           {"不开心", "sad"},
+                                                           {"伤心", "sad"},
+                                                           {"呜呜", "sad"},
+                                                           {"哭", "crying"},
+                                                           {"流泪", "crying"},
+                                                           {"眼泪", "crying"},
+                                                           // Angry
+                                                           {"生气", "angry"},
+                                                           {"气死", "angry"},
+                                                           {"火大", "angry"},
+                                                           // Studying
+                                                           {"学习", "studying"},
+                                                           {"思考", "studying"},
+                                                           {"工作", "studying"},
+                                                           {"代码", "studying"},
+                                                           {"编程", "studying"},
+                                                           // Travelling
+                                                           {"旅行", "travelling"},
+                                                           {"出门", "travelling"},
+                                                           {"旅游", "travelling"},
+                                                           {"出去玩", "travelling"}};
 
     // Check for strong emotion keywords first (high priority)
-    for (const QString &keyword : strongEmotionKeywords.keys()) {
+    for (const QString& keyword : strongEmotionKeywords.keys()) {
         if (text.contains(keyword)) {
             return strongEmotionKeywords[keyword];
         }
     }
 
     // Neutral keywords - affected by mood (受心情影响的中性词)
-    static QMap<QString, QString> neutralKeywords = {
-        {"还好", "neutral"},
-        {"没事", "neutral"},
-        {"好吧", "neutral"},
-        {"行吧", "neutral"},
-        {"嗯", "neutral"},
-        {"好的", "neutral"},
-        {"行", "neutral"},
-        {"可以", "neutral"},
-        {"哦", "neutral"},
-        {"啊", "neutral"}
-    };
+    static QMap<QString, QString> neutralKeywords = {{"还好", "neutral"}, {"没事", "neutral"},
+                                                     {"好吧", "neutral"}, {"行吧", "neutral"},
+                                                     {"嗯", "neutral"},   {"好的", "neutral"},
+                                                     {"行", "neutral"},   {"可以", "neutral"},
+                                                     {"哦", "neutral"},   {"啊", "neutral"}};
 
     // Check for neutral keywords and apply mood influence
-    for (const QString &keyword : neutralKeywords.keys()) {
+    for (const QString& keyword : neutralKeywords.keys()) {
         if (text.contains(keyword)) {
             // Apply mood influence based on level
             if (influenceLevel == MoodInfluenceLevel::Low) {
@@ -222,11 +219,9 @@ QString PersonalityEngine::detectEmotion(const QString &text, double mood) const
     }
 
     // Awaiting keywords (questions, expecting response)
-    static QStringList awaitingKeywords = {
-        "怎么样", "呢~", "呢？", "在吗", "在不在", "吗？", "呢"
-    };
+    static QStringList awaitingKeywords = {"怎么样", "呢~", "呢？", "在吗", "在不在", "吗？", "呢"};
 
-    for (const QString &keyword : awaitingKeywords) {
+    for (const QString& keyword : awaitingKeywords) {
         if (text.contains(keyword)) {
             return "awaiting";
         }
@@ -258,49 +253,34 @@ QString PersonalityEngine::detectEmotion(const QString &text, double mood) const
     return selected;
 }
 
-QString PersonalityEngine::emotionToDisplayName(const QString &emotion) const
-{
-    static QMap<QString, QString> displayNames = {
-        {"default", "默认"},
-        {"happy", "开心"},
-        {"shy", "害羞"},
-        {"love", "爱意"},
-        {"hate", "嫌弃"},
-        {"sad", "难过"},
-        {"angry", "生气"},
-        {"afraid", "关心"},
-        {"worried", "关心"},
-        {"awaiting", "期待"},
-        {"speaking", "说话中"},
-        {"studying", "思考"},
-        {"crying", "哭泣"},
-        {"travelling", "旅行"}
-    };
+QString PersonalityEngine::emotionToDisplayName(const QString& emotion) const {
+    static QMap<QString, QString> displayNames = {{"default", "默认"},    {"happy", "开心"},
+                                                  {"shy", "害羞"},        {"love", "爱意"},
+                                                  {"hate", "嫌弃"},       {"sad", "难过"},
+                                                  {"angry", "生气"},      {"afraid", "关心"},
+                                                  {"worried", "关心"},    {"awaiting", "期待"},
+                                                  {"speaking", "说话中"}, {"studying", "思考"},
+                                                  {"crying", "哭泣"},     {"travelling", "旅行"}};
 
     return displayNames.value(emotion, "默认");
 }
 
-void PersonalityEngine::setUserNickname(const QString &nickname)
-{
+void PersonalityEngine::setUserNickname(const QString& nickname) {
     m_userNickname = nickname;
 }
 
-void PersonalityEngine::updateMood(const QString &userInput)
-{
+void PersonalityEngine::updateMood(const QString& userInput) {
     // 负面关键词降低心情
-    static QStringList negativeWords = {
-        "滚", "烦", "别理我", "讨厌你", "不想说话", "闭嘴", "无语"
-    };
+    static QStringList negativeWords = {"滚", "烦", "别理我", "讨厌你", "不想说话", "闭嘴", "无语"};
 
     // 正面关键词提升心情
-    static QStringList positiveWords = {
-        "爱你", "抱抱", "乖", "喜欢你", "想你", "亲亲", "宝贝", "谢谢"
-    };
+    static QStringList positiveWords = {"爱你", "抱抱", "乖",   "喜欢你",
+                                        "想你", "亲亲", "宝贝", "谢谢"};
 
     bool hasNegativeInput = false;
     bool hasPositiveInput = false;
 
-    for (const QString &word : negativeWords) {
+    for (const QString& word : negativeWords) {
         if (userInput.contains(word)) {
             m_mood -= 0.3;
             hasNegativeInput = true;
@@ -308,7 +288,7 @@ void PersonalityEngine::updateMood(const QString &userInput)
         }
     }
 
-    for (const QString &word : positiveWords) {
+    for (const QString& word : positiveWords) {
         if (userInput.contains(word)) {
             m_mood += 0.2;
             hasPositiveInput = true;
@@ -328,17 +308,16 @@ void PersonalityEngine::updateMood(const QString &userInput)
     emit moodChanged(m_mood);
 }
 
-QString PersonalityEngine::getMoodHint() const
-{
+QString PersonalityEngine::getMoodHint() const {
     if (m_mood < 0.3) {
-        return templateValue(QStringLiteral("mood_low"),
-            QStringLiteral("心情很差，说话带着哭腔，可能会说'呜...'"));
+        return templateValue(QStringLiteral("mood_low"), QStringLiteral("心情很差，说话带着哭腔，可"
+                                                                        "能会说'呜...'"));
     } else if (m_mood < 0.5) {
-        return templateValue(QStringLiteral("mood_mid"),
-            QStringLiteral("有点不开心，说话简短，偶尔撒娇说'哼'"));
+        return templateValue(QStringLiteral("mood_mid"), QStringLiteral("有点不开心，说话简短，偶尔"
+                                                                        "撒娇说'哼'"));
     } else if (m_mood > 0.8) {
-        return templateValue(QStringLiteral("mood_high"),
-            QStringLiteral("开开心心，语气特别甜，会说'嘻嘻~'"));
+        return templateValue(QStringLiteral("mood_high"), QStringLiteral("开开心心，语气特别甜，会"
+                                                                         "说'嘻嘻~'"));
     } else {
         return QString();  // 正常状态不添加提示
     }
@@ -347,27 +326,16 @@ QString PersonalityEngine::getMoodHint() const
 // 中文情绪词 → 英文情绪ID映射
 static QMap<QString, QString> chineseToEnglishEmotion() {
     static QMap<QString, QString> map = {
-        {"开心", "happy"},
-        {"害羞", "shy"},
-        {"爱意", "love"},
-        {"关心", "worried"},
-        {"担心", "worried"},
-        {"期待", "awaiting"},
-        {"难过", "sad"},
-        {"嫌弃", "hate"},
-        {"生气", "angry"},
-        {"害怕", "afraid"},
-        {"思考", "studying"},
-        {"哭泣", "crying"},
-        {"旅行", "travelling"},
-        {"说话中", "speaking"},
-        {"默认", "default"}
-    };
+            {"开心", "happy"},      {"害羞", "shy"},        {"爱意", "love"},
+            {"关心", "worried"},    {"担心", "worried"},    {"期待", "awaiting"},
+            {"难过", "sad"},        {"嫌弃", "hate"},       {"生气", "angry"},
+            {"害怕", "afraid"},     {"思考", "studying"},   {"哭泣", "crying"},
+            {"旅行", "travelling"}, {"说话中", "speaking"}, {"默认", "default"}};
     return map;
 }
 
-PersonalityEngine::EmotionResult PersonalityEngine::parseEmotionFromResponse(const QString &text) const
-{
+PersonalityEngine::EmotionResult PersonalityEngine::parseEmotionFromResponse(
+        const QString& text) const {
     EmotionResult result;
     result.emotion = "default";
     result.cleanText = text;

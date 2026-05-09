@@ -1,15 +1,18 @@
 #include "vectordb.h"
-#include "embedder.h"
-#include <QDir>
-#include <QFile>
+
+#include <algorithm>
+
 #include <QDataStream>
-#include <QSqlDatabase>
-#include <QSqlQuery>
-#include <QSqlError>
-#include <QStandardPaths>
 #include <QDateTime>
 #include <QDebug>
-#include <algorithm>
+#include <QDir>
+#include <QFile>
+#include <QSqlDatabase>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QStandardPaths>
+
+#include "embedder.h"
 
 #ifdef HNSWLIB_AVAILABLE
 #include "hnswlib/hnswlib.h"
@@ -24,23 +27,20 @@
 
 VectorDB::VectorDB() = default;
 
-VectorDB::~VectorDB()
-{
+VectorDB::~VectorDB() {
 #ifdef HNSWLIB_AVAILABLE
     delete m_index;
     delete m_space;
 #endif
 }
 
-bool VectorDB::init(int dimension, const QString &storageDir)
-{
+bool VectorDB::init(int dimension, const QString& storageDir) {
     m_dimension = dimension;
     m_storageDir = storageDir;
     return initStorage(storageDir);
 }
 
-bool VectorDB::initStorage(const QString &dir)
-{
+bool VectorDB::initStorage(const QString& dir) {
     if (!QDir().mkpath(dir)) {
         qWarning() << "VectorDB: Cannot create storage dir:" << dir;
         return false;
@@ -49,8 +49,7 @@ bool VectorDB::initStorage(const QString &dir)
     QString dbPath = dir + QStringLiteral("/chunks.db");
 
     const QString connName = QStringLiteral("vectordb_conn");
-    if (QSqlDatabase::contains(connName))
-        QSqlDatabase::removeDatabase(connName);
+    if (QSqlDatabase::contains(connName)) QSqlDatabase::removeDatabase(connName);
 
     QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
     db.setDatabaseName(dbPath);
@@ -62,30 +61,30 @@ bool VectorDB::initStorage(const QString &dir)
 
     QSqlQuery query(db);
 
-    query.exec(QStringLiteral(
-        "CREATE TABLE IF NOT EXISTS documents ("
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "  path TEXT UNIQUE NOT NULL,"
-        "  import_time TEXT NOT NULL"
-        ")"));
+    query.exec(
+            QStringLiteral("CREATE TABLE IF NOT EXISTS documents ("
+                           "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                           "  path TEXT UNIQUE NOT NULL,"
+                           "  import_time TEXT NOT NULL"
+                           ")"));
 
-    query.exec(QStringLiteral(
-        "CREATE TABLE IF NOT EXISTS chunks ("
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "  doc_id INTEGER NOT NULL,"
-        "  content TEXT NOT NULL,"
-        "  chunk_index INTEGER NOT NULL,"
-        "  char_offset INTEGER NOT NULL,"
-        "  estimated_tokens INTEGER NOT NULL,"
-        "  FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE"
-        ")"));
+    query.exec(
+            QStringLiteral("CREATE TABLE IF NOT EXISTS chunks ("
+                           "  id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                           "  doc_id INTEGER NOT NULL,"
+                           "  content TEXT NOT NULL,"
+                           "  chunk_index INTEGER NOT NULL,"
+                           "  char_offset INTEGER NOT NULL,"
+                           "  estimated_tokens INTEGER NOT NULL,"
+                           "  FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE"
+                           ")"));
 
     // Metadata table (dimension, index type)
-    query.exec(QStringLiteral(
-        "CREATE TABLE IF NOT EXISTS metadata ("
-        "  key TEXT PRIMARY KEY,"
-        "  value TEXT NOT NULL"
-        ")"));
+    query.exec(
+            QStringLiteral("CREATE TABLE IF NOT EXISTS metadata ("
+                           "  key TEXT PRIMARY KEY,"
+                           "  value TEXT NOT NULL"
+                           ")"));
 
     if (query.lastError().isValid()) {
         qWarning() << "VectorDB: Cannot create tables:" << query.lastError().text();
@@ -93,7 +92,8 @@ bool VectorDB::initStorage(const QString &dir)
     }
 
     // Store dimension
-    query.prepare(QStringLiteral("INSERT OR REPLACE INTO metadata (key, value) VALUES ('dimension', ?)"));
+    query.prepare(
+            QStringLiteral("INSERT OR REPLACE INTO metadata (key, value) VALUES ('dimension', ?)"));
     query.addBindValue(QString::number(m_dimension));
     query.exec();
 
@@ -102,13 +102,10 @@ bool VectorDB::initStorage(const QString &dir)
 }
 
 #ifdef HNSWLIB_AVAILABLE
-bool VectorDB::ensureIndex()
-{
-    if (m_index)
-        return true;
+bool VectorDB::ensureIndex() {
+    if (m_index) return true;
 
-    if (m_dimension <= 0)
-        return false;
+    if (m_dimension <= 0) return false;
 
     m_space = new hnswlib::InnerProductSpace(m_dimension);
     // Start with moderate capacity; hnswlib resizes as needed
@@ -117,9 +114,8 @@ bool VectorDB::ensureIndex()
 }
 #endif
 
-void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
-                           const QVector<TextChunk> &chunks)
-{
+void VectorDB::addVectors(const QVector<QVector<float>>& vectors,
+                          const QVector<TextChunk>& chunks) {
     if (vectors.size() != chunks.size()) {
         qWarning() << "VectorDB: vectors and chunks size mismatch";
         return;
@@ -128,8 +124,8 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
     // Verify dimension consistency
     for (int i = 0; i < vectors.size(); ++i) {
         if (vectors[i].size() != m_dimension) {
-            qWarning() << "VectorDB: vector" << i << "has wrong dimension"
-                        << vectors[i].size() << "(expected" << m_dimension << ")";
+            qWarning() << "VectorDB: vector" << i << "has wrong dimension" << vectors[i].size()
+                       << "(expected" << m_dimension << ")";
             return;
         }
     }
@@ -141,15 +137,14 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
     }
 
     QSqlDatabase db = QSqlDatabase::database(connName);
-    if (!db.isOpen())
-        db.open();
+    if (!db.isOpen()) db.open();
 
     // Cache doc_id per path
     QMap<QString, int> pathToDocId;
     QSqlQuery query(db);
 
     for (int i = 0; i < vectors.size(); ++i) {
-        const auto &chunk = chunks[i];
+        const auto& chunk = chunks[i];
 
         // Resolve doc_id (lookup once per document)
         int docId = -1;
@@ -157,8 +152,9 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
         if (it != pathToDocId.constEnd()) {
             docId = it.value();
         } else {
-            query.prepare(QStringLiteral(
-                "INSERT OR IGNORE INTO documents (path, import_time) VALUES (?, ?)"));
+            query.prepare(
+                    QStringLiteral("INSERT OR IGNORE INTO documents (path, import_time) VALUES (?, "
+                                   "?)"));
             query.addBindValue(chunk.documentPath);
             query.addBindValue(QDateTime::currentDateTime().toString(Qt::ISODate));
             if (!query.exec()) {
@@ -178,8 +174,8 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
 
         // Insert chunk record
         query.prepare(QStringLiteral(
-            "INSERT INTO chunks (doc_id, content, chunk_index, char_offset, estimated_tokens) "
-            "VALUES (?, ?, ?, ?, ?)"));
+                "INSERT INTO chunks (doc_id, content, chunk_index, char_offset, estimated_tokens) "
+                "VALUES (?, ?, ?, ?, ?)"));
         query.addBindValue(docId);
         query.addBindValue(chunk.content);
         query.addBindValue(chunk.chunkIndex);
@@ -192,8 +188,7 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
 
         // Memory index
 #ifdef HNSWLIB_AVAILABLE
-        if (!ensureIndex())
-            continue;
+        if (!ensureIndex()) continue;
         hnswlib::labeltype label = static_cast<hnswlib::labeltype>(m_chunks.size());
         m_index->addPoint(vectors[i].constData(), label);
         m_chunks.append(chunk);
@@ -208,29 +203,24 @@ void VectorDB::addVectors(const QVector<QVector<float>> &vectors,
     save();
 }
 
-QVector<SearchResult> VectorDB::search(const QVector<float> &queryVector, int topK) const
-{
+QVector<SearchResult> VectorDB::search(const QVector<float>& queryVector, int topK) const {
     QVector<SearchResult> results;
 
-    if (queryVector.size() != m_dimension)
-        return results;
+    if (queryVector.size() != m_dimension) return results;
 
 #ifdef HNSWLIB_AVAILABLE
-    if (!m_index || m_activeChunks == 0)
-        return results;
+    if (!m_index || m_activeChunks == 0) return results;
 
     // ef must be >= topK for correct recall
     m_index->setEf(static_cast<size_t>(qMax(50, topK)));
 
-    auto knn = m_index->searchKnnCloserFirst(queryVector.constData(),
-                                             static_cast<size_t>(topK));
+    auto knn = m_index->searchKnnCloserFirst(queryVector.constData(), static_cast<size_t>(topK));
 
     results.reserve(static_cast<int>(knn.size()));
-    for (const auto &[dist, label] : knn) {
+    for (const auto& [dist, label] : knn) {
         int idx = static_cast<int>(label);
-        if (idx < 0 || idx >= m_chunks.size())
-            continue;
-        const TextChunk &chunk = m_chunks[idx];
+        if (idx < 0 || idx >= m_chunks.size()) continue;
+        const TextChunk& chunk = m_chunks[idx];
         if (chunk.content.isEmpty())  // deleted marker
             continue;
 
@@ -241,8 +231,7 @@ QVector<SearchResult> VectorDB::search(const QVector<float> &queryVector, int to
         results.append(sr);
     }
 #else
-    if (m_vectors.isEmpty())
-        return results;
+    if (m_vectors.isEmpty()) return results;
 
     struct ScoredIndex {
         int index;
@@ -258,9 +247,7 @@ QVector<SearchResult> VectorDB::search(const QVector<float> &queryVector, int to
     }
 
     std::sort(scored.begin(), scored.end(),
-              [](const ScoredIndex &a, const ScoredIndex &b) {
-                  return a.score > b.score;
-              });
+              [](const ScoredIndex& a, const ScoredIndex& b) { return a.score > b.score; });
 
     int count = qMin(topK, scored.size());
     results.reserve(count);
@@ -275,15 +262,12 @@ QVector<SearchResult> VectorDB::search(const QVector<float> &queryVector, int to
     return results;
 }
 
-int VectorDB::removeDocument(const QString &documentPath)
-{
+int VectorDB::removeDocument(const QString& documentPath) {
     const QString connName = QStringLiteral("vectordb_conn");
-    if (!QSqlDatabase::contains(connName))
-        return 0;
+    if (!QSqlDatabase::contains(connName)) return 0;
 
     QSqlDatabase db = QSqlDatabase::database(connName);
-    if (!db.isOpen())
-        db.open();
+    if (!db.isOpen()) db.open();
 
     QSqlQuery query(db);
 
@@ -335,13 +319,11 @@ int VectorDB::removeDocument(const QString &documentPath)
     }
 #endif
 
-    if (!save())
-        qWarning() << "VectorDB: failed to save after document removal";
+    if (!save()) qWarning() << "VectorDB: failed to save after document removal";
     return removedChunks;
 }
 
-int VectorDB::totalChunks() const
-{
+int VectorDB::totalChunks() const {
 #ifdef HNSWLIB_AVAILABLE
     return m_activeChunks;
 #else
@@ -349,41 +331,34 @@ int VectorDB::totalChunks() const
 #endif
 }
 
-int VectorDB::totalDocuments() const
-{
+int VectorDB::totalDocuments() const {
     return allDocuments().size();
 }
 
-QStringList VectorDB::allDocuments() const
-{
+QStringList VectorDB::allDocuments() const {
     const QString connName = QStringLiteral("vectordb_conn");
-    if (!QSqlDatabase::contains(connName))
-        return {};
+    if (!QSqlDatabase::contains(connName)) return {};
 
     QSqlDatabase db = QSqlDatabase::database(connName);
-    if (!db.isOpen())
-        db.open();
+    if (!db.isOpen()) db.open();
 
     QSqlQuery query(db);
     query.exec(QStringLiteral("SELECT path FROM documents ORDER BY import_time DESC"));
 
     QStringList docs;
-    while (query.next())
-        docs.append(query.value(0).toString());
+    while (query.next()) docs.append(query.value(0).toString());
     return docs;
 }
 
-bool VectorDB::save()
-{
-    if (m_storageDir.isEmpty())
-        return false;
+bool VectorDB::save() {
+    if (m_storageDir.isEmpty()) return false;
 
 #ifdef HNSWLIB_AVAILABLE
     if (m_index) {
         try {
             QString indexPath = m_storageDir + QStringLiteral("/hnsw.index");
             m_index->saveIndex(indexPath.toStdString());
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             qWarning() << "VectorDB: saveIndex failed:" << e.what();
             return false;
         }
@@ -401,9 +376,8 @@ bool VectorDB::save()
 
     stream << m_dimension << static_cast<qint64>(m_vectors.size());
 
-    for (const auto &vec : m_vectors) {
-        for (float v : vec)
-            stream << v;
+    for (const auto& vec : m_vectors) {
+        for (float v : vec) stream << v;
     }
 
     file.close();
@@ -412,16 +386,13 @@ bool VectorDB::save()
     return true;
 }
 
-bool VectorDB::load()
-{
-    if (m_storageDir.isEmpty())
-        return false;
+bool VectorDB::load() {
+    if (m_storageDir.isEmpty()) return false;
 
     // Load chunk metadata from SQLite
     const QString connName = QStringLiteral("vectordb_conn");
     QSqlDatabase db = QSqlDatabase::database(connName);
-    if (!db.isOpen())
-        db.open();
+    if (!db.isOpen()) db.open();
 
     // Verify stored dimension matches
     QSqlQuery query(db);
@@ -430,15 +401,15 @@ bool VectorDB::load()
         int storedDim = query.value(0).toInt();
         if (storedDim != m_dimension && m_dimension > 0) {
             qWarning() << "VectorDB: dimension mismatch (stored:" << storedDim
-                        << "current:" << m_dimension << "), re-indexing";
+                       << "current:" << m_dimension << "), re-indexing";
         }
     }
 
     // Load chunks from SQLite
     query.exec(QStringLiteral(
-        "SELECT c.content, c.chunk_index, c.char_offset, c.estimated_tokens, d.path "
-        "FROM chunks c JOIN documents d ON c.doc_id = d.id "
-        "ORDER BY d.id, c.chunk_index"));
+            "SELECT c.content, c.chunk_index, c.char_offset, c.estimated_tokens, d.path "
+            "FROM chunks c JOIN documents d ON c.doc_id = d.id "
+            "ORDER BY d.id, c.chunk_index"));
 
     m_chunks.clear();
     while (query.next()) {
@@ -459,8 +430,7 @@ bool VectorDB::load()
     m_space = nullptr;
     m_activeChunks = 0;
 
-    if (m_dimension <= 0)
-        return !m_chunks.isEmpty();
+    if (m_dimension <= 0) return !m_chunks.isEmpty();
 
     m_space = new hnswlib::InnerProductSpace(m_dimension);
 
@@ -469,20 +439,18 @@ bool VectorDB::load()
     if (QFile::exists(indexPath)) {
         try {
             // Use the file-based constructor
-            m_index = new hnswlib::HierarchicalNSW<float>(
-                m_space,
-                indexPath.toStdString(),
-                false,       // nmslib format
-                0,           // max_elements (0 = use file contents)
-                false);      // allow_replace_deleted
+            m_index = new hnswlib::HierarchicalNSW<float>(m_space, indexPath.toStdString(),
+                                                          false,   // nmslib format
+                                                          0,       // max_elements (0 = use file
+                                                                   // contents)
+                                                          false);  // allow_replace_deleted
 
             m_activeChunks = static_cast<int>(m_index->getCurrentElementCount());
 
             // Detect stale HNSW index: vector count != SQLite chunk count
             if (m_activeChunks != m_chunks.size()) {
-                qWarning() << "VectorDB: HNSW/chunk mismatch detected —"
-                           << m_activeChunks << "vectors vs"
-                           << m_chunks.size() << "chunks, reinitializing...";
+                qWarning() << "VectorDB: HNSW/chunk mismatch detected —" << m_activeChunks
+                           << "vectors vs" << m_chunks.size() << "chunks, reinitializing...";
 
                 delete m_index;
                 m_index = nullptr;
@@ -512,22 +480,21 @@ bool VectorDB::load()
 
                 // Delete stale HNSW index file from disk
                 QFile hnswFile(m_storageDir + QStringLiteral("/hnsw.index"));
-                if (hnswFile.exists())
-                    hnswFile.remove();
+                if (hnswFile.exists()) hnswFile.remove();
 
                 // Create fresh empty index, let flow continue
                 if (m_dimension > 0) {
                     m_space = new hnswlib::InnerProductSpace(m_dimension);
-                    m_index = new hnswlib::HierarchicalNSW<float>(
-                        m_space, 1000, 16, 200, 100, false);
+                    m_index =
+                            new hnswlib::HierarchicalNSW<float>(m_space, 1000, 16, 200, 100, false);
                 }
             } else {
                 qInfo() << "VectorDB: loaded hnsw index," << m_activeChunks
-                          << "vectors, dimension:" << m_dimension;
+                        << "vectors, dimension:" << m_dimension;
             }
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
             qWarning() << "VectorDB: failed to load hnsw index:" << e.what()
-                        << "— creating new index, re-embedding needed";
+                       << "— creating new index, re-embedding needed";
             delete m_space;
             m_space = nullptr;
             m_index = nullptr;
@@ -542,7 +509,7 @@ bool VectorDB::load()
         // Clear chunks so caller can detect this and re-index.
         if (!m_chunks.isEmpty()) {
             qWarning() << "VectorDB: chunks exist in SQLite but hnsw index missing"
-                        << "— re-embedding needed";
+                       << "— re-embedding needed";
             m_chunks.clear();
         }
     }
@@ -577,22 +544,19 @@ bool VectorDB::load()
 
     for (int i = 0; i < count; ++i) {
         QVector<float> vec(dim);
-        for (int j = 0; j < dim; ++j)
-            stream >> vec[j];
+        for (int j = 0; j < dim; ++j) stream >> vec[j];
         m_vectors.append(vec);
     }
 
     if (m_vectors.size() != count) {
-        qWarning() << "VectorDB: loaded" << m_vectors.size()
-                    << "vectors but expected" << count
-                    << "— discarding cached vectors (re-embedding needed)";
+        qWarning() << "VectorDB: loaded" << m_vectors.size() << "vectors but expected" << count
+                   << "— discarding cached vectors (re-embedding needed)";
         m_vectors.clear();
         return !m_chunks.isEmpty();
     }
     if (m_vectors.size() != m_chunks.size()) {
-        qWarning() << "VectorDB: vectors/chunks count mismatch ("
-                    << m_vectors.size() << "vs" << m_chunks.size()
-                    << "), re-embedding needed";
+        qWarning() << "VectorDB: vectors/chunks count mismatch (" << m_vectors.size() << "vs"
+                   << m_chunks.size() << "), re-embedding needed";
         m_vectors.clear();
         return !m_chunks.isEmpty();
     }

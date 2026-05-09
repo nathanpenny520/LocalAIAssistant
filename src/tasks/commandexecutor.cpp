@@ -1,25 +1,22 @@
 #include "commandexecutor.h"
+
 #include <QDir>
 #include <QDirIterator>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QTimer>
-#include <QEventLoop>
 
-CommandExecutor::CommandExecutor(QObject *parent)
-    : QObject(parent)
-{
+CommandExecutor::CommandExecutor(QObject* parent) : QObject(parent) {
     detectAvailableShell();
 }
 
-CommandExecutor::~CommandExecutor()
-{
+CommandExecutor::~CommandExecutor() {
     cancel();
 }
 
-void CommandExecutor::detectAvailableShell()
-{
+void CommandExecutor::detectAvailableShell() {
 #ifdef Q_OS_WIN
     // Try PowerShell Core first, then Windows PowerShell, fall back to cmd
     QString pwsh = QStandardPaths::findExecutable(QStringLiteral("pwsh.exe"));
@@ -61,16 +58,13 @@ void CommandExecutor::detectAvailableShell()
 #endif
 }
 
-QString CommandExecutor::shellName() const
-{
+QString CommandExecutor::shellName() const {
     QFileInfo fi(m_shellPath);
     return fi.baseName();  // "zsh", "bash", "pwsh", "powershell", "cmd"
 }
 
-QString CommandExecutor::expandPath(const QString &path)
-{
-    if (path.isEmpty())
-        return path;
+QString CommandExecutor::expandPath(const QString& path) {
+    if (path.isEmpty()) return path;
 
     QString expanded = path;
     if (expanded.startsWith(QLatin1String("~/"))) {
@@ -85,8 +79,7 @@ QString CommandExecutor::expandPath(const QString &path)
 
 // ── Native file operations ──────────────────────────────────────
 
-CommandResult CommandExecutor::executeCreateDir(const ShellOperation &op)
-{
+CommandResult CommandExecutor::executeCreateDir(const ShellOperation& op) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -113,8 +106,7 @@ CommandResult CommandExecutor::executeCreateDir(const ShellOperation &op)
     return result;
 }
 
-CommandResult CommandExecutor::executeMoveFile(const ShellOperation &op)
-{
+CommandResult CommandExecutor::executeMoveFile(const ShellOperation& op) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -174,8 +166,7 @@ CommandResult CommandExecutor::executeMoveFile(const ShellOperation &op)
     return result;
 }
 
-CommandResult CommandExecutor::executeDeleteFile(const ShellOperation &op)
-{
+CommandResult CommandExecutor::executeDeleteFile(const ShellOperation& op) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -217,8 +208,7 @@ CommandResult CommandExecutor::executeDeleteFile(const ShellOperation &op)
     return result;
 }
 
-CommandResult CommandExecutor::executeCopyFile(const ShellOperation &op)
-{
+CommandResult CommandExecutor::executeCopyFile(const ShellOperation& op) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -288,8 +278,7 @@ CommandResult CommandExecutor::executeCopyFile(const ShellOperation &op)
     return result;
 }
 
-CommandResult CommandExecutor::executeWriteFile(const ShellOperation &op)
-{
+CommandResult CommandExecutor::executeWriteFile(const ShellOperation& op) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -327,8 +316,7 @@ CommandResult CommandExecutor::executeWriteFile(const ShellOperation &op)
     return result;
 }
 
-CommandResult CommandExecutor::executeSearchFiles(const ShellOperation &op)
-{
+CommandResult CommandExecutor::executeSearchFiles(const ShellOperation& op) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -353,8 +341,7 @@ CommandResult CommandExecutor::executeSearchFiles(const ShellOperation &op)
 
     QStringList results;
     QDirIterator it(searchDir, QStringList() << pattern,
-                    QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot,
-                    QDirIterator::Subdirectories);
+                    QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         it.next();
         results.append(dir.relativeFilePath(it.filePath()));
@@ -369,34 +356,30 @@ CommandResult CommandExecutor::executeSearchFiles(const ShellOperation &op)
 
 // ── Main execution dispatch ─────────────────────────────────────
 
-CommandResult CommandExecutor::execute(const ShellOperation &op)
-{
+CommandResult CommandExecutor::execute(const ShellOperation& op) {
     switch (op.type) {
-    case ShellOperation::CreateDir:
-        return executeCreateDir(op);
-    case ShellOperation::MoveFile:
-        return executeMoveFile(op);
-    case ShellOperation::DeleteFile:
-        return executeDeleteFile(op);
-    case ShellOperation::CopyFile:
-        return executeCopyFile(op);
-    case ShellOperation::WriteFile:
-        return executeWriteFile(op);
-    case ShellOperation::SearchFiles:
-        return executeSearchFiles(op);
-    case ShellOperation::ShellCommand:
-    case ShellOperation::ShellScript:
-        return runCommand(op.command, expandPath(op.workingDir),
-                          op.timeoutSecs, QStringList());
+        case ShellOperation::CreateDir:
+            return executeCreateDir(op);
+        case ShellOperation::MoveFile:
+            return executeMoveFile(op);
+        case ShellOperation::DeleteFile:
+            return executeDeleteFile(op);
+        case ShellOperation::CopyFile:
+            return executeCopyFile(op);
+        case ShellOperation::WriteFile:
+            return executeWriteFile(op);
+        case ShellOperation::SearchFiles:
+            return executeSearchFiles(op);
+        case ShellOperation::ShellCommand:
+        case ShellOperation::ShellScript:
+            return runCommand(op.command, expandPath(op.workingDir), op.timeoutSecs, QStringList());
     }
-    return runCommand(op.command, expandPath(op.workingDir),
-                      op.timeoutSecs, QStringList());
+    return runCommand(op.command, expandPath(op.workingDir), op.timeoutSecs, QStringList());
 }
 
 // ── Batch execution ─────────────────────────────────────────────
 
-QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan &plan)
-{
+QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan& plan) {
     QVector<CommandResult> results;
     results.reserve(plan.operations.size());
     m_cancelled = false;
@@ -411,7 +394,7 @@ QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan &plan)
         }
 
         m_currentOpIndex = i;
-        const auto &op = plan.operations[i];
+        const auto& op = plan.operations[i];
 
         // Display description for native ops, command for shell ops
         QString displayText = op.description.isEmpty() ? op.command : op.description;
@@ -430,8 +413,7 @@ QVector<CommandResult> CommandExecutor::executePlan(const OperationPlan &plan)
     return results;
 }
 
-void CommandExecutor::cancel()
-{
+void CommandExecutor::cancel() {
     m_cancelled = true;
     if (m_currentProcess && m_currentProcess->state() != QProcess::NotRunning) {
         m_currentProcess->kill();
@@ -442,11 +424,8 @@ void CommandExecutor::cancel()
 
 // ── Shell command execution ─────────────────────────────────────
 
-CommandResult CommandExecutor::runCommand(const QString &command,
-                                           const QString &workingDir,
-                                           int timeoutSecs,
-                                           const QStringList &extraEnv)
-{
+CommandResult CommandExecutor::runCommand(const QString& command, const QString& workingDir,
+                                          int timeoutSecs, const QStringList& extraEnv) {
     CommandResult result;
     QElapsedTimer timer;
     timer.start();
@@ -469,10 +448,9 @@ CommandResult CommandExecutor::runCommand(const QString &command,
     }
 
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    for (const auto &kv : extraEnv) {
+    for (const auto& kv : extraEnv) {
         int eq = kv.indexOf(QLatin1Char('='));
-        if (eq > 0)
-            env.insert(kv.left(eq), kv.mid(eq + 1));
+        if (eq > 0) env.insert(kv.left(eq), kv.mid(eq + 1));
     }
     process.setProcessEnvironment(env);
 
@@ -491,31 +469,25 @@ CommandResult CommandExecutor::runCommand(const QString &command,
     timeoutTimer.setSingleShot(true);
 
     QEventLoop loop;
-    QObject::connect(&process,
-                     QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                     &loop, &QEventLoop::quit);
+    QObject::connect(&process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), &loop,
+                     &QEventLoop::quit);
     QObject::connect(&timeoutTimer, &QTimer::timeout, &loop, [&]() {
         process.kill();
         process.waitForFinished(2000);
-        if (process.state() != QProcess::NotRunning)
-            process.terminate();
+        if (process.state() != QProcess::NotRunning) process.terminate();
     });
-    QObject::connect(&process, &QProcess::readyReadStandardOutput,
-                     &loop, [&]() {
+    QObject::connect(&process, &QProcess::readyReadStandardOutput, &loop, [&]() {
         while (process.canReadLine()) {
             QByteArray line = process.readLine();
             QString text = QString::fromUtf8(line).trimmed();
-            if (!text.isEmpty())
-                emit stdoutLineReceived(text, m_currentOpIndex);
+            if (!text.isEmpty()) emit stdoutLineReceived(text, m_currentOpIndex);
         }
     });
-    QObject::connect(&process, &QProcess::readyReadStandardError,
-                     &loop, [&]() {
+    QObject::connect(&process, &QProcess::readyReadStandardError, &loop, [&]() {
         while (process.canReadLine()) {
             QByteArray line = process.readLine();
             QString text = QString::fromUtf8(line).trimmed();
-            if (!text.isEmpty())
-                emit stderrLineReceived(text, m_currentOpIndex);
+            if (!text.isEmpty()) emit stderrLineReceived(text, m_currentOpIndex);
         }
     });
 
@@ -529,12 +501,10 @@ CommandResult CommandExecutor::runCommand(const QString &command,
     result.stdoutOutput = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
     result.stderrOutput = QString::fromUtf8(process.readAllStandardError()).trimmed();
 
-    if (timeoutTimer.isActive())
-        timeoutTimer.stop();
+    if (timeoutTimer.isActive()) timeoutTimer.stop();
 
     if (process.exitStatus() == QProcess::CrashExit) {
-        if (process.error() == QProcess::Timedout
-            || result.elapsedMs >= timeoutSecs * 1000) {
+        if (process.error() == QProcess::Timedout || result.elapsedMs >= timeoutSecs * 1000) {
             result.success = false;
             result.errorMessage = tr("命令执行超时 (%1 秒)").arg(timeoutSecs);
         } else {
@@ -543,8 +513,7 @@ CommandResult CommandExecutor::runCommand(const QString &command,
         }
     } else {
         result.success = (result.exitCode == 0);
-        if (!result.success)
-            result.errorMessage = tr("命令退出码: %1").arg(result.exitCode);
+        if (!result.success) result.errorMessage = tr("命令退出码: %1").arg(result.exitCode);
     }
 
     return result;

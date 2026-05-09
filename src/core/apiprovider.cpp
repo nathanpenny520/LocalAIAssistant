@@ -1,69 +1,89 @@
 #include "apiprovider.h"
-#include "../prompts/promptmanager.h"
+
 #include <QDebug>
 #include <QUrl>
 
-ApiProvider::ApiProvider(QObject *parent)
-    : QObject(parent)
-    , m_network(new QNetworkAccessManager(this))
-    , m_currentReply(nullptr)
-    , m_baseUrl("http://127.0.0.1:8080")
-    , m_apiKey()
-    , m_modelName("local-model")
-    , m_systemPrompt()
-    , m_isLocalMode(true)
-    , m_streamingEnabled(true)
-    , m_temperature(0.4)
-    , m_topP(1.0)
-    , m_maxTokens(8192)
-    , m_maxContext(20)
-    , m_presencePenalty(0.2)
-    , m_frequencyPenalty(0.0)
-    , m_seed(std::nullopt)
-{
+#include "../prompts/promptmanager.h"
+
+ApiProvider::ApiProvider(QObject* parent)
+        : QObject(parent)
+        , m_network(new QNetworkAccessManager(this))
+        , m_currentReply(nullptr)
+        , m_baseUrl("http://127.0.0.1:8080")
+        , m_apiKey()
+        , m_modelName("local-model")
+        , m_systemPrompt()
+        , m_isLocalMode(true)
+        , m_streamingEnabled(true)
+        , m_temperature(0.4)
+        , m_topP(1.0)
+        , m_maxTokens(8192)
+        , m_maxContext(20)
+        , m_presencePenalty(0.2)
+        , m_frequencyPenalty(0.0)
+        , m_seed(std::nullopt) {
     m_systemPrompt = loadSystemPrompt();
 }
 
-ApiProvider::~ApiProvider()
-{
+ApiProvider::~ApiProvider() {
     abortCurrentRequest();
 }
 
 // --- Configuration setters ---
 
-void ApiProvider::setBaseUrl(const QString &url) { m_baseUrl = url.trimmed(); }
-void ApiProvider::setApiKey(const QString &key) { m_apiKey = key.trimmed(); }
-void ApiProvider::setModelName(const QString &name) { m_modelName = name.trimmed(); }
-void ApiProvider::setSystemPrompt(const QString &prompt) { m_systemPrompt = prompt; }
+void ApiProvider::setBaseUrl(const QString& url) {
+    m_baseUrl = url.trimmed();
+}
+void ApiProvider::setApiKey(const QString& key) {
+    m_apiKey = key.trimmed();
+}
+void ApiProvider::setModelName(const QString& name) {
+    m_modelName = name.trimmed();
+}
+void ApiProvider::setSystemPrompt(const QString& prompt) {
+    m_systemPrompt = prompt;
+}
 
-void ApiProvider::setKnowledgeContext(const QString &context)
-{
+void ApiProvider::setKnowledgeContext(const QString& context) {
     m_knowledgeContext = context;
 }
-void ApiProvider::setIsLocalMode(bool local) { m_isLocalMode = local; }
+void ApiProvider::setIsLocalMode(bool local) {
+    m_isLocalMode = local;
+}
 
-void ApiProvider::setStreamingEnabled(bool enabled)
-{
+void ApiProvider::setStreamingEnabled(bool enabled) {
     m_streamingEnabled = enabled;
 }
 
-bool ApiProvider::isStreamingEnabled() const
-{
+bool ApiProvider::isStreamingEnabled() const {
     return m_streamingEnabled;
 }
 
-void ApiProvider::setTemperature(double temp) { m_temperature = temp; }
-void ApiProvider::setTopP(double topP) { m_topP = topP; }
-void ApiProvider::setMaxTokens(int tokens) { m_maxTokens = tokens; }
-void ApiProvider::setMaxContext(int context) { m_maxContext = context; }
-void ApiProvider::setPresencePenalty(double penalty) { m_presencePenalty = penalty; }
-void ApiProvider::setFrequencyPenalty(double penalty) { m_frequencyPenalty = penalty; }
-void ApiProvider::setSeed(std::optional<int> seed) { m_seed = seed; }
+void ApiProvider::setTemperature(double temp) {
+    m_temperature = temp;
+}
+void ApiProvider::setTopP(double topP) {
+    m_topP = topP;
+}
+void ApiProvider::setMaxTokens(int tokens) {
+    m_maxTokens = tokens;
+}
+void ApiProvider::setMaxContext(int context) {
+    m_maxContext = context;
+}
+void ApiProvider::setPresencePenalty(double penalty) {
+    m_presencePenalty = penalty;
+}
+void ApiProvider::setFrequencyPenalty(double penalty) {
+    m_frequencyPenalty = penalty;
+}
+void ApiProvider::setSeed(std::optional<int> seed) {
+    m_seed = seed;
+}
 
 // --- Operations ---
 
-void ApiProvider::abortCurrentRequest()
-{
+void ApiProvider::abortCurrentRequest() {
     if (m_currentReply) {
         m_currentReply->disconnect(this);
         m_currentReply->abort();
@@ -73,8 +93,7 @@ void ApiProvider::abortCurrentRequest()
     m_streamBuffer.clear();
 }
 
-void ApiProvider::sendChatRequest(const QVector<ChatMessage> &messages)
-{
+void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
     abortCurrentRequest();
 
     QString fullUrl = resolveFullUrl();
@@ -93,8 +112,8 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage> &messages)
 
     // Inject user memory into system prompt if available
     {
-        QString memoryPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                             + QStringLiteral("/girlfriend/memory.md");
+        QString memoryPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+                             QStringLiteral("/girlfriend/memory.md");
         QFile memoryFile(memoryPath);
         QString memoryContent;
         if (memoryFile.exists() && memoryFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -102,9 +121,8 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage> &messages)
             memoryFile.close();
         }
         if (!memoryContent.isEmpty() && !memoryContent.contains(QStringLiteral("待记录"))) {
-            m_systemPrompt = loadSystemPrompt()
-                + QStringLiteral("\n\n## 用户记忆档案\n\n")
-                + memoryContent;
+            m_systemPrompt =
+                    loadSystemPrompt() + QStringLiteral("\n\n## 用户记忆档案\n\n") + memoryContent;
         } else {
             m_systemPrompt = loadSystemPrompt();
         }
@@ -112,10 +130,12 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage> &messages)
 
     // Inject knowledge base context into system prompt with a descriptive preamble
     if (!m_knowledgeContext.isEmpty()) {
-        m_systemPrompt += QStringLiteral("\n\n## 知识库参考内容\n\n")
-                          + QStringLiteral("以下是本地知识库中与用户问题相关的参考内容，供你回答用户问题时参考：\n\n")
-                          + m_knowledgeContext;
-        m_knowledgeContext.clear(); // one-shot, per-request
+        m_systemPrompt += QStringLiteral("\n\n## 知识库参考内容\n\n") +
+                          QStringLiteral(
+                                  "以下是本地知识库中与用户问题相关的参考内容，供你回答用户问题时参"
+                                  "考：\n\n") +
+                          m_knowledgeContext;
+        m_knowledgeContext.clear();  // one-shot, per-request
     }
 
     jsonPayload["messages"] = buildMessagesArray(messages);
@@ -140,10 +160,8 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage> &messages)
 
 // --- Private slots ---
 
-void ApiProvider::onReplyFinished()
-{
-    if (!m_currentReply)
-        return;
+void ApiProvider::onReplyFinished() {
+    if (!m_currentReply) return;
 
     if (m_currentReply->error() != QNetworkReply::NoError) {
         emit errorOccurred(m_currentReply->errorString());
@@ -160,10 +178,8 @@ void ApiProvider::onReplyFinished()
     m_currentReply = nullptr;
 }
 
-void ApiProvider::onStreamReadyRead()
-{
-    if (!m_currentReply)
-        return;
+void ApiProvider::onStreamReadyRead() {
+    if (!m_currentReply) return;
 
     QByteArray newData = m_currentReply->readAll();
     QString chunk = extractDeltaFromSSE(newData);
@@ -173,13 +189,11 @@ void ApiProvider::onStreamReadyRead()
     }
 }
 
-void ApiProvider::onStreamFinished()
-{
-    if (!m_currentReply)
-        return;
+void ApiProvider::onStreamFinished() {
+    if (!m_currentReply) return;
 
-    if (m_currentReply->error() != QNetworkReply::NoError
-        && m_currentReply->error() != QNetworkReply::OperationCanceledError) {
+    if (m_currentReply->error() != QNetworkReply::NoError &&
+        m_currentReply->error() != QNetworkReply::OperationCanceledError) {
         emit errorOccurred(m_currentReply->errorString());
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -190,8 +204,7 @@ void ApiProvider::onStreamFinished()
     QByteArray remainingData = m_currentReply->readAll();
     if (!remainingData.isEmpty()) {
         QString chunk = extractDeltaFromSSE(remainingData);
-        if (!chunk.isEmpty())
-            m_streamBuffer += chunk;
+        if (!chunk.isEmpty()) m_streamBuffer += chunk;
     }
 
     if (!m_streamBuffer.isEmpty()) {
@@ -205,34 +218,30 @@ void ApiProvider::onStreamFinished()
 
 // --- Default configureRequest (no auth) ---
 
-void ApiProvider::configureRequest(QNetworkRequest &request) const
-{
+void ApiProvider::configureRequest(QNetworkRequest& request) const {
     Q_UNUSED(request);
 }
 
 // --- Shared helpers ---
 
-QString ApiProvider::resolveFullUrl() const
-{
+QString ApiProvider::resolveFullUrl() const {
     QString fullUrl = m_baseUrl;
 
-    if (fullUrl.isEmpty())
-        return {};
+    if (fullUrl.isEmpty()) return {};
 
-    if (!fullUrl.startsWith("http://", Qt::CaseInsensitive)
-        && !fullUrl.startsWith("https://", Qt::CaseInsensitive)) {
-        fullUrl = (m_isLocalMode ? QStringLiteral("http://") : QStringLiteral("https://")) + fullUrl;
+    if (!fullUrl.startsWith("http://", Qt::CaseInsensitive) &&
+        !fullUrl.startsWith("https://", Qt::CaseInsensitive)) {
+        fullUrl =
+                (m_isLocalMode ? QStringLiteral("http://") : QStringLiteral("https://")) + fullUrl;
     }
 
-    if (!fullUrl.endsWith("/"))
-        fullUrl += "/";
+    if (!fullUrl.endsWith("/")) fullUrl += "/";
 
     fullUrl += endpointPath();
     return fullUrl;
 }
 
-QJsonObject ApiProvider::buildBasePayload() const
-{
+QJsonObject ApiProvider::buildBasePayload() const {
     QJsonObject payload;
     payload["model"] = m_modelName;
     payload["temperature"] = m_temperature;
@@ -242,31 +251,27 @@ QJsonObject ApiProvider::buildBasePayload() const
     payload["frequency_penalty"] = m_frequencyPenalty;
     payload["stream"] = m_streamingEnabled;
 
-    if (m_seed.has_value())
-        payload["seed"] = m_seed.value();
+    if (m_seed.has_value()) payload["seed"] = m_seed.value();
 
     return payload;
 }
 
-QString ApiProvider::loadSystemPrompt() const
-{
+QString ApiProvider::loadSystemPrompt() const {
     QString prompt = PromptManager::instance()->systemPrompt();
     QString task = PromptManager::instance()->taskPrompt();
-    if (!task.isEmpty())
-        prompt += QStringLiteral("\n\n") + task;
+    if (!task.isEmpty()) prompt += QStringLiteral("\n\n") + task;
     return prompt;
 }
 
-QJsonObject ApiProvider::buildTextContentBlock(const QString &text) const
-{
+QJsonObject ApiProvider::buildTextContentBlock(const QString& text) const {
     QJsonObject block;
     block["type"] = "text";
     block["text"] = text;
     return block;
 }
 
-QJsonObject ApiProvider::buildImageContentBlock(const QString &base64Data, const QString &mime) const
-{
+QJsonObject ApiProvider::buildImageContentBlock(const QString& base64Data,
+                                                const QString& mime) const {
     Q_UNUSED(mime);
     QJsonObject block;
     block["type"] = "image_url";
@@ -278,8 +283,7 @@ QJsonObject ApiProvider::buildImageContentBlock(const QString &base64Data, const
     return block;
 }
 
-QJsonObject ApiProvider::buildFileContentBlock(const FileAttachment &file) const
-{
+QJsonObject ApiProvider::buildFileContentBlock(const FileAttachment& file) const {
     QJsonObject block;
     block["type"] = "text";
     block["text"] = file.content;

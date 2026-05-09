@@ -1,35 +1,32 @@
 #include "docimporter.h"
-#include "embedder.h"
-#include "vectordb.h"
-#include "fileparser.h"
-#include <QFileInfo>
-#include <QDebug>
 
-DocImporter::DocImporter(Embedder *embedder, VectorDB *vectorDB, QObject *parent)
-    : m_embedder(embedder), m_vectorDB(vectorDB)
-{
+#include <QDebug>
+#include <QFileInfo>
+
+#include "embedder.h"
+#include "fileparser.h"
+#include "vectordb.h"
+
+DocImporter::DocImporter(Embedder* embedder, VectorDB* vectorDB, QObject* parent)
+        : m_embedder(embedder), m_vectorDB(vectorDB) {
     Q_UNUSED(parent);
 }
 
 DocImporter::~DocImporter() = default;
 
-QStringList DocImporter::supportedExtensions()
-{
+QStringList DocImporter::supportedExtensions() {
     QStringList exts = FileParser::textExtensions();
     // Add DOCX if available (it's not a standard text extension)
-    if (!exts.contains(QStringLiteral("docx")))
-        exts.append(QStringLiteral("docx"));
+    if (!exts.contains(QStringLiteral("docx"))) exts.append(QStringLiteral("docx"));
     return exts;
 }
 
-bool DocImporter::isSupported(const QString &filePath)
-{
+bool DocImporter::isSupported(const QString& filePath) {
     QString ext = QFileInfo(filePath).suffix().toLower();
     return supportedExtensions().contains(ext);
 }
 
-ImportResult DocImporter::importDocument(const QString &filePath)
-{
+ImportResult DocImporter::importDocument(const QString& filePath) {
     ImportResult result;
     result.documentPath = filePath;
 
@@ -57,8 +54,7 @@ ImportResult DocImporter::importDocument(const QString &filePath)
 
     QStringList chunkTexts;
     chunkTexts.reserve(chunks.size());
-    for (const auto &chunk : chunks)
-        chunkTexts.append(chunk.content);
+    for (const auto& chunk : chunks) chunkTexts.append(chunk.content);
 
     QVector<QVector<float>> vectors = m_embedder->embedBatch(chunkTexts);
 
@@ -70,11 +66,9 @@ ImportResult DocImporter::importDocument(const QString &filePath)
     return result;
 }
 
-QVector<ImportResult> DocImporter::importDocuments(const QStringList &filePaths)
-{
+QVector<ImportResult> DocImporter::importDocuments(const QStringList& filePaths) {
     QVector<ImportResult> results;
     results.reserve(filePaths.size());
-    for (const auto &path : filePaths)
-        results.append(importDocument(path));
+    for (const auto& path : filePaths) results.append(importDocument(path));
     return results;
 }

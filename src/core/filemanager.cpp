@@ -1,30 +1,26 @@
 #include "filemanager.h"
-#include "fileparser.h"
-#include <QFileInfo>
+
 #include <QDebug>
+#include <QFileInfo>
+
+#include "fileparser.h"
 
 namespace {
-    const qint64 kMaxFileSize = 10 * 1024 * 1024;
+const qint64 kMaxFileSize = 10 * 1024 * 1024;
 }
 
-FileManager::FileManager(QObject *parent)
-    : QObject(parent)
-    , m_pendingFiles()
-{
+FileManager::FileManager(QObject* parent) : QObject(parent), m_pendingFiles() {
 }
 
-bool FileManager::isTextFile(const QString &path)
-{
+bool FileManager::isTextFile(const QString& path) {
     return FileParser::isTextFile(path);
 }
 
-bool FileManager::isImageFile(const QString &path)
-{
+bool FileManager::isImageFile(const QString& path) {
     return FileParser::isImageFile(path);
 }
 
-bool FileManager::addFile(const QString &path)
-{
+bool FileManager::addFile(const QString& path) {
     QFileInfo info(path);
     if (!info.exists()) {
         qDebug() << "File does not exist:" << path;
@@ -40,26 +36,22 @@ bool FileManager::addFile(const QString &path)
     return true;
 }
 
-QVector<FileAttachment> FileManager::pendingFiles() const
-{
+QVector<FileAttachment> FileManager::pendingFiles() const {
     return m_pendingFiles;
 }
 
-void FileManager::clearPendingFiles()
-{
+void FileManager::clearPendingFiles() {
     m_pendingFiles.clear();
 }
 
-QString FileManager::fileListSummary() const
-{
-    if (m_pendingFiles.isEmpty())
-        return QStringLiteral("待发送文件列表为空");
+QString FileManager::fileListSummary() const {
+    if (m_pendingFiles.isEmpty()) return QStringLiteral("待发送文件列表为空");
 
     QString summary = QStringLiteral("待发送文件列表:\n");
     summary += QStringLiteral("----------------------------------------\n");
 
     for (int i = 0; i < m_pendingFiles.size(); ++i) {
-        const FileAttachment &file = m_pendingFiles[i];
+        const FileAttachment& file = m_pendingFiles[i];
         QString typeStr;
         if (file.type == QStringLiteral("text"))
             typeStr = QStringLiteral("文本");
@@ -69,10 +61,10 @@ QString FileManager::fileListSummary() const
             typeStr = QStringLiteral("二进制");
 
         summary += QString("  %1. %2 (%3, %4 bytes)\n")
-            .arg(i + 1)
-            .arg(file.path)
-            .arg(typeStr)
-            .arg(file.size);
+                           .arg(i + 1)
+                           .arg(file.path)
+                           .arg(typeStr)
+                           .arg(file.size);
     }
 
     summary += QStringLiteral("----------------------------------------\n");
@@ -81,13 +73,11 @@ QString FileManager::fileListSummary() const
     return summary;
 }
 
-int FileManager::pendingFileCount() const
-{
+int FileManager::pendingFileCount() const {
     return m_pendingFiles.size();
 }
 
-FileAttachment FileManager::processFile(const QString &path)
-{
+FileAttachment FileManager::processFile(const QString& path) {
     FileAttachment attachment;
     attachment.path = path;
 
@@ -103,9 +93,8 @@ FileAttachment FileManager::processFile(const QString &path)
         if (rawText.isEmpty()) {
             attachment.content = QStringLiteral("[无法读取 PDF 文件: %1]").arg(info.fileName());
         } else {
-            attachment.content = QStringLiteral("[PDF 文件: %1]\n\n%2")
-                .arg(info.fileName())
-                .arg(rawText);
+            attachment.content =
+                    QStringLiteral("[PDF 文件: %1]\n\n%2").arg(info.fileName()).arg(rawText);
         }
     } else if (FileParser::isTextFile(path)) {
         attachment.type = QStringLiteral("text");
@@ -113,9 +102,8 @@ FileAttachment FileManager::processFile(const QString &path)
         if (rawText.isEmpty()) {
             attachment.content = QStringLiteral("[无法读取文件: %1]").arg(path);
         } else {
-            attachment.content = QStringLiteral("[文件: %1]\n\n%2")
-                .arg(info.fileName())
-                .arg(rawText);
+            attachment.content =
+                    QStringLiteral("[文件: %1]\n\n%2").arg(info.fileName()).arg(rawText);
         }
     } else if (FileParser::isImageFile(path)) {
         attachment.type = QStringLiteral("image");
@@ -123,9 +111,9 @@ FileAttachment FileManager::processFile(const QString &path)
     } else {
         attachment.type = QStringLiteral("binary");
         attachment.content = QStringLiteral("[二进制文件: %1 (%2 bytes, %3)]")
-            .arg(info.fileName())
-            .arg(info.size())
-            .arg(attachment.mimeType);
+                                     .arg(info.fileName())
+                                     .arg(info.size())
+                                     .arg(attachment.mimeType);
     }
 
     return attachment;

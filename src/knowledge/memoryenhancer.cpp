@@ -1,22 +1,23 @@
 #include "memoryenhancer.h"
-#include "embedder.h"
-#include "vectordb.h"
-#include <QJsonObject>
+
+#include <QDateTime>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QFile>
-#include <QDir>
-#include <QFileInfo>
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QUuid>
-#include <QDateTime>
-#include <QDebug>
+
+#include "embedder.h"
+#include "vectordb.h"
 
 // ── MemoryEntry JSON serialization ──────────────────────────────
 
-QJsonObject MemoryEntry::toJson() const
-{
+QJsonObject MemoryEntry::toJson() const {
     QJsonObject obj;
     obj[QStringLiteral("id")] = id;
     obj[QStringLiteral("type")] = type;
@@ -26,74 +27,64 @@ QJsonObject MemoryEntry::toJson() const
     obj[QStringLiteral("confidence")] = static_cast<double>(confidence);
 
     QJsonArray entities;
-    for (const auto &e : relatedEntities)
-        entities.append(e);
+    for (const auto& e : relatedEntities) entities.append(e);
     obj[QStringLiteral("relatedEntities")] = entities;
 
     return obj;
 }
 
-MemoryEntry MemoryEntry::fromJson(const QJsonObject &obj)
-{
+MemoryEntry MemoryEntry::fromJson(const QJsonObject& obj) {
     MemoryEntry entry;
     entry.id = obj.value(QStringLiteral("id")).toString();
     entry.type = obj.value(QStringLiteral("type")).toString();
     entry.content = obj.value(QStringLiteral("content")).toString();
     entry.sourceConversationId = obj.value(QStringLiteral("sourceConversationId")).toString();
-    entry.timestamp = QDateTime::fromString(
-        obj.value(QStringLiteral("timestamp")).toString(), Qt::ISODate);
-    entry.confidence = static_cast<float>(
-        obj.value(QStringLiteral("confidence")).toDouble(1.0));
+    entry.timestamp =
+            QDateTime::fromString(obj.value(QStringLiteral("timestamp")).toString(), Qt::ISODate);
+    entry.confidence = static_cast<float>(obj.value(QStringLiteral("confidence")).toDouble(1.0));
 
     const QJsonArray entities = obj.value(QStringLiteral("relatedEntities")).toArray();
-    for (const auto &e : entities)
-        entry.relatedEntities.append(e.toString());
+    for (const auto& e : entities) entry.relatedEntities.append(e.toString());
 
     return entry;
 }
 
 // ── MemoryEnhancer ──────────────────────────────────────────────
 
-MemoryEnhancer::MemoryEnhancer(Embedder *embedder, VectorDB *vectorDB, QObject *parent)
-    : QObject(parent)
-    , m_embedder(embedder)
-    , m_vectorDB(vectorDB)
-{
+MemoryEnhancer::MemoryEnhancer(Embedder* embedder, VectorDB* vectorDB, QObject* parent)
+        : QObject(parent), m_embedder(embedder), m_vectorDB(vectorDB) {
 }
 
 MemoryEnhancer::~MemoryEnhancer() = default;
 
-QString MemoryEnhancer::storagePath() const
-{
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-           + QStringLiteral("/memories.json");
+QString MemoryEnhancer::storagePath() const {
+    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+           QStringLiteral("/memories.json");
 }
 
 // ── Parse memory-update tags from AI response ───────────────────
 
-static const QMap<QString, QString> &categoryMap()
-{
+static const QMap<QString, QString>& categoryMap() {
     static const QMap<QString, QString> map = {
-        {QStringLiteral("basic_info"), QStringLiteral("fact")},
-        {QStringLiteral("preferences"), QStringLiteral("preference")},
-        {QStringLiteral("events"), QStringLiteral("event")},
-        {QStringLiteral("reminders"), QStringLiteral("reminder")},
-        {QStringLiteral("基本信息"), QStringLiteral("fact")},
-        {QStringLiteral("喜好偏好"), QStringLiteral("preference")},
-        {QStringLiteral("重要事件"), QStringLiteral("event")},
-        {QStringLiteral("特别提醒"), QStringLiteral("reminder")},
+            {QStringLiteral("basic_info"), QStringLiteral("fact")},
+            {QStringLiteral("preferences"), QStringLiteral("preference")},
+            {QStringLiteral("events"), QStringLiteral("event")},
+            {QStringLiteral("reminders"), QStringLiteral("reminder")},
+            {QStringLiteral("基本信息"), QStringLiteral("fact")},
+            {QStringLiteral("喜好偏好"), QStringLiteral("preference")},
+            {QStringLiteral("重要事件"), QStringLiteral("event")},
+            {QStringLiteral("特别提醒"), QStringLiteral("reminder")},
     };
     return map;
 }
 
-QVector<MemoryEntry> MemoryEnhancer::parseFromResponse(const QString &response,
-                                                       const QString &conversationId)
-{
+QVector<MemoryEntry> MemoryEnhancer::parseFromResponse(const QString& response,
+                                                       const QString& conversationId) {
     QVector<MemoryEntry> entries;
 
     // Match: [更新记忆:category|content] or [memory:category|content]
     static const QRegularExpression regex(
-        QStringLiteral(R"(\[(?:更新记忆|memory):([^\|]+)\|([^\]]+)\])"));
+            QStringLiteral(R"(\[(?:更新记忆|memory):([^\|]+)\|([^\]]+)\])"));
 
     QRegularExpressionMatchIterator it = regex.globalMatch(response);
     const QDateTime now = QDateTime::currentDateTime();
@@ -103,8 +94,7 @@ QVector<MemoryEntry> MemoryEnhancer::parseFromResponse(const QString &response,
         const QString rawCategory = match.captured(1).trimmed();
         const QString content = match.captured(2).trimmed();
 
-        if (content.isEmpty())
-            continue;
+        if (content.isEmpty()) continue;
 
         MemoryEntry entry;
         entry.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
@@ -122,10 +112,8 @@ QVector<MemoryEntry> MemoryEnhancer::parseFromResponse(const QString &response,
 
 // ── Semantic search ─────────────────────────────────────────────
 
-QVector<MemoryEntry> MemoryEnhancer::search(const QString &query, int topK) const
-{
-    if (!m_embedder || !m_vectorDB || m_entries.isEmpty())
-        return {};
+QVector<MemoryEntry> MemoryEnhancer::search(const QString& query, int topK) const {
+    if (!m_embedder || !m_vectorDB || m_entries.isEmpty()) return {};
 
     QVector<float> queryVec = m_embedder->embed(query);
     QVector<SearchResult> results = m_vectorDB->search(queryVec, topK);
@@ -134,14 +122,13 @@ QVector<MemoryEntry> MemoryEnhancer::search(const QString &query, int topK) cons
     matched.reserve(results.size());
 
     // Map search results back to MemoryEntry by parsing the documentPath prefix
-    for (const auto &sr : results) {
+    for (const auto& sr : results) {
         // documentPath format: "memory:<entry_id>"
         const QString docPath = sr.chunk.documentPath;
-        if (!docPath.startsWith(QStringLiteral("memory:")))
-            continue;
+        if (!docPath.startsWith(QStringLiteral("memory:"))) continue;
 
         const QString entryId = docPath.mid(7);
-        for (const auto &entry : m_entries) {
+        for (const auto& entry : m_entries) {
             if (entry.id == entryId) {
                 MemoryEntry scored = entry;
                 scored.confidence = sr.similarity;
@@ -156,15 +143,12 @@ QVector<MemoryEntry> MemoryEnhancer::search(const QString &query, int topK) cons
 
 // ── Add entry ───────────────────────────────────────────────────
 
-void MemoryEnhancer::addEntry(const MemoryEntry &entry)
-{
-    if (!m_embedder || !m_vectorDB)
-        return;
+void MemoryEnhancer::addEntry(const MemoryEntry& entry) {
+    if (!m_embedder || !m_vectorDB) return;
 
     // Vectorize the content
     QVector<float> vec = m_embedder->embed(entry.content);
-    if (vec.isEmpty())
-        return;
+    if (vec.isEmpty()) return;
 
     // Store in VectorDB as a single-chunk "document"
     TextChunk chunk;
@@ -180,8 +164,7 @@ void MemoryEnhancer::addEntry(const MemoryEntry &entry)
 
 // ── Remove by conversation ──────────────────────────────────────
 
-void MemoryEnhancer::removeByConversation(const QString &conversationId)
-{
+void MemoryEnhancer::removeByConversation(const QString& conversationId) {
     // Collect IDs to remove from VectorDB
     for (int i = m_entries.size() - 1; i >= 0; --i) {
         if (m_entries[i].sourceConversationId == conversationId) {
@@ -194,22 +177,25 @@ void MemoryEnhancer::removeByConversation(const QString &conversationId)
 
 // ── Build context for system prompt injection ───────────────────
 
-QString MemoryEnhancer::buildContext(const QString &userQuery)
-{
+QString MemoryEnhancer::buildContext(const QString& userQuery) {
     QVector<MemoryEntry> relevant = search(userQuery, 5);
-    if (relevant.isEmpty())
-        return {};
+    if (relevant.isEmpty()) return {};
 
     QString ctx;
     ctx += tr("## 相关记忆\n\n");
     for (int i = 0; i < relevant.size(); ++i) {
-        const auto &entry = relevant[i];
+        const auto& entry = relevant[i];
         QString typeLabel;
-        if (entry.type == QStringLiteral("fact")) typeLabel = tr("事实");
-        else if (entry.type == QStringLiteral("preference")) typeLabel = tr("偏好");
-        else if (entry.type == QStringLiteral("event")) typeLabel = tr("事件");
-        else if (entry.type == QStringLiteral("reminder")) typeLabel = tr("提醒");
-        else typeLabel = tr("摘要");
+        if (entry.type == QStringLiteral("fact"))
+            typeLabel = tr("事实");
+        else if (entry.type == QStringLiteral("preference"))
+            typeLabel = tr("偏好");
+        else if (entry.type == QStringLiteral("event"))
+            typeLabel = tr("事件");
+        else if (entry.type == QStringLiteral("reminder"))
+            typeLabel = tr("提醒");
+        else
+            typeLabel = tr("摘要");
 
         ctx += QStringLiteral("- [%1] %2\n").arg(typeLabel, entry.content);
     }
@@ -219,14 +205,12 @@ QString MemoryEnhancer::buildContext(const QString &userQuery)
 
 // ── Persistence ─────────────────────────────────────────────────
 
-void MemoryEnhancer::saveToFile()
-{
+void MemoryEnhancer::saveToFile() {
     const QString path = storagePath();
     QDir().mkpath(QFileInfo(path).absolutePath());
 
     QJsonArray arr;
-    for (const auto &entry : m_entries)
-        arr.append(entry.toJson());
+    for (const auto& entry : m_entries) arr.append(entry.toJson());
 
     QJsonDocument doc(arr);
     QFile file(path);
@@ -238,12 +222,10 @@ void MemoryEnhancer::saveToFile()
     }
 }
 
-void MemoryEnhancer::loadFromFile()
-{
+void MemoryEnhancer::loadFromFile() {
     const QString path = storagePath();
     QFile file(path);
-    if (!file.exists())
-        return;
+    if (!file.exists()) return;
 
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "MemoryEnhancer: failed to open" << path;
@@ -260,8 +242,7 @@ void MemoryEnhancer::loadFromFile()
 
     m_entries.clear();
     const QJsonArray arr = doc.array();
-    for (const auto &val : arr) {
-        if (val.isObject())
-            m_entries.append(MemoryEntry::fromJson(val.toObject()));
+    for (const auto& val : arr) {
+        if (val.isObject()) m_entries.append(MemoryEntry::fromJson(val.toObject()));
     }
 }

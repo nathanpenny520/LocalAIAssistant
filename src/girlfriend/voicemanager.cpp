@@ -1,26 +1,28 @@
 #include "voicemanager.h"
-#include "girlfriend_translations.h"
-#include "girlfriendsettings.h"
-#include <QDebug>
-#include <QFile>
-#include <QDir>
+
+#include <QAudioDevice>
 #include <QCoreApplication>
-#include <QThread>
+#include <QCryptographicHash>
+#include <QDateTime>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonArray>
-#include <QStandardPaths>
-#include <QDateTime>
-#include <QCryptographicHash>
+#include <QMediaDevices>
 #include <QMessageAuthenticationCode>
-#include <QUrl>
-#include <QUrlQuery>
 #include <QSettings>
-#include <QTemporaryFile>
 #include <QSslConfiguration>
 #include <QSslSocket>
-#include <QMediaDevices>
-#include <QAudioDevice>
+#include <QStandardPaths>
+#include <QTemporaryFile>
+#include <QThread>
+#include <QUrl>
+#include <QUrlQuery>
+
+#include "girlfriend_translations.h"
+#include "girlfriendsettings.h"
 
 // 讯飞语音 WebSocket API 默认鉴权参数
 static const QString ASR_DEFAULT_HOST = "iat-api.xfyun.cn";
@@ -28,29 +30,28 @@ static const QString ASR_DEFAULT_PATH = "/v2/iat";
 static const QString TTS_DEFAULT_HOST = "cbm01.cn-huabei-1.xf-yun.com";
 static const QString TTS_DEFAULT_PATH = "/v1/private/mcd9m97e6";
 
-VoiceManager::VoiceManager(QObject *parent)
-    : QObject(parent)
-    , m_asrWebSocket(nullptr)
-    , m_asrConnected(false)
-    , m_ttsWebSocket(nullptr)
-    , m_ttsConnected(false)
-    , m_audioSource(nullptr)
-    , m_audioIODevice(nullptr)
-    , m_isRecording(false)
-    , m_actualSampleRate(16000)
-    , m_actualChannelCount(1)
-    , m_audioPollTimer(nullptr)
-    , m_mediaPlayer(nullptr)
-    , m_audioOutput(nullptr)
-    , m_ttsTempFile(nullptr)
-    , m_isSpeaking(false)
-    , m_voiceType("x6_lingxiaoxuan_pro")  // 超拟人默认发音人
-    , m_enableVoiceOutput(true)
-    , m_asrFrameIndex(0)
-    , m_ttsSeq(0)
-    , m_ttsStreaming(false)
-    , m_ttsStreamingBuffer("")
-{
+VoiceManager::VoiceManager(QObject* parent)
+        : QObject(parent)
+        , m_asrWebSocket(nullptr)
+        , m_asrConnected(false)
+        , m_ttsWebSocket(nullptr)
+        , m_ttsConnected(false)
+        , m_audioSource(nullptr)
+        , m_audioIODevice(nullptr)
+        , m_isRecording(false)
+        , m_actualSampleRate(16000)
+        , m_actualChannelCount(1)
+        , m_audioPollTimer(nullptr)
+        , m_mediaPlayer(nullptr)
+        , m_audioOutput(nullptr)
+        , m_ttsTempFile(nullptr)
+        , m_isSpeaking(false)
+        , m_voiceType("x6_lingxiaoxuan_pro")  // 超拟人默认发音人
+        , m_enableVoiceOutput(true)
+        , m_asrFrameIndex(0)
+        , m_ttsSeq(0)
+        , m_ttsStreaming(false)
+        , m_ttsStreamingBuffer("") {
     loadConfig();
 
     initAsrWebSocket();
@@ -74,16 +75,15 @@ VoiceManager::VoiceManager(QObject *parent)
     }
 
     // 监听音频输出设备变化（如 AirPods 连接/断开）
-    QMediaDevices *mediaDevices = new QMediaDevices(this);
-    connect(mediaDevices, &QMediaDevices::audioOutputsChanged,
-            this, &VoiceManager::onAudioOutputsChanged);
+    QMediaDevices* mediaDevices = new QMediaDevices(this);
+    connect(mediaDevices, &QMediaDevices::audioOutputsChanged, this,
+            &VoiceManager::onAudioOutputsChanged);
 
-    connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged,
-            this, &VoiceManager::onPlaybackStateChanged);
+    connect(m_mediaPlayer, &QMediaPlayer::playbackStateChanged, this,
+            &VoiceManager::onPlaybackStateChanged);
 }
 
-VoiceManager::~VoiceManager()
-{
+VoiceManager::~VoiceManager() {
     stopRecording();
     stopSpeaking();
 
@@ -103,8 +103,7 @@ VoiceManager::~VoiceManager()
 
 // ==================== 配置加载 ====================
 
-QString VoiceManager::findConfigFilePath() const
-{
+QString VoiceManager::findConfigFilePath() const {
     QStringList paths;
 
     // 1. 项目根目录 .env 文件（优先，推荐）
@@ -113,15 +112,16 @@ QString VoiceManager::findConfigFilePath() const
 #ifdef Q_OS_MACOS
     // macOS app bundle 结构: LocalAIAssistant.app/Contents/MacOS/
     // 需要向上多级查找 .env
-    paths << QDir::cleanPath(appDir + "/../../../.env");           // build/LocalAIAssistant.app/Contents/MacOS/../../../.env
-    paths << QDir::cleanPath(appDir + "/../../.env");              // Contents/.env 或 build/.env
-    paths << QDir::cleanPath(appDir + "/../.env");                 // LocalAIAssistant.app/.env
-    paths << QDir::cleanPath(appDir + "/../Resources/.env");       // macOS app bundle Resources
+    paths << QDir::cleanPath(
+            appDir + "/../../../.env");  // build/LocalAIAssistant.app/Contents/MacOS/../../../.env
+    paths << QDir::cleanPath(appDir + "/../../.env");         // Contents/.env 或 build/.env
+    paths << QDir::cleanPath(appDir + "/../.env");            // LocalAIAssistant.app/.env
+    paths << QDir::cleanPath(appDir + "/../Resources/.env");  // macOS app bundle Resources
     paths << QDir::cleanPath(appDir + "/../Resources/girlfriend/.env");
 #elif defined(Q_OS_WIN)
     // Windows: 可执行文件在 build 目录，资源在同级目录
-    paths << QDir::cleanPath(appDir + "/.env");                    // 可执行文件同级
-    paths << QDir::cleanPath(appDir + "/../.env");                 // build 目录上级
+    paths << QDir::cleanPath(appDir + "/.env");     // 可执行文件同级
+    paths << QDir::cleanPath(appDir + "/../.env");  // build 目录上级
     paths << QDir::cleanPath(appDir + "/../sourcecode-ai-assistant/.env");
 #else
     // Linux: 可执行文件在 build 目录
@@ -143,11 +143,11 @@ QString VoiceManager::findConfigFilePath() const
 
     // 调试输出所有查找路径
     qDebug() << "VoiceManager: Searching for config in paths:";
-    for (const QString &p : paths) {
+    for (const QString& p : paths) {
         qDebug() << "  -" << p << (QFile::exists(p) ? "[EXISTS]" : "");
     }
 
-    for (const QString &path : paths) {
+    for (const QString& path : paths) {
         if (QFile::exists(path)) {
             qDebug() << "VoiceManager: Found config file:" << path;
             return path;
@@ -157,18 +157,20 @@ QString VoiceManager::findConfigFilePath() const
     return QString();
 }
 
-bool VoiceManager::loadConfig()
-{
+bool VoiceManager::loadConfig() {
     // Priority 1: GirlfriendSettings (user-editable via UI — most user-friendly)
-    GirlfriendSettings *gs = GirlfriendSettings::instance();
+    GirlfriendSettings* gs = GirlfriendSettings::instance();
     if (gs->isXfyunConfigured()) {
         m_appId = gs->xfyunAppId();
         m_apiKey = gs->xfyunApiKey();
         m_apiSecret = gs->xfyunApiSecret();
-        m_asrUrl = gs->xfyunAsrUrl().isEmpty() ? QStringLiteral("wss://iat-api.xfyun.cn/v2/iat") : gs->xfyunAsrUrl();
-        m_ttsUrl = gs->xfyunTtsUrl().isEmpty() ? QStringLiteral("wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6") : gs->xfyunTtsUrl();
-        if (!gs->xfyunVoiceType().isEmpty())
-            m_voiceType = gs->xfyunVoiceType();
+        m_asrUrl = gs->xfyunAsrUrl().isEmpty() ? QStringLiteral("wss://iat-api.xfyun.cn/v2/iat")
+                                               : gs->xfyunAsrUrl();
+        m_ttsUrl =
+                gs->xfyunTtsUrl().isEmpty()
+                        ? QStringLiteral("wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6")
+                        : gs->xfyunTtsUrl();
+        if (!gs->xfyunVoiceType().isEmpty()) m_voiceType = gs->xfyunVoiceType();
         qDebug() << "VoiceManager: Loaded credentials from GirlfriendSettings";
         return true;
     }
@@ -181,7 +183,8 @@ bool VoiceManager::loadConfig()
     if (!m_appId.isEmpty() && !m_apiKey.isEmpty() && !m_apiSecret.isEmpty()) {
         qDebug() << "VoiceManager: Loaded credentials from system environment variables";
         m_asrUrl = qEnvironmentVariable("XFYUN_ASR_URL", "wss://iat-api.xfyun.cn/v2/iat");
-        m_ttsUrl = qEnvironmentVariable("XFYUN_TTS_URL", "wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6");
+        m_ttsUrl = qEnvironmentVariable("XFYUN_TTS_URL",
+                                        "wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6");
         return true;
     }
 
@@ -199,8 +202,7 @@ bool VoiceManager::loadConfig()
     }
 }
 
-bool VoiceManager::loadFromEnvFile(const QString &path)
-{
+bool VoiceManager::loadFromEnvFile(const QString& path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qDebug() << "VoiceManager: Cannot open .env file:" << path;
@@ -257,8 +259,7 @@ bool VoiceManager::loadFromEnvFile(const QString &path)
     return isConfigured();
 }
 
-bool VoiceManager::loadFromJsonFile(const QString &path)
-{
+bool VoiceManager::loadFromJsonFile(const QString& path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         qDebug() << "VoiceManager: Cannot open config file:" << path;
@@ -292,33 +293,30 @@ bool VoiceManager::loadFromJsonFile(const QString &path)
     return isConfigured();
 }
 
-bool VoiceManager::isConfigured() const
-{
+bool VoiceManager::isConfigured() const {
     return !m_appId.isEmpty() && !m_apiKey.isEmpty() && !m_apiSecret.isEmpty();
 }
 
-void VoiceManager::setVoiceType(const QString &voiceType)
-{
+void VoiceManager::setVoiceType(const QString& voiceType) {
     m_voiceType = voiceType;
 }
 
 // ==================== 讯飞鉴权 URL 生成 ====================
 
-QString VoiceManager::generateAsrAuthUrl()
-{
+QString VoiceManager::generateAsrAuthUrl() {
     // Parse configured URL, fall back to defaults
-    QUrl url(m_asrUrl.isEmpty() ? QString("wss://%1%2").arg(ASR_DEFAULT_HOST, ASR_DEFAULT_PATH) : m_asrUrl);
+    QUrl url(m_asrUrl.isEmpty() ? QString("wss://%1%2").arg(ASR_DEFAULT_HOST, ASR_DEFAULT_PATH)
+                                : m_asrUrl);
     return generateAuthUrl(url.host(), url.path());
 }
 
-QString VoiceManager::generateTtsAuthUrl()
-{
-    QUrl url(m_ttsUrl.isEmpty() ? QString("wss://%1%2").arg(TTS_DEFAULT_HOST, TTS_DEFAULT_PATH) : m_ttsUrl);
+QString VoiceManager::generateTtsAuthUrl() {
+    QUrl url(m_ttsUrl.isEmpty() ? QString("wss://%1%2").arg(TTS_DEFAULT_HOST, TTS_DEFAULT_PATH)
+                                : m_ttsUrl);
     return generateAuthUrl(url.host(), url.path());
 }
 
-QString VoiceManager::generateAuthUrl(const QString &host, const QString &path)
-{
+QString VoiceManager::generateAuthUrl(const QString& host, const QString& path) {
     // RFC1123 格式时间戳
     QString date = QDateTime::currentDateTimeUtc().toString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
 
@@ -334,11 +332,12 @@ QString VoiceManager::generateAuthUrl(const QString &host, const QString &path)
     QString signatureBase64 = signature.toBase64();
 
     // authorization 原文
-    QString authorizationOrigin = QString("api_key=\"%1\", algorithm=\"%2\", headers=\"%3\", signature=\"%4\"")
-            .arg(m_apiKey)
-            .arg("hmac-sha256")
-            .arg("host date request-line")
-            .arg(signatureBase64);
+    QString authorizationOrigin = QString("api_key=\"%1\", algorithm=\"%2\", headers=\"%3\", "
+                                          "signature=\"%4\"")
+                                          .arg(m_apiKey)
+                                          .arg("hmac-sha256")
+                                          .arg("host date request-line")
+                                          .arg(signatureBase64);
 
     // Base64 编码 authorization
     QString authorization = authorizationOrigin.toUtf8().toBase64();
@@ -356,15 +355,15 @@ QString VoiceManager::generateAuthUrl(const QString &host, const QString &path)
     query.addQueryItem("host", host);
     url.setQuery(query);
 
-    qDebug() << "VoiceManager: Generated auth URL:" << url.toString(QUrl::FullyEncoded).left(100) + "...";
+    qDebug() << "VoiceManager: Generated auth URL:"
+             << url.toString(QUrl::FullyEncoded).left(100) + "...";
 
     return url.toString(QUrl::FullyEncoded);
 }
 
 // ==================== ASR（语音听写） ====================
 
-void VoiceManager::initAsrWebSocket()
-{
+void VoiceManager::initAsrWebSocket() {
     m_asrWebSocket = new QWebSocket();
 
     // 配置 SSL 以避免认证问题
@@ -378,12 +377,12 @@ void VoiceManager::initAsrWebSocket()
 
     connect(m_asrWebSocket, &QWebSocket::connected, this, &VoiceManager::onAsrConnected);
     connect(m_asrWebSocket, &QWebSocket::disconnected, this, &VoiceManager::onAsrDisconnected);
-    connect(m_asrWebSocket, &QWebSocket::textMessageReceived, this, &VoiceManager::onAsrTextMessageReceived);
+    connect(m_asrWebSocket, &QWebSocket::textMessageReceived, this,
+            &VoiceManager::onAsrTextMessageReceived);
     connect(m_asrWebSocket, &QWebSocket::errorOccurred, this, &VoiceManager::onAsrError);
 }
 
-void VoiceManager::startRecording()
-{
+void VoiceManager::startRecording() {
     if (!isConfigured()) {
         emit asrError(GTr::xunfeiCredentialsNotConfigured());
         return;
@@ -413,9 +412,9 @@ void VoiceManager::startRecording()
         qDebug() << "VoiceManager: No audio input device available!";
 #ifdef Q_OS_WIN
         emit asrError(GTr::voiceNotConfigured() +
-            "\n\nPlease check:\n"
-            "1. Windows Settings > Privacy > Microphone\n"
-            "2. Ensure microphone access is enabled for this app");
+                      "\n\nPlease check:\n"
+                      "1. Windows Settings > Privacy > Microphone\n"
+                      "2. Ensure microphone access is enabled for this app");
 #else
         emit asrError(GTr::voiceNotConfigured());
 #endif
@@ -437,8 +436,7 @@ void VoiceManager::startRecording()
         // 获取设备支持的格式中最接近的
         actualFormat = defaultDevice.preferredFormat();
         qDebug() << "VoiceManager: 16kHz not directly supported, using device preferred format:"
-                 << actualFormat.sampleRate() << "Hz,"
-                 << actualFormat.channelCount() << "channels,"
+                 << actualFormat.sampleRate() << "Hz," << actualFormat.channelCount() << "channels,"
                  << "will resample later";
 
         // 确保使用 16-bit 整数格式（便于处理）
@@ -472,10 +470,10 @@ void VoiceManager::startRecording()
         qDebug() << "VoiceManager: Failed to start audio source";
 #ifdef Q_OS_WIN
         emit asrError(GTr::voiceNotConfigured() +
-            "\n\nPossible causes:\n"
-            "1. Microphone is in use by another application\n"
-            "2. Windows Settings > Privacy > Microphone - ensure access is enabled\n"
-            "3. Check that your microphone is properly connected");
+                      "\n\nPossible causes:\n"
+                      "1. Microphone is in use by another application\n"
+                      "2. Windows Settings > Privacy > Microphone - ensure access is enabled\n"
+                      "3. Check that your microphone is properly connected");
 #else
         emit asrError(GTr::voiceNotConfigured());
 #endif
@@ -516,14 +514,13 @@ void VoiceManager::startRecording()
     connect(m_audioIODevice, &QIODevice::readyRead, this, &VoiceManager::onAudioDataReady);
 
     qDebug() << "VoiceManager: Recording started with QAudioSource"
-             << "- sample rate:" << m_actualSampleRate
-             << "- channels:" << m_actualChannelCount
-             << "- format:" << (m_audioFormat.sampleFormat() == QAudioFormat::Int16 ? "Int16" : "Float")
+             << "- sample rate:" << m_actualSampleRate << "- channels:" << m_actualChannelCount
+             << "- format:"
+             << (m_audioFormat.sampleFormat() == QAudioFormat::Int16 ? "Int16" : "Float")
              << "- polling mode: 50ms interval";
 }
 
-void VoiceManager::stopRecording()
-{
+void VoiceManager::stopRecording() {
     if (!m_isRecording) {
         return;
     }
@@ -555,8 +552,7 @@ void VoiceManager::stopRecording()
     processAndSendAudioData();
 }
 
-void VoiceManager::onAsrConnected()
-{
+void VoiceManager::onAsrConnected() {
     m_asrConnected = true;
     emit statusChanged(GTr::startSpeaking());
 
@@ -570,9 +566,9 @@ void VoiceManager::onAsrConnected()
     business["language"] = "zh_cn";
     business["domain"] = "iat";
     business["accent"] = "mandarin";
-    business["vad_eos"] = 5000;      // VAD超时从2秒增加到5秒，允许更长的说话停顿
-    business["dwa"] = "wpgs";        // 动态修正
-    business["ptt"] = 1;             // 标点预测
+    business["vad_eos"] = 5000;  // VAD超时从2秒增加到5秒，允许更长的说话停顿
+    business["dwa"] = "wpgs";    // 动态修正
+    business["ptt"] = 1;         // 标点预测
     // 注意：rhxd 参数已被讯飞API移除，不再支持
     frame["business"] = business;
 
@@ -589,28 +585,24 @@ void VoiceManager::onAsrConnected()
     qDebug() << "VoiceManager: ASR WebSocket connected, sent initial frame";
 }
 
-void VoiceManager::onAsrDisconnected()
-{
+void VoiceManager::onAsrDisconnected() {
     m_asrConnected = false;
     qDebug() << "VoiceManager: ASR WebSocket disconnected";
 }
 
-void VoiceManager::onAsrTextMessageReceived(const QString &message)
-{
+void VoiceManager::onAsrTextMessageReceived(const QString& message) {
     qDebug() << "VoiceManager: ASR received message:" << message.left(200);
     parseAsrResponse(message);
 }
 
-void VoiceManager::onAsrError(QAbstractSocket::SocketError error)
-{
+void VoiceManager::onAsrError(QAbstractSocket::SocketError error) {
     QString errorMsg = GTr::asrConnectionError(m_asrWebSocket->errorString());
     qDebug() << "VoiceManager:" << errorMsg;
     emit asrError(errorMsg);
     emit statusChanged(errorMsg);
 }
 
-void VoiceManager::sendAudioFrame(const QByteArray &audioData)
-{
+void VoiceManager::sendAudioFrame(const QByteArray& audioData) {
     if (!m_asrConnected || audioData.isEmpty()) {
         return;
     }
@@ -629,8 +621,7 @@ void VoiceManager::sendAudioFrame(const QByteArray &audioData)
     m_asrWebSocket->sendTextMessage(jsonFrame);
 }
 
-void VoiceManager::sendAsrEndSignal()
-{
+void VoiceManager::sendAsrEndSignal() {
     if (!m_asrConnected) {
         return;
     }
@@ -649,8 +640,7 @@ void VoiceManager::sendAsrEndSignal()
     qDebug() << "VoiceManager: Sent ASR end signal";
 }
 
-void VoiceManager::parseAsrResponse(const QString &jsonResponse)
-{
+void VoiceManager::parseAsrResponse(const QString& jsonResponse) {
     QJsonDocument doc = QJsonDocument::fromJson(jsonResponse.toUtf8());
     if (!doc.isObject()) {
         qDebug() << "VoiceManager: ASR response is not JSON object";
@@ -662,8 +652,8 @@ void VoiceManager::parseAsrResponse(const QString &jsonResponse)
     // 检查错误
     if (response.contains("code") && response["code"].toInt() != 0) {
         QString error = GTr::asrConnectionError(QString("[%1]: %2")
-                .arg(response["code"].toInt())
-                .arg(response["message"].toString()));
+                                                        .arg(response["code"].toInt())
+                                                        .arg(response["message"].toString()));
         emit asrError(error);
         return;
     }
@@ -682,10 +672,10 @@ void VoiceManager::parseAsrResponse(const QString &jsonResponse)
     QJsonArray wsArray = resultObj["ws"].toArray();
 
     QString resultText;
-    for (const QJsonValue &wsVal : wsArray) {
+    for (const QJsonValue& wsVal : wsArray) {
         QJsonObject ws = wsVal.toObject();
         QJsonArray cwArray = ws["cw"].toArray();
-        for (const QJsonValue &cwVal : cwArray) {
+        for (const QJsonValue& cwVal : cwArray) {
             QJsonObject cw = cwVal.toObject();
             resultText += cw["w"].toString();
         }
@@ -719,8 +709,7 @@ void VoiceManager::parseAsrResponse(const QString &jsonResponse)
     }
 }
 
-void VoiceManager::processAndSendAudioData()
-{
+void VoiceManager::processAndSendAudioData() {
     // 检查 WebSocket 是否已连接
     if (!m_asrConnected) {
         qDebug() << "VoiceManager: ASR WebSocket not connected yet, waiting...";
@@ -760,7 +749,7 @@ void VoiceManager::processAndSendAudioData()
         QByteArray int16Data;
         int16Data.reserve(sampleCount * 2);
 
-        const float *floatData = reinterpret_cast<const float*>(audioData.constData());
+        const float* floatData = reinterpret_cast<const float*>(audioData.constData());
         for (int i = 0; i < sampleCount; i++) {
             float sample = floatData[i];
             // Clamp to [-1.0, 1.0]
@@ -778,7 +767,7 @@ void VoiceManager::processAndSendAudioData()
     if (m_actualChannelCount > 1) {
         qDebug() << "VoiceManager: Converting" << m_actualChannelCount << "channels to mono";
 
-        int bytesPerSample = 2;  // 16-bit = 2 bytes
+        int bytesPerSample = 2;                                     // 16-bit = 2 bytes
         int bytesPerFrame = bytesPerSample * m_actualChannelCount;  // 一帧包含所有声道
         int frameCount = audioData.size() / bytesPerFrame;
 
@@ -793,7 +782,8 @@ void VoiceManager::processAndSendAudioData()
             for (int ch = 0; ch < m_actualChannelCount; ch++) {
                 int sampleOffset = frameOffset + ch * bytesPerSample;
                 if (sampleOffset + 2 <= audioData.size()) {
-                    short sample = *reinterpret_cast<const short*>(audioData.constData() + sampleOffset);
+                    short sample =
+                            *reinterpret_cast<const short*>(audioData.constData() + sampleOffset);
                     sum += sample;
                 }
             }
@@ -809,7 +799,8 @@ void VoiceManager::processAndSendAudioData()
     // 如果采样率不是 16kHz，需要重采样
     if (m_actualSampleRate != 16000 && m_actualSampleRate > 16000) {
         int ratio = m_actualSampleRate / 16000;
-        qDebug() << "VoiceManager: Resampling from" << m_actualSampleRate << "Hz to 16000 Hz (ratio:" << ratio << ")";
+        qDebug() << "VoiceManager: Resampling from" << m_actualSampleRate
+                 << "Hz to 16000 Hz (ratio:" << ratio << ")";
 
         // 简单降采样：每隔 ratio 个采样取一个
         // 16-bit PCM: 每个采样 2 bytes
@@ -891,8 +882,7 @@ void VoiceManager::processAndSendAudioData()
     }
 }
 
-void VoiceManager::onAudioDataReady()
-{
+void VoiceManager::onAudioDataReady() {
     if (!m_audioIODevice || !m_isRecording) {
         return;
     }
@@ -906,11 +896,11 @@ void VoiceManager::onAudioDataReady()
     // 累积到缓冲区
     m_audioBuffer.append(newData);
 
-    qDebug() << "VoiceManager: Read" << newData.size() << "bytes, total buffer:" << m_audioBuffer.size();
+    qDebug() << "VoiceManager: Read" << newData.size()
+             << "bytes, total buffer:" << m_audioBuffer.size();
 }
 
-void VoiceManager::onAudioPollTimeout()
-{
+void VoiceManager::onAudioPollTimeout() {
     // 定时轮询音频数据（Windows 兼容方案）
     // 主动检查并读取可用的音频数据
     if (!m_audioIODevice || !m_isRecording || !m_audioSource) {
@@ -940,8 +930,7 @@ void VoiceManager::onAudioPollTimeout()
         pollCount++;
         if (pollCount % 10 == 0) {  // 50ms * 10 = 500ms
             qDebug() << "VoiceManager: Polling - bytes available:" << bytesAvailable
-                     << ", buffer size:" << m_audioBuffer.size()
-                     << ", audio state:" << state;
+                     << ", buffer size:" << m_audioBuffer.size() << ", audio state:" << state;
         }
         onAudioDataReady();
     }
@@ -949,8 +938,7 @@ void VoiceManager::onAudioPollTimeout()
 
 // ==================== TTS（语音合成） ====================
 
-void VoiceManager::initTtsWebSocket()
-{
+void VoiceManager::initTtsWebSocket() {
     m_ttsWebSocket = new QWebSocket();
 
     // 配置 SSL
@@ -962,13 +950,14 @@ void VoiceManager::initTtsWebSocket()
 
     connect(m_ttsWebSocket, &QWebSocket::connected, this, &VoiceManager::onTtsConnected);
     connect(m_ttsWebSocket, &QWebSocket::disconnected, this, &VoiceManager::onTtsDisconnected);
-    connect(m_ttsWebSocket, &QWebSocket::binaryMessageReceived, this, &VoiceManager::onTtsBinaryMessageReceived);
-    connect(m_ttsWebSocket, &QWebSocket::textMessageReceived, this, &VoiceManager::onTtsTextMessageReceived);
+    connect(m_ttsWebSocket, &QWebSocket::binaryMessageReceived, this,
+            &VoiceManager::onTtsBinaryMessageReceived);
+    connect(m_ttsWebSocket, &QWebSocket::textMessageReceived, this,
+            &VoiceManager::onTtsTextMessageReceived);
     connect(m_ttsWebSocket, &QWebSocket::errorOccurred, this, &VoiceManager::onTtsError);
 }
 
-void VoiceManager::speak(const QString &text)
-{
+void VoiceManager::speak(const QString& text) {
     if (!isConfigured()) {
         emit ttsError(GTr::xunfeiCredentialsNotConfigured());
         return;
@@ -995,8 +984,7 @@ void VoiceManager::speak(const QString &text)
     m_ttsWebSocket->open(QUrl(authUrl));
 }
 
-void VoiceManager::stopSpeaking()
-{
+void VoiceManager::stopSpeaking() {
     if (!m_isSpeaking) {
         // 即使不在 speaking 状态，也要清理可能的残留资源
         if (m_mediaPlayer) {
@@ -1049,8 +1037,7 @@ void VoiceManager::stopSpeaking()
     qDebug() << "VoiceManager: Audio completely cleared and resources released";
 }
 
-void VoiceManager::onTtsConnected()
-{
+void VoiceManager::onTtsConnected() {
     m_ttsConnected = true;
     emit statusChanged(GTr::voiceServiceConnected());
     qDebug() << "VoiceManager: TTS WebSocket connected";
@@ -1068,25 +1055,23 @@ void VoiceManager::onTtsConnected()
     }
 }
 
-void VoiceManager::onTtsDisconnected()
-{
+void VoiceManager::onTtsDisconnected() {
     m_ttsConnected = false;
-    qDebug() << "VoiceManager: TTS WebSocket disconnected, audio buffer size:" << m_ttsAudioBuffer.size();
+    qDebug() << "VoiceManager: TTS WebSocket disconnected, audio buffer size:"
+             << m_ttsAudioBuffer.size();
 
     // 不在这里播放，已在 onTtsTextMessageReceived 中处理
     // 清空缓冲区，准备下一次合成
     m_ttsAudioBuffer.clear();
 }
 
-void VoiceManager::onTtsBinaryMessageReceived(const QByteArray &message)
-{
+void VoiceManager::onTtsBinaryMessageReceived(const QByteArray& message) {
     // 讯飞 TTS 返回二进制音频数据
     qDebug() << "VoiceManager: TTS received binary data:" << message.size() << "bytes";
     m_ttsAudioBuffer.append(message);
 }
 
-void VoiceManager::onTtsTextMessageReceived(const QString &message)
-{
+void VoiceManager::onTtsTextMessageReceived(const QString& message) {
     // 解析超拟人 TTS JSON 响应
     qDebug() << "VoiceManager: TTS received text message:" << message.left(100);
 
@@ -1130,8 +1115,8 @@ void VoiceManager::onTtsTextMessageReceived(const QString &message)
     int status = audioObj["status"].toInt();
     if (status == 2) {
         // 合成完成，播放音频
-        qDebug() << "VoiceManager: TTS synthesis complete, total audio:"
-                 << m_ttsAudioBuffer.size() << "bytes";
+        qDebug() << "VoiceManager: TTS synthesis complete, total audio:" << m_ttsAudioBuffer.size()
+                 << "bytes";
         emit statusChanged(GTr::voiceSynthesisComplete());
 
         if (!m_ttsAudioBuffer.isEmpty()) {
@@ -1142,16 +1127,14 @@ void VoiceManager::onTtsTextMessageReceived(const QString &message)
     }
 }
 
-void VoiceManager::onTtsError(QAbstractSocket::SocketError error)
-{
+void VoiceManager::onTtsError(QAbstractSocket::SocketError error) {
     QString errorMsg = GTr::ttsConnectionError(m_ttsWebSocket->errorString());
     qDebug() << "VoiceManager:" << errorMsg;
     emit ttsError(errorMsg);
     emit statusChanged(errorMsg);
 }
 
-void VoiceManager::sendTtsRequest(const QString &text)
-{
+void VoiceManager::sendTtsRequest(const QString& text) {
     if (!m_ttsConnected || text.isEmpty()) {
         return;
     }
@@ -1170,30 +1153,30 @@ void VoiceManager::sendTtsRequest(const QString &text)
 
     // oral 口语化配置（仅 x4 系列发音人支持）
     QJsonObject oral;
-    oral["oral_level"] = "mid";      // 口语化等级：high/mid/low
-    oral["spark_assist"] = 1;        // 大模型辅助口语化
-    oral["stop_split"] = 0;          // 不关闭服务端拆句
-    oral["remain"] = 0;              // 不保留原书面语
+    oral["oral_level"] = "mid";  // 口语化等级：high/mid/low
+    oral["spark_assist"] = 1;    // 大模型辅助口语化
+    oral["stop_split"] = 0;      // 不关闭服务端拆句
+    oral["remain"] = 0;          // 不保留原书面语
     parameter["oral"] = oral;
 
     // tts 合成参数
     QJsonObject tts;
-    tts["vcn"] = m_voiceType;        // 发音人：x6_lingxiaoxuan_pro
-    tts["speed"] = 50;               // 语速 0-100
-    tts["volume"] = 50;              // 音量 0-100
-    tts["pitch"] = 50;               // 语调 0-100
-    tts["bgs"] = 0;                  // 无背景音
-    tts["reg"] = 0;                  // 英文发音方式：自动判断
-    tts["rdn"] = 0;                  // 数字发音方式：自动判断
-    tts["rhy"] = 0;                  // 不返回拼音标注
+    tts["vcn"] = m_voiceType;  // 发音人：x6_lingxiaoxuan_pro
+    tts["speed"] = 50;         // 语速 0-100
+    tts["volume"] = 50;        // 音量 0-100
+    tts["pitch"] = 50;         // 语调 0-100
+    tts["bgs"] = 0;            // 无背景音
+    tts["reg"] = 0;            // 英文发音方式：自动判断
+    tts["rdn"] = 0;            // 数字发音方式：自动判断
+    tts["rhy"] = 0;            // 不返回拼音标注
 
     // audio 音频格式参数
     QJsonObject audio;
-    audio["encoding"] = "lame";      // MP3 格式
-    audio["sample_rate"] = 24000;    // 24k 采样率（超拟人支持更高音质）
-    audio["channels"] = 1;           // 单声道
-    audio["bit_depth"] = 16;         // 16 bit
-    audio["frame_size"] = 0;         // 默认帧大小
+    audio["encoding"] = "lame";    // MP3 格式
+    audio["sample_rate"] = 24000;  // 24k 采样率（超拟人支持更高音质）
+    audio["channels"] = 1;         // 单声道
+    audio["bit_depth"] = 16;       // 16 bit
+    audio["frame_size"] = 0;       // 默认帧大小
     tts["audio"] = audio;
 
     parameter["tts"] = tts;
@@ -1205,8 +1188,8 @@ void VoiceManager::sendTtsRequest(const QString &text)
     textObj["encoding"] = "utf8";
     textObj["compress"] = "raw";
     textObj["format"] = "plain";
-    textObj["status"] = 2;           // 数据状态：2=结束
-    textObj["seq"] = 0;              // 序号
+    textObj["status"] = 2;  // 数据状态：2=结束
+    textObj["seq"] = 0;     // 序号
     textObj["text"] = QString(text.toUtf8().toBase64());
     payload["text"] = textObj;
     frame["payload"] = payload;
@@ -1219,8 +1202,7 @@ void VoiceManager::sendTtsRequest(const QString &text)
     qDebug() << "  - Voice:" << m_voiceType;
 }
 
-void VoiceManager::startStreamingTts()
-{
+void VoiceManager::startStreamingTts() {
     if (!isConfigured()) {
         emit ttsError(GTr::xunfeiCredentialsNotConfigured());
         return;
@@ -1238,8 +1220,7 @@ void VoiceManager::startStreamingTts()
     m_ttsWebSocket->open(QUrl(authUrl));
 }
 
-void VoiceManager::sendStreamingText(const QString &text)
-{
+void VoiceManager::sendStreamingText(const QString& text) {
     if (!m_ttsConnected || text.isEmpty() || !m_ttsStreaming) {
         return;
     }
@@ -1288,12 +1269,11 @@ void VoiceManager::sendStreamingText(const QString &text)
     QString jsonFrame = QJsonDocument(frame).toJson(QJsonDocument::Compact);
     m_ttsWebSocket->sendTextMessage(jsonFrame);
 
-    qDebug() << "VoiceManager: Sent streaming TTS text seq=" << m_ttsSeq
-             << "text=" << text.left(20) << "...";
+    qDebug() << "VoiceManager: Sent streaming TTS text seq=" << m_ttsSeq << "text=" << text.left(20)
+             << "...";
 }
 
-void VoiceManager::finishStreamingTts()
-{
+void VoiceManager::finishStreamingTts() {
     if (!m_ttsConnected || !m_ttsStreaming) {
         return;
     }
@@ -1325,8 +1305,7 @@ void VoiceManager::finishStreamingTts()
     qDebug() << "VoiceManager: Sent streaming TTS end signal";
 }
 
-void VoiceManager::sendStreamingFirstFrame()
-{
+void VoiceManager::sendStreamingFirstFrame() {
     if (!m_ttsConnected || !m_ttsStreaming) {
         return;
     }
@@ -1387,8 +1366,7 @@ void VoiceManager::sendStreamingFirstFrame()
     qDebug() << "VoiceManager: Sent streaming TTS first frame (status=0)";
 }
 
-void VoiceManager::parseTtsResponse(const QByteArray &binaryData, const QString &jsonMeta)
-{
+void VoiceManager::parseTtsResponse(const QByteArray& binaryData, const QString& jsonMeta) {
     // 累积音频数据
     if (!binaryData.isEmpty()) {
         m_ttsAudioBuffer.append(binaryData);
@@ -1415,8 +1393,7 @@ void VoiceManager::parseTtsResponse(const QByteArray &binaryData, const QString 
     }
 }
 
-void VoiceManager::playTtsAudio(const QByteArray &audioData)
-{
+void VoiceManager::playTtsAudio(const QByteArray& audioData) {
     if (audioData.isEmpty()) {
         qDebug() << "VoiceManager: TTS audio data is empty, cannot play";
         emit ttsError(GTr::audioDataEmpty());
@@ -1425,7 +1402,8 @@ void VoiceManager::playTtsAudio(const QByteArray &audioData)
 
     // 超拟人 TTS 返回的是 MP3 格式音频（encoding=lame），24k 采样率
     QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-    QString tempFile = tempPath + "/tts_output_" + QDateTime::currentDateTime().toString("yyyyMMddHHmmss") + ".mp3";
+    QString tempFile = tempPath + "/tts_output_" +
+                       QDateTime::currentDateTime().toString("yyyyMMddHHmmss") + ".mp3";
 
     QFile file(tempFile);
     if (!file.open(QIODevice::WriteOnly)) {
@@ -1461,7 +1439,8 @@ void VoiceManager::playTtsAudio(const QByteArray &audioData)
     // 播放前确保使用当前默认输出设备（双重保障）
     QAudioDevice currentDefault = QMediaDevices::defaultAudioOutput();
     if (!currentDefault.isNull() && m_audioOutput->device() != currentDefault) {
-        qDebug() << "VoiceManager: Switching to current default output:" << currentDefault.description();
+        qDebug() << "VoiceManager: Switching to current default output:"
+                 << currentDefault.description();
         m_audioOutput->setDevice(currentDefault);
     }
 
@@ -1477,8 +1456,7 @@ void VoiceManager::playTtsAudio(const QByteArray &audioData)
     emit statusChanged(GTr::playingVoice());
 }
 
-void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state)
-{
+void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
     if (state == QMediaPlayer::StoppedState) {
         m_isSpeaking = false;
         emit speakingFinished();
@@ -1493,12 +1471,12 @@ void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state)
     }
 }
 
-void VoiceManager::onAudioOutputsChanged()
-{
+void VoiceManager::onAudioOutputsChanged() {
     // 音频输出设备变化（如 AirPods 连接/断开），切换到新的默认输出设备
     QAudioDevice newDefault = QMediaDevices::defaultAudioOutput();
     if (!newDefault.isNull()) {
-        qDebug() << "VoiceManager: Audio output device changed, switching to:" << newDefault.description();
+        qDebug() << "VoiceManager: Audio output device changed, switching to:"
+                 << newDefault.description();
         m_audioOutput->setDevice(newDefault);
     } else {
         qDebug() << "VoiceManager: No audio output device available after change";

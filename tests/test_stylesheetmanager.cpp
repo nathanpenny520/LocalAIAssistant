@@ -1,31 +1,27 @@
-#include <QtTest>
 #include <QApplication>
+#include <QtTest>
+
 #include "stylesheetmanager.h"
 
-class TestStyleSheetManager : public QObject
-{
+class TestStyleSheetManager : public QObject {
     Q_OBJECT
 
 private slots:
-    void initTestCase()
-    {
+    void initTestCase() {
         static int argc = 0;
-        static char *argv[] = {nullptr};
-        if (!QApplication::instance())
-            new QApplication(argc, argv);
+        static char* argv[] = {nullptr};
+        if (!QApplication::instance()) new QApplication(argc, argv);
         StyleSheetManager::instance()->setTheme(StyleSheetManager::LightTheme);
     }
 
-    void testSingleton()
-    {
+    void testSingleton() {
         StyleSheetManager* a = StyleSheetManager::instance();
         StyleSheetManager* b = StyleSheetManager::instance();
         QVERIFY(a != nullptr);
         QCOMPARE(a, b);
     }
 
-    void testSetTheme()
-    {
+    void testSetTheme() {
         StyleSheetManager::instance()->setTheme(StyleSheetManager::LightTheme);
         QCOMPARE(StyleSheetManager::instance()->currentTheme(), StyleSheetManager::LightTheme);
 
@@ -33,8 +29,7 @@ private slots:
         QCOMPARE(StyleSheetManager::instance()->currentTheme(), StyleSheetManager::DarkTheme);
     }
 
-    void testLightDarkStyleSheetsDiffer()
-    {
+    void testLightDarkStyleSheetsDiffer() {
         QString light = StyleSheetManager::lightStyleSheet();
         QString dark = StyleSheetManager::darkStyleSheet();
         QVERIFY(!light.isEmpty());
@@ -42,8 +37,7 @@ private slots:
         QVERIFY(light != dark);
     }
 
-    void testStyleSheetContainsSelectors()
-    {
+    void testStyleSheetContainsSelectors() {
         QString qss = StyleSheetManager::lightStyleSheet();
         QVERIFY(qss.contains("QListWidget"));
         QVERIFY(qss.contains("QPushButton"));
@@ -52,8 +46,7 @@ private slots:
         QVERIFY(qss.contains("QComboBox"));
     }
 
-    void testThemeChangedSignal()
-    {
+    void testThemeChangedSignal() {
         bool emitted = false;
         connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged,
                 [&emitted](int) { emitted = true; });

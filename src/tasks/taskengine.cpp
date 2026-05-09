@@ -1,83 +1,77 @@
 #include "taskengine.h"
-#include "../prompts/promptmanager.h"
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSettings>
 
-TaskEngine *TaskEngine::s_instance = nullptr;
+#include "../prompts/promptmanager.h"
 
-TaskEngine *TaskEngine::instance()
-{
-    if (!s_instance)
-        s_instance = new TaskEngine();
+TaskEngine* TaskEngine::s_instance = nullptr;
+
+TaskEngine* TaskEngine::instance() {
+    if (!s_instance) s_instance = new TaskEngine();
     return s_instance;
 }
 
-TaskEngine::TaskEngine(QObject *parent)
-    : QObject(parent)
-    , m_executor(this)
-{
+TaskEngine::TaskEngine(QObject* parent) : QObject(parent), m_executor(this) {
 }
 
-OperationPlan TaskEngine::parsePlanFromAIResponse(const QString &aiResponse) const
-{
+OperationPlan TaskEngine::parsePlanFromAIResponse(const QString& aiResponse) const {
     // Extract content between [TASK_PLAN] ... [/TASK_PLAN]
-    static QRegularExpression re(
-        QStringLiteral(R"(\[TASK_PLAN\]\s*(.*?)\s*\[/TASK_PLAN\])"),
-        QRegularExpression::DotMatchesEverythingOption);
+    static QRegularExpression re(QStringLiteral(R"(\[TASK_PLAN\]\s*(.*?)\s*\[/TASK_PLAN\])"),
+                                 QRegularExpression::DotMatchesEverythingOption);
 
     QRegularExpressionMatch match = re.match(aiResponse);
     if (match.hasMatch()) {
         QString content = match.captured(1).trimmed();
 
         // Strip markdown code fences if present (```json ... ```)
-        static QRegularExpression codeFence(
-            QStringLiteral("```(?:json)?\\s*(\\{.*?\\})\\s*```"),
-            QRegularExpression::DotMatchesEverythingOption);
+        static QRegularExpression codeFence(QStringLiteral("```(?:json)?\\s*(\\{.*?\\})\\s*```"),
+                                            QRegularExpression::DotMatchesEverythingOption);
         QRegularExpressionMatch fenceMatch = codeFence.match(content);
         if (fenceMatch.hasMatch()) {
             content = fenceMatch.captured(1);
         }
 
         QJsonDocument doc = QJsonDocument::fromJson(content.toUtf8());
-        if (doc.isObject())
-            return parsePlanFromJson(doc.object());
+        if (doc.isObject()) return parsePlanFromJson(doc.object());
     }
 
     // 如果没有标签，尝试直接解析整个回复为 JSON
     QJsonDocument doc = QJsonDocument::fromJson(aiResponse.toUtf8());
-    if (doc.isObject())
-        return parsePlanFromJson(doc.object());
+    if (doc.isObject()) return parsePlanFromJson(doc.object());
 
     return {};
 }
 
-OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject &json) const
-{
+OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject& json) const {
     OperationPlan plan;
     plan.description = json[QStringLiteral("description")].toString();
     plan.requiresConfirmation = json[QStringLiteral("requiresConfirmation")].toBool(true);
 
     QJsonArray opsArray = json[QStringLiteral("operations")].toArray();
-    for (const auto &val : opsArray) {
+    for (const auto& val : opsArray) {
         QJsonObject opObj = val.toObject();
         ShellOperation op;
 
         QString typeStr = opObj[QStringLiteral("type")].toString().toLower();
         if (typeStr == QStringLiteral("shell_command") || typeStr == QStringLiteral("shellcommand"))
             op.type = ShellOperation::ShellCommand;
-        else if (typeStr == QStringLiteral("shell_script") || typeStr == QStringLiteral("shellscript"))
+        else if (typeStr == QStringLiteral("shell_script") || typeStr == QStringLiteral("shellscrip"
+                                                                                        "t"))
             op.type = ShellOperation::ShellScript;
         else if (typeStr == QStringLiteral("write_file") || typeStr == QStringLiteral("writefile"))
             op.type = ShellOperation::WriteFile;
-        else if (typeStr == QStringLiteral("search_files") || typeStr == QStringLiteral("searchfiles"))
+        else if (typeStr == QStringLiteral("search_files") || typeStr == QStringLiteral("searchfile"
+                                                                                        "s"))
             op.type = ShellOperation::SearchFiles;
         else if (typeStr == QStringLiteral("create_dir") || typeStr == QStringLiteral("createdir"))
             op.type = ShellOperation::CreateDir;
         else if (typeStr == QStringLiteral("move_file") || typeStr == QStringLiteral("movefile"))
             op.type = ShellOperation::MoveFile;
-        else if (typeStr == QStringLiteral("delete_file") || typeStr == QStringLiteral("deletefile"))
+        else if (typeStr == QStringLiteral("delete_file") || typeStr == QStringLiteral("deletefil"
+                                                                                       "e"))
             op.type = ShellOperation::DeleteFile;
         else if (typeStr == QStringLiteral("copy_file") || typeStr == QStringLiteral("copyfile"))
             op.type = ShellOperation::CopyFile;
@@ -113,7 +107,8 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject &json) const
         }
 
         // 向后兼容: search 旧格式 target 字段是搜索模式 → 映射到 command
-        if (op.type == ShellOperation::SearchFiles && op.command.isEmpty() && !op.target.isEmpty()) {
+        if (op.type == ShellOperation::SearchFiles && op.command.isEmpty() &&
+            !op.target.isEmpty()) {
             op.command = op.target;
             op.target.clear();
         }
@@ -126,18 +121,15 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject &json) const
     return plan;
 }
 
-QString TaskEngine::taskPromptTemplate() const
-{
+QString TaskEngine::taskPromptTemplate() const {
     return QStringLiteral("\n\n") + PromptManager::instance()->taskPrompt();
 }
 
-SafetyChecker::Result TaskEngine::validatePlan(const OperationPlan &plan)
-{
+SafetyChecker::Result TaskEngine::validatePlan(const OperationPlan& plan) {
     return m_safetyChecker.validatePlan(plan);
 }
 
-QVector<CommandResult> TaskEngine::executePlan(const OperationPlan &plan)
-{
+QVector<CommandResult> TaskEngine::executePlan(const OperationPlan& plan) {
     m_undo.recordBefore(plan);
 
     QVector<CommandResult> results = m_executor.executePlan(plan);
@@ -145,24 +137,20 @@ QVector<CommandResult> TaskEngine::executePlan(const OperationPlan &plan)
     return results;
 }
 
-bool TaskEngine::canUndo() const
-{
+bool TaskEngine::canUndo() const {
     return m_undo.canUndo();
 }
 
-QVector<CommandResult> TaskEngine::undoLast()
-{
+QVector<CommandResult> TaskEngine::undoLast() {
     QVector<CommandResult> results = m_undo.undoLastPlan();
     emit undoFinished(results);
     return results;
 }
 
-CommandExecutor *TaskEngine::executor()
-{
+CommandExecutor* TaskEngine::executor() {
     return &m_executor;
 }
 
-SafetyChecker &TaskEngine::safetyChecker()
-{
+SafetyChecker& TaskEngine::safetyChecker() {
     return m_safetyChecker;
 }

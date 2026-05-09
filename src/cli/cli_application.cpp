@@ -1,33 +1,35 @@
 #include "cli_application.h"
-#include "filemanager.h"
-#include <QCoreApplication>
-#include <QCommandLineParser>
-#include <QTextStream>
-#include <QTimer>
-#include <QSettings>
-#include <QFileInfo>
+
 #include <iostream>
 
+#include <QCommandLineParser>
+#include <QCoreApplication>
+#include <QFileInfo>
+#include <QSettings>
+#include <QTextStream>
+#include <QTimer>
+
+#include "filemanager.h"
+
 #ifdef USE_READLINE
-#include <readline/readline.h>
 #include <readline/history.h>
+#include <readline/readline.h>
 #endif
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
 
+#include "../knowledge/knowledgebase.h"
+#include "../tasks/taskengine.h"
 #include "networkmanager.h"
 #include "sessionmanager.h"
-#include "../tasks/taskengine.h"
-#include "../knowledge/knowledgebase.h"
 
 namespace {
 #ifdef Q_OS_WIN
 // Initialize Windows console for UTF-8 support
 // Returns true if successful, false otherwise
-bool initWindowsConsole()
-{
+bool initWindowsConsole() {
     // Save original console modes for restoration if needed
     static DWORD originalOutputMode = 0;
     static DWORD originalInputMode = 0;
@@ -67,21 +69,19 @@ bool initWindowsConsole()
     return true;
 }
 #endif
+}  // namespace
+
+CLIApplication::CLIApplication(QObject* parent)
+        : QObject(parent)
+        , m_networkManager(nullptr)
+        , m_fileManager(nullptr)
+        , m_taskEngine(nullptr)
+        , m_running(false)
+        , m_interactiveMode(false)
+        , m_isStreaming(false) {
 }
 
-CLIApplication::CLIApplication(QObject *parent)
-    : QObject(parent)
-    , m_networkManager(nullptr)
-    , m_fileManager(nullptr)
-    , m_taskEngine(nullptr)
-    , m_running(false)
-    , m_interactiveMode(false)
-    , m_isStreaming(false)
-{
-}
-
-int CLIApplication::run(int argc, char *argv[])
-{
+int CLIApplication::run(int argc, char* argv[]) {
 #ifdef Q_OS_WIN
     // Initialize Windows console for UTF-8 support (must be before any I/O)
     initWindowsConsole();
@@ -95,62 +95,55 @@ int CLIApplication::run(int argc, char *argv[])
     m_fileManager = new FileManager(this);
     m_taskEngine = TaskEngine::instance();
     KnowledgeBase::instance()->init();
-    connect(m_networkManager, &NetworkManager::responseReceived,
-            this, &CLIApplication::onResponseReceived);
-    connect(m_networkManager, &NetworkManager::errorOccurred,
-            this, &CLIApplication::onErrorOccurred);
-    connect(m_networkManager, &NetworkManager::streamChunkReceived,
-            this, &CLIApplication::onStreamChunkReceived);
-    connect(m_networkManager, &NetworkManager::streamFinished,
-            this, &CLIApplication::onStreamFinished);
+    connect(m_networkManager, &NetworkManager::responseReceived, this,
+            &CLIApplication::onResponseReceived);
+    connect(m_networkManager, &NetworkManager::errorOccurred, this,
+            &CLIApplication::onErrorOccurred);
+    connect(m_networkManager, &NetworkManager::streamChunkReceived, this,
+            &CLIApplication::onStreamChunkReceived);
+    connect(m_networkManager, &NetworkManager::streamFinished, this,
+            &CLIApplication::onStreamFinished);
 
     QCommandLineParser parser;
-    parser.setApplicationDescription("\nLocalAIAssistant - CLI Version\n"
-                                     "Supports interactive chat and single query modes");
+    parser.setApplicationDescription(
+            "\nLocalAIAssistant - CLI Version\n"
+            "Supports interactive chat and single query modes");
     parser.addHelpOption();
     parser.addVersionOption();
 
     parser.addPositionalArgument("command",
-        "Command: chat (interactive) | ask <question> (single query) | sessions (session management) | config (config management)");
+                                 "Command: chat (interactive) | ask <question> (single query) | "
+                                 "sessions (session management) | config (config management)");
 
-    QCommandLineOption sessionOpt(QStringList() << "s" << "session",
-        "Specify session ID for chat", "session-id");
-    QCommandLineOption newSessionOpt(QStringList() << "n" << "new",
-        "Create new session");
-    QCommandLineOption listOpt(QStringList() << "l" << "list",
-        "List all sessions");
-    QCommandLineOption deleteOpt(QStringList() << "d" << "delete",
-        "Delete specified session", "session-id");
-    QCommandLineOption showOpt(QStringList() << "show",
-        "Show session content", "session-id");
-    QCommandLineOption apiURLOpt(QStringList() << "api-url",
-        "Set API base URL", "url");
-    QCommandLineOption apiKeyOpt(QStringList() << "api-key",
-        "Set API key", "key");
-    QCommandLineOption modelOpt(QStringList() << "model",
-        "Set model name", "name");
-    QCommandLineOption showConfigOpt(QStringList() << "show-config",
-        "Show current config");
-    QCommandLineOption noStreamOpt(QStringList() << "no-stream",
-        "Disable streaming output");
-    QCommandLineOption temperatureOpt(QStringList() << "temperature",
-        "Set temperature (0.0-2.0)", "value");
-    QCommandLineOption topPOpt(QStringList() << "top-p",
-        "Set top_p (0.0-1.0)", "value");
+    QCommandLineOption sessionOpt(QStringList() << "s" << "session", "Specify session ID for chat",
+                                  "session-id");
+    QCommandLineOption newSessionOpt(QStringList() << "n" << "new", "Create new session");
+    QCommandLineOption listOpt(QStringList() << "l" << "list", "List all sessions");
+    QCommandLineOption deleteOpt(QStringList() << "d" << "delete", "Delete specified session",
+                                 "session-id");
+    QCommandLineOption showOpt(QStringList() << "show", "Show session content", "session-id");
+    QCommandLineOption apiURLOpt(QStringList() << "api-url", "Set API base URL", "url");
+    QCommandLineOption apiKeyOpt(QStringList() << "api-key", "Set API key", "key");
+    QCommandLineOption modelOpt(QStringList() << "model", "Set model name", "name");
+    QCommandLineOption showConfigOpt(QStringList() << "show-config", "Show current config");
+    QCommandLineOption noStreamOpt(QStringList() << "no-stream", "Disable streaming output");
+    QCommandLineOption temperatureOpt(QStringList() << "temperature", "Set temperature (0.0-2.0)",
+                                      "value");
+    QCommandLineOption topPOpt(QStringList() << "top-p", "Set top_p (0.0-1.0)", "value");
     QCommandLineOption maxTokensOpt(QStringList() << "max-tokens",
-        "Set max output tokens (1-128000)", "value");
+                                    "Set max output tokens (1-128000)", "value");
     QCommandLineOption presencePenaltyOpt(QStringList() << "presence-penalty",
-        "Set presence penalty (-2.0-2.0)", "value");
+                                          "Set presence penalty (-2.0-2.0)", "value");
     QCommandLineOption frequencyPenaltyOpt(QStringList() << "frequency-penalty",
-        "Set frequency penalty (-2.0-2.0)", "value");
-    QCommandLineOption seedOpt(QStringList() << "seed",
-        "Set random seed (integer, -1 to clear)", "value");
+                                           "Set frequency penalty (-2.0-2.0)", "value");
+    QCommandLineOption seedOpt(QStringList() << "seed", "Set random seed (integer, -1 to clear)",
+                               "value");
     QCommandLineOption maxContextOpt(QStringList() << "max-context",
-        "Set max context messages (1-100)", "value");
+                                     "Set max context messages (1-100)", "value");
     QCommandLineOption apiTypeOpt(QStringList() << "api-type",
-        "Set API type (openai, ollama, llamacpp, anthropic)", "type");
+                                  "Set API type (openai, ollama, llamacpp, anthropic)", "type");
     QCommandLineOption yesOpt(QStringList() << "y" << "yes",
-        "Auto-confirm task plans (skip confirmation prompt)");
+                              "Auto-confirm task plans (skip confirmation prompt)");
 
     parser.addOption(sessionOpt);
     parser.addOption(newSessionOpt);
@@ -210,8 +203,7 @@ int CLIApplication::run(int argc, char *argv[])
     }
 }
 
-void CLIApplication::printUsage()
-{
+void CLIApplication::printUsage() {
     std::cout << "\nLocalAIAssistant - CLI v1.0.0\n\n";
     std::cout << "Usage (ai is alias for ./LocalAIAssistant-CLI):\n";
     std::cout << "  ai chat                    Enter interactive chat mode\n";
@@ -249,8 +241,7 @@ void CLIApplication::printUsage()
     std::cout << std::endl;
 }
 
-int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLineParser &parser)
-{
+int CLIApplication::runInteractiveMode(QCoreApplication& app, const QCommandLineParser& parser) {
     m_interactiveMode = true;
 
     if (parser.isSet("session")) {
@@ -258,16 +249,18 @@ int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLine
         SessionManager::instance()->switchToSession(sessionId);
     } else if (parser.isSet("new")) {
         QSettings settings("LocalAIAssistant", "Settings");
-    QString locale = settings.value("language", "zh_CN").toString();
-    QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
-    SessionManager::instance()->createNewSession(defaultTitle);
+        QString locale = settings.value("language", "zh_CN").toString();
+        QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
+        SessionManager::instance()->createNewSession(defaultTitle);
     }
 
     std::cout << "\n====================================\n";
     std::cout << "  LocalAIAssistant - Interactive Mode\n";
     std::cout << "====================================\n";
-    std::cout << "Current session: " << SessionManager::instance()->currentSession().title.toStdString() << "\n";
-    std::cout << "Session ID: " << SessionManager::instance()->currentSessionId().toStdString() << "\n";
+    std::cout << "Current session: "
+              << SessionManager::instance()->currentSession().title.toStdString() << "\n";
+    std::cout << "Session ID: " << SessionManager::instance()->currentSessionId().toStdString()
+              << "\n";
     std::cout << "Streaming: " << (m_networkManager->isStreamingEnabled() ? "ON" : "OFF") << "\n";
     std::cout << "------------------------------------\n";
     std::cout << "Commands:\n";
@@ -293,8 +286,7 @@ int CLIApplication::runInteractiveMode(QCoreApplication &app, const QCommandLine
     return app.exec();
 }
 
-void CLIApplication::readInput()
-{
+void CLIApplication::readInput() {
     std::cout << "\nYou: ";
     std::cout.flush();
 
@@ -361,11 +353,10 @@ void CLIApplication::readInput()
     }
 
     // Search knowledge base for relevant context (injected into system prompt)
-    KnowledgeBase *kb = KnowledgeBase::instance();
+    KnowledgeBase* kb = KnowledgeBase::instance();
     if (kb->isReady()) {
         QString context = kb->generateContext(qInput);
-        if (!context.isEmpty())
-            m_networkManager->setKnowledgeContext(context);
+        if (!context.isEmpty()) m_networkManager->setKnowledgeContext(context);
     }
 
     // Build message list and send
@@ -374,28 +365,25 @@ void CLIApplication::readInput()
     m_networkManager->sendChatRequestWithContext(messages);
 }
 
-void CLIApplication::handleCommand(const QString &command)
-{
+void CLIApplication::handleCommand(const QString& command) {
     QString cmd = command.toLower();
 
     if (cmd == "/help") {
         showHelp();
     } else if (cmd == "/new") {
         QSettings settings("LocalAIAssistant", "Settings");
-    QString locale = settings.value("language", "zh_CN").toString();
-    QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
-    SessionManager::instance()->createNewSession(defaultTitle);
+        QString locale = settings.value("language", "zh_CN").toString();
+        QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
+        SessionManager::instance()->createNewSession(defaultTitle);
         std::cout << "Created new session: "
-                  << SessionManager::instance()->currentSessionId().toStdString()
-                  << std::endl;
+                  << SessionManager::instance()->currentSessionId().toStdString() << std::endl;
     } else if (cmd == "/list") {
         listSessions();
     } else if (cmd.startsWith("/switch ")) {
         QString sessionId = command.mid(8).trimmed();
         SessionManager::instance()->switchToSession(sessionId);
         std::cout << "Switched to session: "
-                  << SessionManager::instance()->currentSession().title.toStdString()
-                  << std::endl;
+                  << SessionManager::instance()->currentSession().title.toStdString() << std::endl;
     } else if (cmd.startsWith("/delete ")) {
         QString sessionId = command.mid(8).trimmed();
         SessionManager::instance()->removeSession(sessionId);
@@ -459,8 +447,7 @@ void CLIApplication::handleCommand(const QString &command)
     QTimer::singleShot(0, this, &CLIApplication::readInput);
 }
 
-void CLIApplication::showHelp()
-{
+void CLIApplication::showHelp() {
     std::cout << "\nAvailable commands:\n";
     std::cout << "  /help     - Show this help\n";
     std::cout << "  /new      - Create new session\n";
@@ -481,15 +468,14 @@ void CLIApplication::showHelp()
     std::cout << "\nJust type text to chat with AI\n";
 }
 
-void CLIApplication::listSessions()
-{
-    const auto &sessions = SessionManager::instance()->allSessions();
+void CLIApplication::listSessions() {
+    const auto& sessions = SessionManager::instance()->allSessions();
     std::cout << "\nSession list:\n";
     std::cout << "----------------------------------------\n";
 
     for (auto it = sessions.constBegin(); it != sessions.constEnd(); ++it) {
-        QString current = (it.key() == SessionManager::instance()->currentSessionId())
-                        ? " [current]" : "";
+        QString current =
+                (it.key() == SessionManager::instance()->currentSessionId()) ? " [current]" : "";
         std::cout << "ID: " << it.key().toStdString() << current.toStdString() << "\n";
         std::cout << "Title: " << it.value().title.toStdString() << "\n";
         std::cout << "Messages: " << it.value().messages.size() << "\n";
@@ -497,30 +483,31 @@ void CLIApplication::listSessions()
     }
 }
 
-void CLIApplication::showConfig()
-{
+void CLIApplication::showConfig() {
     QSettings settings("LocalAIAssistant", "Settings");
     std::cout << "\nCurrent config:\n";
     std::cout << "----------------------------------------\n";
     std::cout << "API URL: "
               << settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString().toStdString()
               << "\n";
-    std::cout << "Model: "
-              << settings.value("modelName", "local-model").toString().toStdString()
+    std::cout << "Model: " << settings.value("modelName", "local-model").toString().toStdString()
               << "\n";
     QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
     std::cout << "API type: "
-              << (apiTypeStr == "ollama" ? "Ollama" :
-                  apiTypeStr == "llamacpp" ? "llama.cpp" :
-                  apiTypeStr == "anthropic" ? "Anthropic" : "OpenAI-compatible")
+              << (apiTypeStr == "ollama"      ? "Ollama"
+                  : apiTypeStr == "llamacpp"  ? "llama.cpp"
+                  : apiTypeStr == "anthropic" ? "Anthropic"
+                                              : "OpenAI-compatible")
               << "\n";
     std::cout << "----------------------------------------\n";
     std::cout << "Model parameters:\n";
     std::cout << "  temperature: " << settings.value("temperature", 0.4).toDouble() << "\n";
     std::cout << "  top_p: " << settings.value("topP", 1.0).toDouble() << "\n";
     std::cout << "  max_tokens: " << settings.value("maxTokens", 8192).toInt() << "\n";
-    std::cout << "  presence_penalty: " << settings.value("presencePenalty", 0.2).toDouble() << "\n";
-    std::cout << "  frequency_penalty: " << settings.value("frequencyPenalty", 0.0).toDouble() << "\n";
+    std::cout << "  presence_penalty: " << settings.value("presencePenalty", 0.2).toDouble()
+              << "\n";
+    std::cout << "  frequency_penalty: " << settings.value("frequencyPenalty", 0.0).toDouble()
+              << "\n";
 
     int seed = settings.value("seed", -1).toInt();
     if (seed >= 0) {
@@ -535,8 +522,8 @@ void CLIApplication::showConfig()
     std::cout << "----------------------------------------\n";
 }
 
-int CLIApplication::runSingleQuery(QCoreApplication &app, const QString &query, const QCommandLineParser &parser)
-{
+int CLIApplication::runSingleQuery(QCoreApplication& app, const QString& query,
+                                   const QCommandLineParser& parser) {
     m_interactiveMode = false;
 
     if (parser.isSet("session")) {
@@ -556,35 +543,32 @@ int CLIApplication::runSingleQuery(QCoreApplication &app, const QString &query, 
 
     QTimer::singleShot(0, [this, &query]() {
         // Search knowledge base for relevant context (injected into system prompt)
-        KnowledgeBase *kb = KnowledgeBase::instance();
+        KnowledgeBase* kb = KnowledgeBase::instance();
         if (kb->isReady()) {
             QString context = kb->generateContext(query);
-            if (!context.isEmpty())
-                m_networkManager->setKnowledgeContext(context);
+            if (!context.isEmpty()) m_networkManager->setKnowledgeContext(context);
         }
 
         if (m_networkManager->isStreamingEnabled()) {
             std::cout << "AI: " << std::flush;
         }
         m_networkManager->sendChatRequestWithContext(
-            SessionManager::instance()->currentSession().messages);
+                SessionManager::instance()->currentSession().messages);
     });
 
     return app.exec();
 }
 
-int CLIApplication::handleSessionsCommand(const QCommandLineParser &parser)
-{
+int CLIApplication::handleSessionsCommand(const QCommandLineParser& parser) {
     if (parser.isSet("list")) {
         listSessions();
     } else if (parser.isSet("new")) {
         QSettings settings("LocalAIAssistant", "Settings");
-    QString locale = settings.value("language", "zh_CN").toString();
-    QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
-    SessionManager::instance()->createNewSession(defaultTitle);
+        QString locale = settings.value("language", "zh_CN").toString();
+        QString defaultTitle = (locale == "en") ? "CLI Chat" : QStringLiteral("CLI 对话");
+        SessionManager::instance()->createNewSession(defaultTitle);
         std::cout << "Created new session: "
-                  << SessionManager::instance()->currentSessionId().toStdString()
-                  << std::endl;
+                  << SessionManager::instance()->currentSessionId().toStdString() << std::endl;
     } else if (parser.isSet("delete")) {
         QString sessionId = parser.value("delete");
         SessionManager::instance()->removeSession(sessionId);
@@ -604,20 +588,19 @@ int CLIApplication::handleSessionsCommand(const QCommandLineParser &parser)
     return 0;
 }
 
-void CLIApplication::showSessionContent(const QString &sessionId)
-{
-    const auto &sessions = SessionManager::instance()->allSessions();
+void CLIApplication::showSessionContent(const QString& sessionId) {
+    const auto& sessions = SessionManager::instance()->allSessions();
     if (!sessions.contains(sessionId)) {
         std::cerr << "Error: Session not found" << std::endl;
         return;
     }
 
-    const ChatSession &session = sessions[sessionId];
+    const ChatSession& session = sessions[sessionId];
     std::cout << "\nSession: " << session.title.toStdString() << "\n";
     std::cout << "ID: " << session.id.toStdString() << "\n";
     std::cout << "========================================\n";
 
-    for (const auto &msg : session.messages) {
+    for (const auto& msg : session.messages) {
         if (msg.role == "user") {
             std::cout << "\n[User]: " << msg.content.toStdString() << "\n";
         } else {
@@ -628,27 +611,26 @@ void CLIApplication::showSessionContent(const QString &sessionId)
 }
 
 namespace {
-    bool validateDoubleParam(const std::string &name, double value, double min, double max) {
-        if (value < min || value > max) {
-            std::cerr << "Error: " << name << " value " << value
-                      << " out of range [" << min << ", " << max << "]" << std::endl;
-            return false;
-        }
-        return true;
+bool validateDoubleParam(const std::string& name, double value, double min, double max) {
+    if (value < min || value > max) {
+        std::cerr << "Error: " << name << " value " << value << " out of range [" << min << ", "
+                  << max << "]" << std::endl;
+        return false;
     }
-
-    bool validateIntParam(const std::string &name, int value, int min, int max) {
-        if (value < min || value > max) {
-            std::cerr << "Error: " << name << " value " << value
-                      << " out of range [" << min << ", " << max << "]" << std::endl;
-            return false;
-        }
-        return true;
-    }
+    return true;
 }
 
-int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
-{
+bool validateIntParam(const std::string& name, int value, int min, int max) {
+    if (value < min || value > max) {
+        std::cerr << "Error: " << name << " value " << value << " out of range [" << min << ", "
+                  << max << "]" << std::endl;
+        return false;
+    }
+    return true;
+}
+}  // namespace
+
+int CLIApplication::handleConfigCommand(const QCommandLineParser& parser) {
     QSettings settings("LocalAIAssistant", "Settings");
 
     bool hasChanges = false;
@@ -658,9 +640,12 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     QString modelName = settings.value("modelName", "local-model").toString();
     QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
     ApiType apiType = ApiType::OpenAI;
-    if (apiTypeStr == "ollama") apiType = ApiType::Ollama;
-    else if (apiTypeStr == "llamacpp") apiType = ApiType::LlamaCpp;
-    else if (apiTypeStr == "anthropic") apiType = ApiType::Anthropic;
+    if (apiTypeStr == "ollama")
+        apiType = ApiType::Ollama;
+    else if (apiTypeStr == "llamacpp")
+        apiType = ApiType::LlamaCpp;
+    else if (apiTypeStr == "anthropic")
+        apiType = ApiType::Anthropic;
 
     if (parser.isSet("api-url")) {
         apiUrl = parser.value("api-url");
@@ -676,10 +661,14 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     }
     if (parser.isSet("api-type")) {
         QString val = parser.value("api-type").toLower();
-        if (val == "ollama") apiType = ApiType::Ollama;
-        else if (val == "llamacpp") apiType = ApiType::LlamaCpp;
-        else if (val == "anthropic") apiType = ApiType::Anthropic;
-        else apiType = ApiType::OpenAI;
+        if (val == "ollama")
+            apiType = ApiType::Ollama;
+        else if (val == "llamacpp")
+            apiType = ApiType::LlamaCpp;
+        else if (val == "anthropic")
+            apiType = ApiType::Anthropic;
+        else
+            apiType = ApiType::OpenAI;
         hasChanges = true;
     }
 
@@ -785,8 +774,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser &parser)
     return 0;
 }
 
-void CLIApplication::onStreamChunkReceived(const QString &chunk)
-{
+void CLIApplication::onStreamChunkReceived(const QString& chunk) {
     if (!m_isStreaming) {
         m_isStreaming = true;
     }
@@ -795,8 +783,7 @@ void CLIApplication::onStreamChunkReceived(const QString &chunk)
     std::cout << chunk.toStdString() << std::flush;
 }
 
-void CLIApplication::onStreamFinished(const QString &fullContent)
-{
+void CLIApplication::onStreamFinished(const QString& fullContent) {
     if (m_isStreaming) {
         std::cout << std::endl;
         SessionManager::instance()->addMessageToCurrentSession("assistant", fullContent);
@@ -804,8 +791,7 @@ void CLIApplication::onStreamFinished(const QString &fullContent)
         m_isStreaming = false;
         m_streamingContent.clear();
 
-        if (extractAndHandleTaskPlan(fullContent))
-            return;
+        if (extractAndHandleTaskPlan(fullContent)) return;
     }
 
     if (m_interactiveMode) {
@@ -816,8 +802,7 @@ void CLIApplication::onStreamFinished(const QString &fullContent)
     }
 }
 
-void CLIApplication::onResponseReceived(const QString &response)
-{
+void CLIApplication::onResponseReceived(const QString& response) {
     if (m_isStreaming) {
         return;
     }
@@ -825,8 +810,7 @@ void CLIApplication::onResponseReceived(const QString &response)
     SessionManager::instance()->addMessageToCurrentSession("assistant", response);
     SessionManager::instance()->saveSessionsToFile();
 
-    if (extractAndHandleTaskPlan(response))
-        return;
+    if (extractAndHandleTaskPlan(response)) return;
 
     if (m_interactiveMode) {
         std::cout << "\nAI: " << response.toStdString() << std::endl;
@@ -838,8 +822,7 @@ void CLIApplication::onResponseReceived(const QString &response)
     }
 }
 
-void CLIApplication::onErrorOccurred(const QString &error)
-{
+void CLIApplication::onErrorOccurred(const QString& error) {
     m_isStreaming = false;
     m_streamingContent.clear();
 
@@ -856,14 +839,15 @@ void CLIApplication::onErrorOccurred(const QString &error)
     }
 }
 
-void CLIApplication::handleFileCommand(const QString &command)
-{
+void CLIApplication::handleFileCommand(const QString& command) {
     // Extract file path (supports spaces: wrap with quotes)
     QString arg = command.mid(6).trimmed();
 
     if (arg.isEmpty()) {
         std::cout << "Usage: /file <file_path>" << std::endl;
-        std::cout << "Tip: Use quotes for paths with spaces, e.g. /file \"path with space/file.txt\"" << std::endl;
+        std::cout << "Tip: Use quotes for paths with spaces, e.g. /file \"path with "
+                     "space/file.txt\""
+                  << std::endl;
         QTimer::singleShot(0, this, &CLIApplication::readInput);
         return;
     }
@@ -897,9 +881,8 @@ void CLIApplication::handleFileCommand(const QString &command)
         } else {
             typeStr = "binary";
         }
-        std::cout << "Added file: " << filePath.toStdString()
-                  << " (" << typeStr.toStdString() << ", "
-                  << info.size() << " bytes)" << std::endl;
+        std::cout << "Added file: " << filePath.toStdString() << " (" << typeStr.toStdString()
+                  << ", " << info.size() << " bytes)" << std::endl;
         std::cout << "Pending files: " << m_fileManager->pendingFileCount() << std::endl;
     } else {
         std::cout << "Error: Cannot add file" << std::endl;
@@ -908,15 +891,13 @@ void CLIApplication::handleFileCommand(const QString &command)
     QTimer::singleShot(0, this, &CLIApplication::readInput);
 }
 
-void CLIApplication::listFiles()
-{
+void CLIApplication::listFiles() {
     QString summary = m_fileManager->fileListSummary();
     std::cout << summary.toStdString() << std::endl;
     QTimer::singleShot(0, this, &CLIApplication::readInput);
 }
 
-void CLIApplication::searchMessages(const QString &keyword)
-{
+void CLIApplication::searchMessages(const QString& keyword) {
     if (keyword.isEmpty()) {
         std::cout << "Error: Search keyword is empty" << std::endl;
         std::cout << "Usage: /search <keyword>" << std::endl;
@@ -924,8 +905,8 @@ void CLIApplication::searchMessages(const QString &keyword)
         return;
     }
 
-    const ChatSession &session = SessionManager::instance()->currentSession();
-    const QVector<ChatMessage> &messages = session.messages;
+    const ChatSession& session = SessionManager::instance()->currentSession();
+    const QVector<ChatMessage>& messages = session.messages;
 
     if (messages.isEmpty()) {
         std::cout << "No messages in current session" << std::endl;
@@ -939,7 +920,7 @@ void CLIApplication::searchMessages(const QString &keyword)
     int matchCount = 0;
     int messageIndex = 0;
 
-    for (const ChatMessage &msg : messages) {
+    for (const ChatMessage& msg : messages) {
         messageIndex++;
         QString roleLabel = (msg.role == "user") ? "[User]" : "[AI]";
 
@@ -971,8 +952,9 @@ void CLIApplication::searchMessages(const QString &keyword)
         }
 
         // 搜索附件内容（如果有）
-        for (const FileAttachment &attachment : msg.attachments) {
-            if (attachment.type == "text" && attachment.content.contains(keyword, Qt::CaseInsensitive)) {
+        for (const FileAttachment& attachment : msg.attachments) {
+            if (attachment.type == "text" &&
+                attachment.content.contains(keyword, Qt::CaseInsensitive)) {
                 matchCount++;
                 std::cout << "\nMessage #" << messageIndex << " " << roleLabel.toStdString()
                           << " [Attachment: " << attachment.path.toStdString() << "]\n";
@@ -981,8 +963,10 @@ void CLIApplication::searchMessages(const QString &keyword)
                 int keywordPos = attachment.content.indexOf(keyword, 0, Qt::CaseInsensitive);
                 if (keywordPos != -1) {
                     int contextStart = qMax(0, keywordPos - 30);
-                    int contextEnd = qMin(attachment.content.length(), keywordPos + keyword.length() + 30);
-                    QString context = attachment.content.mid(contextStart, contextEnd - contextStart);
+                    int contextEnd =
+                            qMin(attachment.content.length(), keywordPos + keyword.length() + 30);
+                    QString context =
+                            attachment.content.mid(contextStart, contextEnd - contextStart);
 
                     if (contextStart > 0) context = "..." + context;
                     if (contextEnd < attachment.content.length()) context = context + "...";
@@ -1005,23 +989,19 @@ void CLIApplication::searchMessages(const QString &keyword)
 
 // ── Task execution ─────────────────────────────────────────────
 
-bool CLIApplication::extractAndHandleTaskPlan(const QString &response)
-{
+bool CLIApplication::extractAndHandleTaskPlan(const QString& response) {
     // Check for [TASK_PLAN] ... [/TASK_PLAN] tags
     int startIdx = response.indexOf(QStringLiteral("[TASK_PLAN]"));
-    if (startIdx < 0)
-        return false;
+    if (startIdx < 0) return false;
 
     int endIdx = response.indexOf(QStringLiteral("[/TASK_PLAN]"), startIdx);
-    if (endIdx < 0)
-        return false;
+    if (endIdx < 0) return false;
 
     QString jsonStr = response.mid(startIdx + 11, endIdx - startIdx - 11).trimmed();
 
     // Also extract the display text (text before the task plan)
     QString displayText = response.left(startIdx).trimmed();
-    if (!displayText.isEmpty())
-        std::cout << "\nAI: " << displayText.toStdString() << std::endl;
+    if (!displayText.isEmpty()) std::cout << "\nAI: " << displayText.toStdString() << std::endl;
 
     OperationPlan plan = m_taskEngine->parsePlanFromAIResponse(response);
     if (plan.isEmpty()) {
@@ -1033,11 +1013,10 @@ bool CLIApplication::extractAndHandleTaskPlan(const QString &response)
     SafetyChecker::Result safetyResult = m_taskEngine->validatePlan(plan);
     if (safetyResult == SafetyChecker::Blocked) {
         std::cout << "\n*** Command blocked: "
-                  << m_taskEngine->safetyChecker().lastBlockReason().toStdString()
-                  << " ***" << std::endl;
+                  << m_taskEngine->safetyChecker().lastBlockReason().toStdString() << " ***"
+                  << std::endl;
         // In ask mode, quit after showing block reason
-        if (!m_interactiveMode)
-            QTimer::singleShot(0, this, &CLIApplication::quit);
+        if (!m_interactiveMode) QTimer::singleShot(0, this, &CLIApplication::quit);
         return true;
     }
 
@@ -1068,16 +1047,15 @@ bool CLIApplication::extractAndHandleTaskPlan(const QString &response)
         QTimer::singleShot(0, this, &CLIApplication::quit);
     }
 
-    return true; // task plan handled
+    return true;  // task plan handled
 }
 
-void CLIApplication::showPlanPreview(const OperationPlan &plan)
-{
+void CLIApplication::showPlanPreview(const OperationPlan& plan) {
     std::cout << "Description: " << plan.description.toStdString() << std::endl;
     std::cout << "Commands (" << plan.totalOperations() << "):" << std::endl;
 
     for (int i = 0; i < plan.operations.size(); ++i) {
-        const auto &op = plan.operations[i];
+        const auto& op = plan.operations[i];
         QString dangerLabel;
         SafetyChecker::DangerLevel level = m_taskEngine->safetyChecker().dangerLevel(op);
         if (level == SafetyChecker::Dangerous)
@@ -1085,23 +1063,19 @@ void CLIApplication::showPlanPreview(const OperationPlan &plan)
         else if (level == SafetyChecker::Caution)
             dangerLabel = QStringLiteral(" [CAUTION]");
 
-        std::cout << "  " << (i + 1) << ". "
-                  << op.command.toStdString()
+        std::cout << "  " << (i + 1) << ". " << op.command.toStdString()
                   << dangerLabel.toStdString() << std::endl;
         std::cout << "     " << op.description.toStdString() << std::endl;
     }
 }
 
-void CLIApplication::executePlanNow(const OperationPlan &plan)
-{
+void CLIApplication::executePlanNow(const OperationPlan& plan) {
     std::cout << "Executing..." << std::endl;
 
-    connect(m_taskEngine->executor(), &CommandExecutor::stdoutLineReceived,
-            this, [](const QString &line, int) {
-                std::cout << "  " << line.toStdString() << std::endl;
-            });
-    connect(m_taskEngine->executor(), &CommandExecutor::stderrLineReceived,
-            this, [](const QString &line, int) {
+    connect(m_taskEngine->executor(), &CommandExecutor::stdoutLineReceived, this,
+            [](const QString& line, int) { std::cout << "  " << line.toStdString() << std::endl; });
+    connect(m_taskEngine->executor(), &CommandExecutor::stderrLineReceived, this,
+            [](const QString& line, int) {
                 std::cerr << "  [stderr] " << line.toStdString() << std::endl;
             });
 
@@ -1110,13 +1084,11 @@ void CLIApplication::executePlanNow(const OperationPlan &plan)
     m_taskEngine->executor()->disconnect(this);
 
     int successCount = 0;
-    for (const auto &r : results) {
-        if (r.success)
-            successCount++;
+    for (const auto& r : results) {
+        if (r.success) successCount++;
     }
 
-    std::cout << "\n--- Command plan finished: "
-              << successCount << "/" << results.size()
+    std::cout << "\n--- Command plan finished: " << successCount << "/" << results.size()
               << " succeeded ---" << std::endl;
 
     for (int i = 0; i < results.size(); ++i) {
@@ -1127,8 +1099,7 @@ void CLIApplication::executePlanNow(const OperationPlan &plan)
         std::cout << "Tip: type /undo to revert the last operation" << std::endl;
 }
 
-void CLIApplication::executeConfirmedPlan()
-{
+void CLIApplication::executeConfirmedPlan() {
     if (!m_hasPendingPlan || m_pendingPlan.isEmpty()) {
         std::cout << "No pending command plan." << std::endl;
         return;
@@ -1141,21 +1112,15 @@ void CLIApplication::executeConfirmedPlan()
     executePlanNow(plan);
 }
 
-QString CLIApplication::formatCommandResult(int index, const CommandResult &result) const
-{
+QString CLIApplication::formatCommandResult(int index, const CommandResult& result) const {
     if (result.success) {
-        return QStringLiteral("  [%1] OK  (%2ms)")
-            .arg(index + 1)
-            .arg(result.elapsedMs);
+        return QStringLiteral("  [%1] OK  (%2ms)").arg(index + 1).arg(result.elapsedMs);
     } else {
-        return QStringLiteral("  [%1] FAIL  %2")
-            .arg(index + 1)
-            .arg(result.errorMessage);
+        return QStringLiteral("  [%1] FAIL  %2").arg(index + 1).arg(result.errorMessage);
     }
 }
 
-void CLIApplication::quit()
-{
+void CLIApplication::quit() {
     SessionManager::instance()->saveSessionsToFile();
     QCoreApplication::quit();
 }

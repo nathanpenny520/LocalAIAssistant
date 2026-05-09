@@ -1,26 +1,21 @@
 #include "anthropic_provider.h"
 
-AnthropicProvider::AnthropicProvider(QObject *parent)
-    : ApiProvider(parent)
-{
+AnthropicProvider::AnthropicProvider(QObject* parent) : ApiProvider(parent) {
     m_isLocalMode = false;
 }
 
-QString AnthropicProvider::endpointPath() const
-{
+QString AnthropicProvider::endpointPath() const {
     return QStringLiteral("v1/messages");
 }
 
-void AnthropicProvider::configureRequest(QNetworkRequest &request) const
-{
+void AnthropicProvider::configureRequest(QNetworkRequest& request) const {
     if (!m_apiKey.isEmpty()) {
         request.setRawHeader("x-api-key", m_apiKey.toUtf8());
     }
     request.setRawHeader("anthropic-version", "2023-06-01");
 }
 
-QJsonObject AnthropicProvider::buildBasePayload() const
-{
+QJsonObject AnthropicProvider::buildBasePayload() const {
     QJsonObject payload;
     payload["model"] = m_modelName;
     payload["max_tokens"] = m_maxTokens;
@@ -32,14 +27,12 @@ QJsonObject AnthropicProvider::buildBasePayload() const
     // temperature and top_p are mutually exclusive; we send temperature.
     payload["temperature"] = m_temperature;
 
-    if (m_seed.has_value())
-        payload["seed"] = m_seed.value();
+    if (m_seed.has_value()) payload["seed"] = m_seed.value();
 
     return payload;
 }
 
-QJsonArray AnthropicProvider::buildMessagesArray(const QVector<ChatMessage> &messages) const
-{
+QJsonArray AnthropicProvider::buildMessagesArray(const QVector<ChatMessage>& messages) const {
     QJsonArray jsonMessages;
     // No system message — system prompt is at top level via buildBasePayload()
 
@@ -47,7 +40,7 @@ QJsonArray AnthropicProvider::buildMessagesArray(const QVector<ChatMessage> &mes
     int startIndex = qMax(0, totalCount - m_maxContext);
 
     for (int i = startIndex; i < totalCount; ++i) {
-        const ChatMessage &msg = messages[i];
+        const ChatMessage& msg = messages[i];
         QJsonObject msgObj;
         msgObj["role"] = msg.role;
 
@@ -56,10 +49,9 @@ QJsonArray AnthropicProvider::buildMessagesArray(const QVector<ChatMessage> &mes
         } else {
             QJsonArray contentArray;
 
-            if (!msg.content.isEmpty())
-                contentArray.append(buildTextContentBlock(msg.content));
+            if (!msg.content.isEmpty()) contentArray.append(buildTextContentBlock(msg.content));
 
-            for (const FileAttachment &file : msg.attachments) {
+            for (const FileAttachment& file : msg.attachments) {
                 if (file.type == "image")
                     contentArray.append(buildAnthropicImageBlock(file.content, file.mimeType));
                 else
@@ -75,8 +67,8 @@ QJsonArray AnthropicProvider::buildMessagesArray(const QVector<ChatMessage> &mes
     return jsonMessages;
 }
 
-QJsonObject AnthropicProvider::buildAnthropicImageBlock(const QString &base64Data, const QString &mime) const
-{
+QJsonObject AnthropicProvider::buildAnthropicImageBlock(const QString& base64Data,
+                                                        const QString& mime) const {
     QJsonObject block;
     block["type"] = "image";
 
@@ -88,8 +80,7 @@ QJsonObject AnthropicProvider::buildAnthropicImageBlock(const QString &base64Dat
     QString data = base64Data;
     if (data.startsWith("data:")) {
         int commaPos = data.indexOf(',');
-        if (commaPos > 0)
-            data = data.mid(commaPos + 1);
+        if (commaPos > 0) data = data.mid(commaPos + 1);
     }
     source["data"] = data;
 
@@ -97,26 +88,23 @@ QJsonObject AnthropicProvider::buildAnthropicImageBlock(const QString &base64Dat
     return block;
 }
 
-QString AnthropicProvider::extractDeltaFromSSE(const QByteArray &data)
-{
+QString AnthropicProvider::extractDeltaFromSSE(const QByteArray& data) {
     QString result;
     QString text = QString::fromUtf8(data).trimmed();
 
-    if (text.isEmpty())
-        return result;
+    if (text.isEmpty()) return result;
 
     // Anthropic SSE: event: <type>\ndata: <json>
     QStringList lines = text.split('\n');
     QString currentEvent;
 
-    for (const QString &line : lines) {
+    for (const QString& line : lines) {
         if (line.startsWith("event: ")) {
             currentEvent = line.mid(7).trimmed();
         } else if (line.startsWith("data: ")) {
             QString jsonStr = line.mid(6).trimmed();
             QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-            if (doc.isNull() || !doc.isObject())
-                continue;
+            if (doc.isNull() || !doc.isObject()) continue;
 
             QJsonObject root = doc.object();
 
@@ -139,11 +127,9 @@ QString AnthropicProvider::extractDeltaFromSSE(const QByteArray &data)
     return result;
 }
 
-QString AnthropicProvider::extractContentFromResponse(const QByteArray &data)
-{
+QString AnthropicProvider::extractContentFromResponse(const QByteArray& data) {
     QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (doc.isNull() || !doc.isObject())
-        return "Response format error";
+    if (doc.isNull() || !doc.isObject()) return "Response format error";
 
     QJsonObject root = doc.object();
 
@@ -156,10 +142,9 @@ QString AnthropicProvider::extractContentFromResponse(const QByteArray &data)
     if (root.contains("content") && root["content"].isArray()) {
         QJsonArray content = root["content"].toArray();
         QString result;
-        for (const QJsonValue &val : content) {
+        for (const QJsonValue& val : content) {
             QJsonObject block = val.toObject();
-            if (block["type"].toString() == "text")
-                result += block["text"].toString();
+            if (block["type"].toString() == "text") result += block["text"].toString();
         }
         return result.trimmed();
     }

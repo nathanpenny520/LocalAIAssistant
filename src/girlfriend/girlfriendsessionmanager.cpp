@@ -1,53 +1,47 @@
 #include "girlfriendsessionmanager.h"
-#include "girlfriendsession.h"
-#include "girlfriendsettings.h"
-#include <QJsonDocument>
-#include <QJsonArray>
-#include <QFile>
-#include <QDir>
-#include <QStandardPaths>
-#include <QUuid>
+
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QStandardPaths>
+#include <QUuid>
 
-GirlfriendSessionManager* GirlfriendSessionManager::instance()
-{
+#include "girlfriendsession.h"
+#include "girlfriendsettings.h"
+
+GirlfriendSessionManager* GirlfriendSessionManager::instance() {
     static GirlfriendSessionManager instance;
     return &instance;
 }
 
-GirlfriendSessionManager::GirlfriendSessionManager()
-    : m_currentSession(nullptr)
-{
+GirlfriendSessionManager::GirlfriendSessionManager() : m_currentSession(nullptr) {
     loadAll();
 }
 
-GirlfriendSessionManager::~GirlfriendSessionManager()
-{
+GirlfriendSessionManager::~GirlfriendSessionManager() {
     saveAll();
     delete m_currentSession;
 }
 
-QString GirlfriendSessionManager::baseDir() const
-{
+QString GirlfriendSessionManager::baseDir() const {
     QString baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     return baseDir + "/girlfriend";
 }
 
-QString GirlfriendSessionManager::sessionsListPath() const
-{
+QString GirlfriendSessionManager::sessionsListPath() const {
     return baseDir() + "/sessions.json";
 }
 
-QString GirlfriendSessionManager::sessionDataPath(const QString &sessionId) const
-{
+QString GirlfriendSessionManager::sessionDataPath(const QString& sessionId) const {
     return baseDir() + "/session_" + sessionId + ".json";
 }
 
-SessionMetadata GirlfriendSessionManager::currentSession() const
-{
+SessionMetadata GirlfriendSessionManager::currentSession() const {
     QString currentId = currentSessionId();
-    for (const SessionMetadata &meta : m_sessions) {
+    for (const SessionMetadata& meta : m_sessions) {
         if (meta.id == currentId) {
             return meta;
         }
@@ -55,18 +49,15 @@ SessionMetadata GirlfriendSessionManager::currentSession() const
     return SessionMetadata();
 }
 
-GirlfriendSession* GirlfriendSessionManager::currentSessionData()
-{
+GirlfriendSession* GirlfriendSessionManager::currentSessionData() {
     return m_currentSession;
 }
 
-QString GirlfriendSessionManager::currentSessionId() const
-{
+QString GirlfriendSessionManager::currentSessionId() const {
     return GirlfriendSettings::instance()->currentSessionId();
 }
 
-QString GirlfriendSessionManager::createNewSession(const QString &name)
-{
+QString GirlfriendSessionManager::createNewSession(const QString& name) {
     // Ensure directory exists
     QDir dir(baseDir());
     if (!dir.exists()) {
@@ -85,7 +76,7 @@ QString GirlfriendSessionManager::createNewSession(const QString &name)
         bool nameExists = true;
         while (nameExists) {
             nameExists = false;
-            for (const SessionMetadata &meta : m_sessions) {
+            for (const SessionMetadata& meta : m_sessions) {
                 if (meta.name == sessionName) {
                     sessionNum++;
                     sessionName = QString("Session %1").arg(sessionNum);
@@ -128,11 +119,10 @@ QString GirlfriendSessionManager::createNewSession(const QString &name)
     return sessionId;
 }
 
-bool GirlfriendSessionManager::switchSession(const QString &sessionId)
-{
+bool GirlfriendSessionManager::switchSession(const QString& sessionId) {
     // Check if session exists
     bool found = false;
-    for (const SessionMetadata &meta : m_sessions) {
+    for (const SessionMetadata& meta : m_sessions) {
         if (meta.id == sessionId) {
             found = true;
             break;
@@ -166,8 +156,7 @@ bool GirlfriendSessionManager::switchSession(const QString &sessionId)
     return true;
 }
 
-bool GirlfriendSessionManager::deleteSession(const QString &sessionId)
-{
+bool GirlfriendSessionManager::deleteSession(const QString& sessionId) {
     // Cannot delete current session
     if (sessionId == currentSessionId()) {
         qDebug() << "Cannot delete current session:" << sessionId;
@@ -204,8 +193,7 @@ bool GirlfriendSessionManager::deleteSession(const QString &sessionId)
     return true;
 }
 
-bool GirlfriendSessionManager::renameSession(const QString &sessionId, const QString &newName)
-{
+bool GirlfriendSessionManager::renameSession(const QString& sessionId, const QString& newName) {
     for (int i = 0; i < m_sessions.size(); ++i) {
         if (m_sessions[i].id == sessionId) {
             m_sessions[i].name = newName;
@@ -220,8 +208,7 @@ bool GirlfriendSessionManager::renameSession(const QString &sessionId, const QSt
     return false;
 }
 
-bool GirlfriendSessionManager::setSessionPinned(const QString &sessionId, bool pinned)
-{
+bool GirlfriendSessionManager::setSessionPinned(const QString& sessionId, bool pinned) {
     for (int i = 0; i < m_sessions.size(); ++i) {
         if (m_sessions[i].id == sessionId) {
             m_sessions[i].pinned = pinned;
@@ -232,8 +219,7 @@ bool GirlfriendSessionManager::setSessionPinned(const QString &sessionId, bool p
     return false;
 }
 
-void GirlfriendSessionManager::markSessionAutoNamed(const QString &sessionId)
-{
+void GirlfriendSessionManager::markSessionAutoNamed(const QString& sessionId) {
     for (int i = 0; i < m_sessions.size(); ++i) {
         if (m_sessions[i].id == sessionId) {
             m_sessions[i].autoNamed = true;
@@ -243,16 +229,14 @@ void GirlfriendSessionManager::markSessionAutoNamed(const QString &sessionId)
     }
 }
 
-void GirlfriendSessionManager::saveAll()
-{
+void GirlfriendSessionManager::saveAll() {
     saveSessionsList();
     if (m_currentSession) {
         m_currentSession->saveToFile(sessionDataPath(currentSessionId()));
     }
 }
 
-void GirlfriendSessionManager::loadAll()
-{
+void GirlfriendSessionManager::loadAll() {
     loadSessionsList();
 
     QString currentId = currentSessionId();
@@ -272,7 +256,7 @@ void GirlfriendSessionManager::loadAll()
 
     // Verify current session exists
     bool found = false;
-    for (const SessionMetadata &meta : m_sessions) {
+    for (const SessionMetadata& meta : m_sessions) {
         if (meta.id == currentId) {
             found = true;
             break;
@@ -295,13 +279,13 @@ void GirlfriendSessionManager::loadAll()
     m_currentSession = new GirlfriendSession();
     m_currentSession->loadFromFile(sessionDataPath(currentId));
 
-    qDebug() << "Loaded session manager with" << m_sessions.size() << "sessions, current:" << currentId;
+    qDebug() << "Loaded session manager with" << m_sessions.size()
+             << "sessions, current:" << currentId;
 }
 
-void GirlfriendSessionManager::saveSessionsList()
-{
+void GirlfriendSessionManager::saveSessionsList() {
     QJsonArray sessionsArray;
-    for (const SessionMetadata &meta : m_sessions) {
+    for (const SessionMetadata& meta : m_sessions) {
         QJsonObject obj;
         obj["id"] = meta.id;
         obj["name"] = meta.name;
@@ -333,8 +317,7 @@ void GirlfriendSessionManager::saveSessionsList()
     }
 }
 
-void GirlfriendSessionManager::loadSessionsList()
-{
+void GirlfriendSessionManager::loadSessionsList() {
     m_sessions.clear();
 
     QFile file(sessionsListPath());
@@ -360,7 +343,7 @@ void GirlfriendSessionManager::loadSessionsList()
     QJsonObject root = doc.object();
     QJsonArray sessionsArray = root["sessions"].toArray();
 
-    for (const QJsonValue &value : sessionsArray) {
+    for (const QJsonValue& value : sessionsArray) {
         QJsonObject obj = value.toObject();
         SessionMetadata meta;
         meta.id = obj["id"].toString();
@@ -375,8 +358,7 @@ void GirlfriendSessionManager::loadSessionsList()
     qDebug() << "Loaded" << m_sessions.size() << "sessions from list";
 }
 
-void GirlfriendSessionManager::updateLastUsed(const QString &sessionId)
-{
+void GirlfriendSessionManager::updateLastUsed(const QString& sessionId) {
     for (int i = 0; i < m_sessions.size(); ++i) {
         if (m_sessions[i].id == sessionId) {
             m_sessions[i].lastUsedAt = QDateTime::currentDateTime().toString(Qt::ISODate);

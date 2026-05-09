@@ -1,26 +1,26 @@
 #include "operationconfirmdialog.h"
-#include "stylesheetmanager.h"
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+
 #include <QFont>
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QVBoxLayout>
 
-OperationConfirmDialog::OperationConfirmDialog(const OperationPlan &plan, QWidget *parent)
-    : QDialog(parent), m_plan(plan)
-{
+#include "stylesheetmanager.h"
+
+OperationConfirmDialog::OperationConfirmDialog(const OperationPlan& plan, QWidget* parent)
+        : QDialog(parent), m_plan(plan) {
     setupUI(plan);
 }
 
-void OperationConfirmDialog::setupUI(const OperationPlan &plan)
-{
+void OperationConfirmDialog::setupUI(const OperationPlan& plan) {
     setWindowTitle(tr("Confirm Command Plan"));
     setMinimumSize(560, 440);
     resize(600, 520);
     setModal(true);
     setStyleSheet(StyleSheetManager::instance()->currentStyleSheet());
 
-    auto *mainLayout = new QVBoxLayout(this);
+    auto* mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(12);
 
     // 标题
@@ -33,13 +33,13 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     mainLayout->addWidget(m_titleLabel);
 
     // 分隔线
-    auto *separator = new QFrame(this);
+    auto* separator = new QFrame(this);
     separator->setFrameShape(QFrame::HLine);
     separator->setFrameShadow(QFrame::Sunken);
     mainLayout->addWidget(separator);
 
     // 操作摘要
-    auto *summaryLabel = new QLabel(tr("Operation Summary:"), this);
+    auto* summaryLabel = new QLabel(tr("Operation Summary:"), this);
     QFont sectionFont;
     sectionFont.setPointSize(11);
     sectionFont.setBold(true);
@@ -53,7 +53,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     mainLayout->addWidget(m_planPreview);
 
     // Shell 命令预览
-    auto *shellLabel = new QLabel(tr("Commands to execute:"), this);
+    auto* shellLabel = new QLabel(tr("Commands to execute:"), this);
     shellLabel->setFont(sectionFont);
     mainLayout->addWidget(shellLabel);
 
@@ -66,8 +66,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     mainLayout->addWidget(m_shellPreview);
 
     // 警告
-    auto *warningLabel = new QLabel(
-        tr("Commands will execute in a real terminal"), this);
+    auto* warningLabel = new QLabel(tr("Commands will execute in a real terminal"), this);
     QFont warnFont;
     warnFont.setPointSize(11);
     warningLabel->setFont(warnFont);
@@ -75,7 +74,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     mainLayout->addWidget(warningLabel);
 
     // 按钮行
-    auto *btnLayout = new QHBoxLayout();
+    auto* btnLayout = new QHBoxLayout();
 
     m_modifyBtn = new QPushButton(tr("Modify Plan"), this);
     m_modifyBtn->setToolTip(tr("Return to conversation to add details"));
@@ -100,20 +99,17 @@ void OperationConfirmDialog::setupUI(const OperationPlan &plan)
     connect(m_modifyBtn, &QPushButton::clicked, this, &OperationConfirmDialog::onModify);
 }
 
-void OperationConfirmDialog::onConfirm()
-{
+void OperationConfirmDialog::onConfirm() {
     m_confirmed = true;
     accept();
 }
 
-void OperationConfirmDialog::onCancel()
-{
+void OperationConfirmDialog::onCancel() {
     m_confirmed = false;
     reject();
 }
 
-void OperationConfirmDialog::onModify()
-{
+void OperationConfirmDialog::onModify() {
     m_modifyRequested = true;
     reject();
 }

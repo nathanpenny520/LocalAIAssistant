@@ -1,26 +1,21 @@
 #include "openai_provider.h"
 
-OpenAIProvider::OpenAIProvider(QObject *parent)
-    : ApiProvider(parent)
-{
+OpenAIProvider::OpenAIProvider(QObject* parent) : ApiProvider(parent) {
     m_isLocalMode = false;
 }
 
-QString OpenAIProvider::endpointPath() const
-{
+QString OpenAIProvider::endpointPath() const {
     return QStringLiteral("v1/chat/completions");
 }
 
-void OpenAIProvider::configureRequest(QNetworkRequest &request) const
-{
+void OpenAIProvider::configureRequest(QNetworkRequest& request) const {
     if (!m_isLocalMode && !m_apiKey.isEmpty()) {
         QString authHeader = QString("Bearer %1").arg(m_apiKey);
         request.setRawHeader("Authorization", authHeader.toUtf8());
     }
 }
 
-QJsonArray OpenAIProvider::buildMessagesArray(const QVector<ChatMessage> &messages) const
-{
+QJsonArray OpenAIProvider::buildMessagesArray(const QVector<ChatMessage>& messages) const {
     QJsonArray jsonMessages;
 
     QJsonObject systemObj;
@@ -32,7 +27,7 @@ QJsonArray OpenAIProvider::buildMessagesArray(const QVector<ChatMessage> &messag
     int startIndex = qMax(0, totalCount - m_maxContext);
 
     for (int i = startIndex; i < totalCount; ++i) {
-        const ChatMessage &msg = messages[i];
+        const ChatMessage& msg = messages[i];
         QJsonObject msgObj;
         msgObj["role"] = msg.role;
 
@@ -41,10 +36,9 @@ QJsonArray OpenAIProvider::buildMessagesArray(const QVector<ChatMessage> &messag
         } else {
             QJsonArray contentArray;
 
-            if (!msg.content.isEmpty())
-                contentArray.append(buildTextContentBlock(msg.content));
+            if (!msg.content.isEmpty()) contentArray.append(buildTextContentBlock(msg.content));
 
-            for (const FileAttachment &file : msg.attachments) {
+            for (const FileAttachment& file : msg.attachments) {
                 if (file.type == "image")
                     contentArray.append(buildImageContentBlock(file.content, file.mimeType));
                 else
@@ -60,29 +54,23 @@ QJsonArray OpenAIProvider::buildMessagesArray(const QVector<ChatMessage> &messag
     return jsonMessages;
 }
 
-QString OpenAIProvider::extractDeltaFromSSE(const QByteArray &data)
-{
+QString OpenAIProvider::extractDeltaFromSSE(const QByteArray& data) {
     QString result;
     QString text = QString::fromUtf8(data).trimmed();
 
-    if (text.isEmpty())
-        return result;
+    if (text.isEmpty()) return result;
 
-    if (text == "[DONE]")
-        return result;
+    if (text == "[DONE]") return result;
 
     QStringList lines = text.split('\n');
-    for (const QString &line : lines) {
-        if (!line.startsWith("data: "))
-            continue;
+    for (const QString& line : lines) {
+        if (!line.startsWith("data: ")) continue;
 
         QString jsonStr = line.mid(6).trimmed();
-        if (jsonStr == "[DONE]")
-            break;
+        if (jsonStr == "[DONE]") break;
 
         QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
-        if (doc.isNull() || !doc.isObject())
-            continue;
+        if (doc.isNull() || !doc.isObject()) continue;
 
         QJsonObject root = doc.object();
         if (root.contains("error")) {
@@ -96,8 +84,7 @@ QString OpenAIProvider::extractDeltaFromSSE(const QByteArray &data)
             if (!choices.isEmpty()) {
                 QJsonObject firstChoice = choices[0].toObject();
                 QJsonObject delta = firstChoice["delta"].toObject();
-                if (delta.contains("content"))
-                    result += delta["content"].toString();
+                if (delta.contains("content")) result += delta["content"].toString();
             }
         }
     }
@@ -105,11 +92,9 @@ QString OpenAIProvider::extractDeltaFromSSE(const QByteArray &data)
     return result;
 }
 
-QString OpenAIProvider::extractContentFromResponse(const QByteArray &data)
-{
+QString OpenAIProvider::extractContentFromResponse(const QByteArray& data) {
     QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (doc.isNull() || !doc.isObject())
-        return "Response format error";
+    if (doc.isNull() || !doc.isObject()) return "Response format error";
 
     QJsonObject root = doc.object();
 
@@ -125,8 +110,7 @@ QString OpenAIProvider::extractContentFromResponse(const QByteArray &data)
 
             if (firstChoice.contains("message")) {
                 QJsonObject message = firstChoice["message"].toObject();
-                if (message.contains("content"))
-                    return message["content"].toString().trimmed();
+                if (message.contains("content")) return message["content"].toString().trimmed();
             }
 
             if (firstChoice.contains("finish_reason")) {

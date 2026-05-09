@@ -1,30 +1,31 @@
 #include "avatarwidget.h"
-#include "girlfriend_translations.h"
-#include "girlfriendsettings.h"
-#include "apptheme.h"
+
+#include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
-#include <QCoreApplication>
 #include <QFile>
 #include <QRandomGenerator>
 
-AvatarWidget::AvatarWidget(QWidget *parent)
-    : QWidget(parent)
-    , m_avatarLabel(new QLabel(this))
-    , m_videoPlayer(new QMediaPlayer(this))
-    , m_audioOutput(new QAudioOutput(this))
-    , m_graphicsView(new QGraphicsView(this))
-    , m_graphicsScene(new QGraphicsScene(this))
-    , m_videoItem(new QGraphicsVideoItem())
-    , m_emotionTagLabel(new QLabel(this))
-    , m_moodBarWidget(new QLabel(this))
-    , m_moodPercentLabel(new QLabel(this))
-    , m_currentEmotion("default")
-    , m_isSpeaking(false)
-    , m_currentLevel(GirlfriendSettings::instance()->avatarLevel())
-    , m_idleTimer(new QTimer(this))
-    , m_idleCycleTimer(new QTimer(this))
-{
+#include "apptheme.h"
+#include "girlfriend_translations.h"
+#include "girlfriendsettings.h"
+
+AvatarWidget::AvatarWidget(QWidget* parent)
+        : QWidget(parent)
+        , m_avatarLabel(new QLabel(this))
+        , m_videoPlayer(new QMediaPlayer(this))
+        , m_audioOutput(new QAudioOutput(this))
+        , m_graphicsView(new QGraphicsView(this))
+        , m_graphicsScene(new QGraphicsScene(this))
+        , m_videoItem(new QGraphicsVideoItem())
+        , m_emotionTagLabel(new QLabel(this))
+        , m_moodBarWidget(new QLabel(this))
+        , m_moodPercentLabel(new QLabel(this))
+        , m_currentEmotion("default")
+        , m_isSpeaking(false)
+        , m_currentLevel(GirlfriendSettings::instance()->avatarLevel())
+        , m_idleTimer(new QTimer(this))
+        , m_idleCycleTimer(new QTimer(this)) {
     setAttribute(Qt::WA_TranslucentBackground);
     setAutoFillBackground(false);
 
@@ -44,20 +45,23 @@ AvatarWidget::AvatarWidget(QWidget *parent)
 
     loadAvatarImages();
 
-    connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged,
-            this, &AvatarWidget::setAvatarLevel);
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::avatarLevelChanged, this,
+            &AvatarWidget::setAvatarLevel);
 
     m_avatarLabel->setAlignment(Qt::AlignCenter);
     m_avatarLabel->setScaledContents(true);
 
     // Emotion tag label
     QColor pink = AppTheme::current().girlfriendAccent;
-    pink.setAlpha(217); // 0.85 * 255
-    m_emotionTagLabel->setStyleSheet(
-        QString("QLabel { background: rgba(%1, %2, %3, %4); color: white; "
-                "padding: 4px 12px; font-size: 12px; border-radius: 6px; }")
-            .arg(pink.red()).arg(pink.green()).arg(pink.blue()).arg(pink.alphaF(), 0, 'f', 2)
-    );
+    pink.setAlpha(217);  // 0.85 * 255
+    m_emotionTagLabel->setStyleSheet(QString("QLabel { background: rgba(%1, %2, %3, %4); color: "
+                                             "white; "
+                                             "padding: 4px 12px; font-size: 12px; border-radius: "
+                                             "6px; }")
+                                             .arg(pink.red())
+                                             .arg(pink.green())
+                                             .arg(pink.blue())
+                                             .arg(pink.alphaF(), 0, 'f', 2));
     m_emotionTagLabel->setText(GTr::emotionDefault());
     m_emotionTagLabel->move(12, 12);
     m_emotionTagLabel->raise();
@@ -69,14 +73,11 @@ AvatarWidget::AvatarWidget(QWidget *parent)
 
     // Mood percentage
     m_moodPercentLabel->setStyleSheet(
-        "QLabel { background: transparent; font-size: 10px; color: white; }"
-    );
+            "QLabel { background: transparent; font-size: 10px; color: white; }");
 
     // Video sound setting
-    connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged,
-            this, [this](bool enabled) {
-        m_audioOutput->setMuted(!enabled);
-    });
+    connect(GirlfriendSettings::instance(), &GirlfriendSettings::videoSoundChanged, this,
+            [this](bool enabled) { m_audioOutput->setMuted(!enabled); });
 
     // Stacking: graphicsView (video) bottom, avatarLabel above, labels on top
     m_graphicsView->stackUnder(m_avatarLabel);
@@ -101,8 +102,7 @@ AvatarWidget::AvatarWidget(QWidget *parent)
     updateDisplay();
 }
 
-void AvatarWidget::resetIdleTimer()
-{
+void AvatarWidget::resetIdleTimer() {
     m_idleTimer->start(30000);
     if (m_idleCycling) {
         m_idleCycling = false;
@@ -110,8 +110,7 @@ void AvatarWidget::resetIdleTimer()
     }
 }
 
-void AvatarWidget::onIdleCycle()
-{
+void AvatarWidget::onIdleCycle() {
     if (!m_idleCycling || m_isSpeaking || m_stateLocked) return;
 
     static const QStringList idlePool = {"default", "studying", "awaiting"};
@@ -125,8 +124,7 @@ void AvatarWidget::onIdleCycle()
     setEmotion(pick, true);
 }
 
-void AvatarWidget::loadAvatarImages()
-{
+void AvatarWidget::loadAvatarImages() {
     QString avatarDir = GirlfriendSettings::instance()->avatarLevelPath();
 
     if (avatarDir.isEmpty()) {
@@ -147,28 +145,20 @@ void AvatarWidget::loadAvatarImages()
     m_avatarImages.clear();
 
     QMap<QString, QString> fileNames = {
-        {"default", "default.png"},
-        {"happy", "happy.png"},
-        {"shy", "shy.png"},
-        {"love", "love.png"},
-        {"hate", "hate.png"},
-        {"sad", "sad.png"},
-        {"angry", "angry.png"},
-        {"afraid", "afraid.png"},
-        {"awaiting", "awaiting.png"},
-        {"speaking", "speaking.png"},
-        {"studying", "studying.png"},
-        {"worried", "worried.png"},
-        {"crying", "crying.png"},
-        {"travelling", "travelling.png"}
-    };
+            {"default", "default.png"},   {"happy", "happy.png"},
+            {"shy", "shy.png"},           {"love", "love.png"},
+            {"hate", "hate.png"},         {"sad", "sad.png"},
+            {"angry", "angry.png"},       {"afraid", "afraid.png"},
+            {"awaiting", "awaiting.png"}, {"speaking", "speaking.png"},
+            {"studying", "studying.png"}, {"worried", "worried.png"},
+            {"crying", "crying.png"},     {"travelling", "travelling.png"}};
 
     if (m_currentLevel == AvatarLevel::Level1_Belle) {
         fileNames["default"] = "picture-original.png";
     }
 
     QStringList emotions = fileNames.keys();
-    for (const QString &emotion : emotions) {
+    for (const QString& emotion : emotions) {
         QString fileName = fileNames.value(emotion);
         QString fullPath = avatarDir + "/" + fileName;
         QPixmap pixmap(fullPath);
@@ -181,8 +171,7 @@ void AvatarWidget::loadAvatarImages()
     }
 }
 
-void AvatarWidget::setEmotion(const QString &emotion, bool forceUpdate)
-{
+void AvatarWidget::setEmotion(const QString& emotion, bool forceUpdate) {
     if (m_stateLocked) {
         m_pendingEmotion = emotion;
         qDebug() << "AvatarWidget: State locked, pending emotion:" << emotion;
@@ -201,13 +190,11 @@ void AvatarWidget::setEmotion(const QString &emotion, bool forceUpdate)
     }
 }
 
-QString AvatarWidget::currentDisplayEmotion() const
-{
+QString AvatarWidget::currentDisplayEmotion() const {
     return m_isSpeaking ? "speaking" : m_currentEmotion;
 }
 
-void AvatarWidget::setSpeaking(bool speaking)
-{
+void AvatarWidget::setSpeaking(bool speaking) {
     m_isSpeaking = speaking;
     updateDisplay();
 
@@ -215,14 +202,12 @@ void AvatarWidget::setSpeaking(bool speaking)
     emit emotionChanged(displayEmotion);
 }
 
-void AvatarWidget::setMood(double mood)
-{
+void AvatarWidget::setMood(double mood) {
     m_currentMood = mood;
     updateMoodDisplay();
 }
 
-void AvatarWidget::setAvatarLevel(AvatarLevel level)
-{
+void AvatarWidget::setAvatarLevel(AvatarLevel level) {
     if (m_currentLevel != level) {
         stopVideo();
 
@@ -243,15 +228,13 @@ void AvatarWidget::setAvatarLevel(AvatarLevel level)
     }
 }
 
-void AvatarWidget::hideInternalLabels(bool hide)
-{
+void AvatarWidget::hideInternalLabels(bool hide) {
     m_emotionTagLabel->setVisible(!hide);
     m_moodBarWidget->setVisible(!hide);
     m_moodPercentLabel->setVisible(!hide);
 }
 
-void AvatarWidget::updateMoodDisplay()
-{
+void AvatarWidget::updateMoodDisplay() {
     int percent = static_cast<int>(m_currentMood * 100);
 
     // 5-segment gradient from dim to bright (higher mood = brighter)
@@ -268,11 +251,13 @@ void AvatarWidget::updateMoodDisplay()
         barColor = "#5a5a5a";  // very dim
     }
 
-    QString barHtml = QString(
-        "<div style='background: #444; border-radius: 3px; width: 50px; height: 6px;'>"
-        "<div style='background: %1; border-radius: 3px; width: %2px; height: 6px;'>"
-        "</div></div>"
-    ).arg(barColor).arg(static_cast<int>(m_currentMood * 50));
+    QString barHtml = QString("<div style='background: #444; border-radius: 3px; width: 50px; "
+                              "height: 6px;'>"
+                              "<div style='background: %1; border-radius: 3px; width: %2px; "
+                              "height: 6px;'>"
+                              "</div></div>")
+                              .arg(barColor)
+                              .arg(static_cast<int>(m_currentMood * 50));
 
     m_moodBarWidget->setText(barHtml);
     m_moodBarWidget->setTextFormat(Qt::RichText);
@@ -290,8 +275,7 @@ void AvatarWidget::updateMoodDisplay()
     m_moodPercentLabel->raise();
 }
 
-void AvatarWidget::updateDisplay()
-{
+void AvatarWidget::updateDisplay() {
     QString displayEmotion = m_isSpeaking ? "speaking" : m_currentEmotion;
 
     if (m_currentLevel == AvatarLevel::Level3_Hotter) {
@@ -313,11 +297,7 @@ void AvatarWidget::updateDisplay()
 
             Qt::AspectRatioMode aspectMode = Qt::KeepAspectRatioByExpanding;
 
-            QPixmap scaled = pixmap.scaled(
-                widgetSize,
-                aspectMode,
-                Qt::SmoothTransformation
-            );
+            QPixmap scaled = pixmap.scaled(widgetSize, aspectMode, Qt::SmoothTransformation);
 
             if (aspectMode == Qt::KeepAspectRatioByExpanding &&
                 (scaled.width() > widgetSize.width() || scaled.height() > widgetSize.height())) {
@@ -340,21 +320,13 @@ void AvatarWidget::updateDisplay()
     }
 
     QMap<QString, QString> emotionLabels = {
-        {"default", GTr::emotionDefault()},
-        {"happy", GTr::emotionHappy()},
-        {"shy", GTr::emotionShy()},
-        {"love", GTr::emotionLove()},
-        {"hate", GTr::emotionHate()},
-        {"sad", GTr::emotionSad()},
-        {"angry", GTr::emotionAngry()},
-        {"afraid", GTr::emotionAfraid()},
-        {"awaiting", GTr::emotionAwaiting()},
-        {"speaking", GTr::emotionSpeaking()},
-        {"studying", GTr::emotionStudying()},
-        {"worried", GTr::emotionWorried()},
-        {"crying", GTr::emotionCrying()},
-        {"travelling", GTr::emotionTravelling()}
-    };
+            {"default", GTr::emotionDefault()},   {"happy", GTr::emotionHappy()},
+            {"shy", GTr::emotionShy()},           {"love", GTr::emotionLove()},
+            {"hate", GTr::emotionHate()},         {"sad", GTr::emotionSad()},
+            {"angry", GTr::emotionAngry()},       {"afraid", GTr::emotionAfraid()},
+            {"awaiting", GTr::emotionAwaiting()}, {"speaking", GTr::emotionSpeaking()},
+            {"studying", GTr::emotionStudying()}, {"worried", GTr::emotionWorried()},
+            {"crying", GTr::emotionCrying()},     {"travelling", GTr::emotionTravelling()}};
 
     QString labelText = emotionLabels.value(displayEmotion, GTr::emotionDefault());
     m_emotionTagLabel->setText(labelText);
@@ -365,24 +337,15 @@ void AvatarWidget::updateDisplay()
     m_moodPercentLabel->raise();
 }
 
-QString AvatarWidget::getAvatarPath(const QString &emotion) const
-{
+QString AvatarWidget::getAvatarPath(const QString& emotion) const {
     QMap<QString, QString> fileNames = {
-        {"default", "default.png"},
-        {"happy", "happy.png"},
-        {"shy", "shy.png"},
-        {"love", "love.png"},
-        {"hate", "hate.png"},
-        {"sad", "sad.png"},
-        {"angry", "angry.png"},
-        {"afraid", "afraid.png"},
-        {"awaiting", "awaiting.png"},
-        {"speaking", "speaking.png"},
-        {"studying", "studying.png"},
-        {"worried", "worried.png"},
-        {"crying", "crying.png"},
-        {"travelling", "travelling.png"}
-    };
+            {"default", "default.png"},   {"happy", "happy.png"},
+            {"shy", "shy.png"},           {"love", "love.png"},
+            {"hate", "hate.png"},         {"sad", "sad.png"},
+            {"angry", "angry.png"},       {"afraid", "afraid.png"},
+            {"awaiting", "awaiting.png"}, {"speaking", "speaking.png"},
+            {"studying", "studying.png"}, {"worried", "worried.png"},
+            {"crying", "crying.png"},     {"travelling", "travelling.png"}};
 
     if (m_currentLevel == AvatarLevel::Level1_Belle && emotion == "default") {
         return GirlfriendSettings::instance()->avatarLevelPath() + "/picture-original.png";
@@ -392,8 +355,7 @@ QString AvatarWidget::getAvatarPath(const QString &emotion) const
     return GirlfriendSettings::instance()->avatarLevelPath() + "/" + fileName;
 }
 
-void AvatarWidget::resizeEvent(QResizeEvent *event)
-{
+void AvatarWidget::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
     updateDisplay();
     m_emotionTagLabel->move(12, 12);
@@ -413,13 +375,11 @@ void AvatarWidget::resizeEvent(QResizeEvent *event)
     }
 }
 
-void AvatarWidget::retranslateUi()
-{
+void AvatarWidget::retranslateUi() {
     updateDisplay();
 }
 
-void AvatarWidget::playVideo(const QString &emotion)
-{
+void AvatarWidget::playVideo(const QString& emotion) {
     if (m_currentLevel != AvatarLevel::Level3_Hotter) {
         return;
     }
@@ -443,31 +403,27 @@ void AvatarWidget::playVideo(const QString &emotion)
         m_videoPlayer->setSource(QUrl::fromLocalFile(videoPath));
         m_videoPlayer->setLoops(QMediaPlayer::Infinite);
         m_videoPlayer->play();
-        qDebug() << "AvatarWidget: Playing video for emotion:" << emotion
-                 << "from" << videoPath
+        qDebug() << "AvatarWidget: Playing video for emotion:" << emotion << "from" << videoPath
                  << "audio muted:" << m_audioOutput->isMuted();
     }
     // Always update video size to match current widget dimensions
     m_videoItem->setSize(QSizeF(width(), height()));
 }
 
-void AvatarWidget::stopVideo()
-{
+void AvatarWidget::stopVideo() {
     m_videoPlayer->stop();
     m_graphicsView->hide();
     m_avatarLabel->show();
     m_currentVideoEmotion.clear();
 }
 
-void AvatarWidget::lockState()
-{
+void AvatarWidget::lockState() {
     m_stateLocked = true;
     m_pendingEmotion.clear();
     qDebug() << "AvatarWidget: State locked";
 }
 
-void AvatarWidget::unlockState()
-{
+void AvatarWidget::unlockState() {
     m_stateLocked = false;
     if (!m_pendingEmotion.isEmpty()) {
         QString pending = m_pendingEmotion;

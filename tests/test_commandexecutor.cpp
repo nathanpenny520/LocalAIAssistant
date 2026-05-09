@@ -1,56 +1,49 @@
-#include <QtTest>
 #include <QCoreApplication>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
+#include <QtTest>
+
 #include "commandexecutor.h"
 #include "operationplan.h"
 
-class TestCommandExecutor : public QObject
-{
+class TestCommandExecutor : public QObject {
     Q_OBJECT
 
 private:
     QTemporaryDir m_tempDir;
 
 private slots:
-    void initTestCase()
-    {
+    void initTestCase() {
         static int argc = 0;
-        static char *argv[] = {nullptr};
-        if (!QCoreApplication::instance())
-            new QCoreApplication(argc, argv);
+        static char* argv[] = {nullptr};
+        if (!QCoreApplication::instance()) new QCoreApplication(argc, argv);
         QVERIFY(m_tempDir.isValid());
     }
 
     // ── expandPath ──
 
-    void testExpandPath_Empty()
-    {
+    void testExpandPath_Empty() {
         QCOMPARE(CommandExecutor::expandPath(""), QString(""));
     }
 
-    void testExpandPath_Tilde()
-    {
+    void testExpandPath_Tilde() {
         QString result = CommandExecutor::expandPath("~");
         QCOMPARE(result, QDir::homePath());
     }
 
-    void testExpandPath_TildeSlash()
-    {
+    void testExpandPath_TildeSlash() {
         QString result = CommandExecutor::expandPath("~/Documents");
         QCOMPARE(result, QDir::homePath() + "/Documents");
     }
 
-    void testExpandPath_Absolute()
-    {
+    void testExpandPath_Absolute() {
         QString result = CommandExecutor::expandPath("/usr/local/bin");
         QCOMPARE(result, QString("/usr/local/bin"));
     }
 
     // ── Shell commands (existing) ──
 
-    void testExecute_EmptyCommand()
-    {
+    void testExecute_EmptyCommand() {
         CommandExecutor executor;
         ShellOperation op;
         op.command = "";
@@ -61,8 +54,7 @@ private slots:
         QVERIFY(!result.success);
     }
 
-    void testExecute_SimpleEcho()
-    {
+    void testExecute_SimpleEcho() {
         CommandExecutor executor;
         ShellOperation op;
         op.command = "echo hello_world_test";
@@ -74,8 +66,7 @@ private slots:
         QCOMPARE(result.exitCode, 0);
     }
 
-    void testExecute_FailingCommand()
-    {
+    void testExecute_FailingCommand() {
         CommandExecutor executor;
         ShellOperation op;
         op.command = "exit 42";
@@ -87,8 +78,7 @@ private slots:
         QVERIFY(result.exitCode != 0);
     }
 
-    void testExecutePlan_AllSuccess()
-    {
+    void testExecutePlan_AllSuccess() {
         CommandExecutor executor;
         OperationPlan plan;
         ShellOperation op1;
@@ -107,8 +97,7 @@ private slots:
         QVERIFY(results[1].success);
     }
 
-    void testExecutePlan_StopOnFailure()
-    {
+    void testExecutePlan_StopOnFailure() {
         CommandExecutor executor;
         OperationPlan plan;
         ShellOperation op1;
@@ -128,16 +117,14 @@ private slots:
 
     // ── Shell detection ──
 
-    void testShellName_NotEmpty()
-    {
+    void testShellName_NotEmpty() {
         CommandExecutor executor;
         QVERIFY(!executor.shellName().isEmpty());
     }
 
     // ── Native: CreateDir ──
 
-    void testCreateDir_Success()
-    {
+    void testCreateDir_Success() {
         CommandExecutor executor;
         QString dirPath = m_tempDir.path() + "/new_directory";
         ShellOperation op;
@@ -149,8 +136,7 @@ private slots:
         QVERIFY(QDir(dirPath).exists());
     }
 
-    void testCreateDir_Nested()
-    {
+    void testCreateDir_Nested() {
         CommandExecutor executor;
         QString dirPath = m_tempDir.path() + "/a/b/c";
         ShellOperation op;
@@ -164,8 +150,7 @@ private slots:
 
     // ── Native: WriteFile ──
 
-    void testWriteFile_Success()
-    {
+    void testWriteFile_Success() {
         CommandExecutor executor;
         QString filePath = m_tempDir.path() + "/test_write.txt";
         ShellOperation op;
@@ -181,8 +166,7 @@ private slots:
         QCOMPARE(file.readAll().trimmed(), QByteArray("Hello, World!"));
     }
 
-    void testWriteFile_CreatesParentDir()
-    {
+    void testWriteFile_CreatesParentDir() {
         CommandExecutor executor;
         QString filePath = m_tempDir.path() + "/subdir/test_write.txt";
         ShellOperation op;
@@ -197,8 +181,7 @@ private slots:
 
     // ── Native: DeleteFile ──
 
-    void testDeleteFile_File()
-    {
+    void testDeleteFile_File() {
         CommandExecutor executor;
         QString filePath = m_tempDir.path() + "/to_delete.txt";
         QFile file(filePath);
@@ -215,8 +198,7 @@ private slots:
         QVERIFY(!QFile::exists(filePath));
     }
 
-    void testDeleteFile_Directory()
-    {
+    void testDeleteFile_Directory() {
         CommandExecutor executor;
         QString dirPath = m_tempDir.path() + "/dir_to_delete";
         QDir().mkpath(dirPath);
@@ -234,8 +216,7 @@ private slots:
         QVERIFY(!QDir(dirPath).exists());
     }
 
-    void testDeleteFile_NonExistent()
-    {
+    void testDeleteFile_NonExistent() {
         CommandExecutor executor;
         ShellOperation op;
         op.type = ShellOperation::DeleteFile;
@@ -247,8 +228,7 @@ private slots:
 
     // ── Native: CopyFile ──
 
-    void testCopyFile_File()
-    {
+    void testCopyFile_File() {
         CommandExecutor executor;
         QString srcPath = m_tempDir.path() + "/copy_src.txt";
         QString dstPath = m_tempDir.path() + "/copy_dst.txt";
@@ -271,17 +251,20 @@ private slots:
         QCOMPARE(dstFile.readAll().trimmed(), QByteArray("copy me"));
     }
 
-    void testCopyFile_Directory()
-    {
+    void testCopyFile_Directory() {
         CommandExecutor executor;
         QString srcDir = m_tempDir.path() + "/copy_src_dir";
         QString dstDir = m_tempDir.path() + "/copy_dst_dir";
         QDir().mkpath(srcDir);
         QFile f1(srcDir + "/a.txt");
-        QVERIFY(f1.open(QIODevice::WriteOnly)); f1.write("a"); f1.close();
+        QVERIFY(f1.open(QIODevice::WriteOnly));
+        f1.write("a");
+        f1.close();
         QDir().mkpath(srcDir + "/sub");
         QFile f2(srcDir + "/sub/b.txt");
-        QVERIFY(f2.open(QIODevice::WriteOnly)); f2.write("b"); f2.close();
+        QVERIFY(f2.open(QIODevice::WriteOnly));
+        f2.write("b");
+        f2.close();
 
         ShellOperation op;
         op.type = ShellOperation::CopyFile;
@@ -296,8 +279,7 @@ private slots:
 
     // ── Native: MoveFile ──
 
-    void testMoveFile_SameDevice()
-    {
+    void testMoveFile_SameDevice() {
         CommandExecutor executor;
         QString srcPath = m_tempDir.path() + "/move_src.txt";
         QString dstPath = m_tempDir.path() + "/move_dst.txt";
@@ -317,8 +299,7 @@ private slots:
         QVERIFY(QFile::exists(dstPath));
     }
 
-    void testMoveFile_SourceDoesNotExist()
-    {
+    void testMoveFile_SourceDoesNotExist() {
         CommandExecutor executor;
         ShellOperation op;
         op.type = ShellOperation::MoveFile;
@@ -331,16 +312,18 @@ private slots:
 
     // ── Native: SearchFiles ──
 
-    void testSearchFiles()
-    {
+    void testSearchFiles() {
         CommandExecutor executor;
         QString dir = m_tempDir.path();
         QFile f1(dir + "/alpha.txt");
-        QVERIFY(f1.open(QIODevice::WriteOnly)); f1.close();
+        QVERIFY(f1.open(QIODevice::WriteOnly));
+        f1.close();
         QFile f2(dir + "/beta.txt");
-        QVERIFY(f2.open(QIODevice::WriteOnly)); f2.close();
+        QVERIFY(f2.open(QIODevice::WriteOnly));
+        f2.close();
         QFile f3(dir + "/alpha.log");
-        QVERIFY(f3.open(QIODevice::WriteOnly)); f3.close();
+        QVERIFY(f3.open(QIODevice::WriteOnly));
+        f3.close();
 
         ShellOperation op;
         op.type = ShellOperation::SearchFiles;

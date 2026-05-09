@@ -1,21 +1,18 @@
 #include "memorymanager.h"
-#include <QDebug>
-#include <QFile>
-#include <QDir>
+
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
-#include <QDateTime>
 
-MemoryManager::MemoryManager(QObject *parent)
-    : QObject(parent)
-    , m_memoryContent()
-{
+MemoryManager::MemoryManager(QObject* parent) : QObject(parent), m_memoryContent() {
     loadMemory();
 }
 
-QStringList MemoryManager::findPossiblePaths() const
-{
+QStringList MemoryManager::findPossiblePaths() const {
     QStringList paths;
 
     QString appDir = QCoreApplication::applicationDirPath();
@@ -42,8 +39,7 @@ QStringList MemoryManager::findPossiblePaths() const
     return paths;
 }
 
-QString MemoryManager::memoryFilePath()
-{
+QString MemoryManager::memoryFilePath() {
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir dir(dataDir);
     if (!dir.exists()) {
@@ -57,8 +53,7 @@ QString MemoryManager::memoryFilePath()
     return girlfriendDir + "/memory.md";
 }
 
-QString MemoryManager::loadMemory()
-{
+QString MemoryManager::loadMemory() {
     // 首先尝试用户数据目录（可写入）
     QString userPath = memoryFilePath();
     QFile userFile(userPath);
@@ -71,7 +66,7 @@ QString MemoryManager::loadMemory()
 
     // 然后尝试应用内置路径（只读）
     QStringList paths = findPossiblePaths();
-    for (const QString &path : paths) {
+    for (const QString& path : paths) {
         QFile file(path);
         if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             m_memoryContent = QString::fromUtf8(file.readAll());
@@ -90,16 +85,14 @@ QString MemoryManager::loadMemory()
     return m_memoryContent;
 }
 
-QString MemoryManager::getMemoryContent()
-{
+QString MemoryManager::getMemoryContent() {
     if (m_memoryContent.isEmpty()) {
         loadMemory();
     }
     return m_memoryContent;
 }
 
-void MemoryManager::saveToFile()
-{
+void MemoryManager::saveToFile() {
     QString path = memoryFilePath();
     QFile file(path);
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -111,14 +104,13 @@ void MemoryManager::saveToFile()
     }
 }
 
-void MemoryManager::updateMemory(const QString &newInfo)
-{
+void MemoryManager::updateMemory(const QString& newInfo) {
     // 简单追加新信息到对话摘要部分
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd");
 
     // 查找对话摘要部分并追加
     QRegularExpression summaryRegex("(## 对话摘要\n.*?)(## 特别提醒|$)",
-                                     QRegularExpression::DotMatchesEverythingOption);
+                                    QRegularExpression::DotMatchesEverythingOption);
     QRegularExpressionMatch match = summaryRegex.match(m_memoryContent);
 
     if (match.hasMatch()) {
@@ -142,8 +134,7 @@ void MemoryManager::updateMemory(const QString &newInfo)
     saveToFile();
 }
 
-QList<MemoryManager::MemoryUpdate> MemoryManager::parseMemoryUpdates(const QString &response)
-{
+QList<MemoryManager::MemoryUpdate> MemoryManager::parseMemoryUpdates(const QString& response) {
     QList<MemoryUpdate> updates;
 
     // 匹配格式: [更新记忆:分类|内容] 或 [memory:category|content]
@@ -151,16 +142,10 @@ QList<MemoryManager::MemoryUpdate> MemoryManager::parseMemoryUpdates(const QStri
     QRegularExpressionMatchIterator it = regex.globalMatch(response);
 
     // 英文 category 映射到中文分类名
-    QMap<QString, QString> categoryMap = {
-        {"basic_info", "基本信息"},
-        {"preferences", "喜好偏好"},
-        {"events", "重要事件"},
-        {"reminders", "特别提醒"},
-        {"基本信息", "基本信息"},
-        {"喜好偏好", "喜好偏好"},
-        {"重要事件", "重要事件"},
-        {"特别提醒", "特别提醒"}
-    };
+    QMap<QString, QString> categoryMap = {{"basic_info", "基本信息"}, {"preferences", "喜好偏好"},
+                                          {"events", "重要事件"},     {"reminders", "特别提醒"},
+                                          {"基本信息", "基本信息"},   {"喜好偏好", "喜好偏好"},
+                                          {"重要事件", "重要事件"},   {"特别提醒", "特别提醒"}};
 
     while (it.hasNext()) {
         QRegularExpressionMatch match = it.next();
@@ -174,13 +159,12 @@ QList<MemoryManager::MemoryUpdate> MemoryManager::parseMemoryUpdates(const QStri
     return updates;
 }
 
-void MemoryManager::applyMemoryUpdates(const QList<MemoryUpdate> &updates)
-{
+void MemoryManager::applyMemoryUpdates(const QList<MemoryUpdate>& updates) {
     if (updates.isEmpty()) {
         return;
     }
 
-    for (const MemoryUpdate &update : updates) {
+    for (const MemoryUpdate& update : updates) {
         QString category = update.category;
         QString content = update.content;
 
@@ -192,24 +176,25 @@ void MemoryManager::applyMemoryUpdates(const QList<MemoryUpdate> &updates)
 
         // 根据分类更新对应部分，使用 lookahead 避免消耗下一个 section 标题
         QRegularExpression sectionRegex("(## " + category + "\\n)([\\s\\S]*?)(?=##|$)",
-                                         QRegularExpression::DotMatchesEverythingOption);
+                                        QRegularExpression::DotMatchesEverythingOption);
         QRegularExpressionMatch match = sectionRegex.match(m_memoryContent);
 
         if (match.hasMatch()) {
-            QString sectionHeader = match.captured(1);  // ## 分类名\n
-            QString sectionContent = match.captured(2); // 该分类下的内容
+            QString sectionHeader = match.captured(1);   // ## 分类名\n
+            QString sectionContent = match.captured(2);  // 该分类下的内容
 
             // 只替换第一个 "待记录"
             int pos = sectionContent.indexOf("待记录");
             if (pos != -1) {
-                sectionContent = sectionContent.replace(pos, QString("待记录").length(), "- " + content);
+                sectionContent =
+                        sectionContent.replace(pos, QString("待记录").length(), "- " + content);
             } else {
                 // 追加新记录
                 sectionContent = sectionContent.trimmed() + "\n- " + content + "\n";
             }
 
-            m_memoryContent = m_memoryContent.replace(match.captured(0),
-                                                       sectionHeader + sectionContent);
+            m_memoryContent =
+                    m_memoryContent.replace(match.captured(0), sectionHeader + sectionContent);
         } else {
             qDebug() << "MemoryManager: Category not found:" << category;
         }

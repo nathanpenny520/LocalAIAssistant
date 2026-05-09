@@ -1,20 +1,21 @@
 #include <QApplication>
+#include <QDebug>
 #include <QLocale>
 #include <QSettings>
-#include <QDebug>
+
 #include "mainwindow.h"
 #include "translationmanager.h"
 
 #ifdef Q_OS_WIN
-#include <windows.h>
-#include <stdio.h>
-#include <io.h>
-#include <fcntl.h>
 #include <cstring>
 
+#include <fcntl.h>
+#include <io.h>
+#include <stdio.h>
+#include <windows.h>
+
 // 在 Windows 上创建调试控制台窗口
-void attachDebugConsole()
-{
+void attachDebugConsole() {
     // 检查是否已经有控制台（从命令行启动时）
     if (AttachConsole(ATTACH_PARENT_PROCESS)) {
         // 已有控制台，重定向输出
@@ -38,8 +39,7 @@ void attachDebugConsole()
 }
 #endif
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char* argv[]) {
 #ifdef Q_OS_WIN
     // 检查命令行参数，如果有 --debug 则显示控制台
     bool showDebugConsole = false;

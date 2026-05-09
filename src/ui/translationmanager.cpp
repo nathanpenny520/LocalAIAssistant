@@ -1,25 +1,22 @@
 #include "translationmanager.h"
+
 #include <QApplication>
-#include <QDir>
 #include <QDebug>
+#include <QDir>
 
 TranslationManager* TranslationManager::m_instance = nullptr;
 
-TranslationManager::TranslationManager(QObject *parent)
-    : QObject(parent)
-{
+TranslationManager::TranslationManager(QObject* parent) : QObject(parent) {
 }
 
-TranslationManager* TranslationManager::instance()
-{
+TranslationManager* TranslationManager::instance() {
     if (!m_instance) {
         m_instance = new TranslationManager();
     }
     return m_instance;
 }
 
-QString TranslationManager::findQmFile(const QString &locale)
-{
+QString TranslationManager::findQmFile(const QString& locale) {
     QString qmFile = QString("localai_%1.qm").arg(locale);
 
     QStringList searchPaths;
@@ -43,7 +40,7 @@ QString TranslationManager::findQmFile(const QString &locale)
     searchPaths << QDir::currentPath() + "/translations";
     searchPaths << QDir::currentPath() + "/../translations";
 
-    for (const QString &path : searchPaths) {
+    for (const QString& path : searchPaths) {
         QString fullPath = path + "/" + qmFile;
         if (QFile::exists(fullPath)) {
             return path;
@@ -53,8 +50,7 @@ QString TranslationManager::findQmFile(const QString &locale)
     return QString();
 }
 
-bool TranslationManager::loadTranslation(const QString &locale)
-{
+bool TranslationManager::loadTranslation(const QString& locale) {
     if (locale == m_currentLocale && m_translator && !locale.isEmpty()) {
         return true;
     }
@@ -97,7 +93,7 @@ bool TranslationManager::loadTranslation(const QString &locale)
         searchPaths << QDir::currentPath() + "/translations";
         searchPaths << QDir::currentPath() + "/../translations";
 
-        for (const QString &path : searchPaths) {
+        for (const QString& path : searchPaths) {
             loaded = m_translator->load(qmFile, path);
             if (loaded) {
                 break;

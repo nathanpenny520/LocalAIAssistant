@@ -1,27 +1,23 @@
 #include "safetychecker.h"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QStandardPaths>
 
-SafetyChecker::SafetyChecker()
-{
+SafetyChecker::SafetyChecker() {
     resetToDefaults();
 }
 
-void SafetyChecker::setAllowedPaths(const QStringList &paths)
-{
+void SafetyChecker::setAllowedPaths(const QStringList& paths) {
     m_allowedPaths = paths;
 }
 
-void SafetyChecker::addAllowedPath(const QString &path)
-{
-    if (!m_allowedPaths.contains(path))
-        m_allowedPaths.append(path);
+void SafetyChecker::addAllowedPath(const QString& path) {
+    if (!m_allowedPaths.contains(path)) m_allowedPaths.append(path);
 }
 
-void SafetyChecker::resetToDefaults()
-{
+void SafetyChecker::resetToDefaults() {
     m_allowedPaths.clear();
     m_allowedPaths.append(QDir::homePath());
     m_allowedPaths.append(QDir::tempPath());
@@ -35,18 +31,15 @@ void SafetyChecker::resetToDefaults()
     m_allowedPaths.append(QStandardPaths::writableLocation(QStandardPaths::PicturesLocation));
 }
 
-QStringList SafetyChecker::allowedPaths() const
-{
+QStringList SafetyChecker::allowedPaths() const {
     return m_allowedPaths;
 }
 
-QString SafetyChecker::lastBlockReason() const
-{
+QString SafetyChecker::lastBlockReason() const {
     return m_lastBlockReason;
 }
 
-SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation &op) const
-{
+SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation& op) const {
     const QString cmd = op.command.trimmed();
 
     // Native file ops bypass command-based danger level
@@ -55,76 +48,81 @@ SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation &op) 
         op.type == ShellOperation::SearchFiles) {
         return Safe;
     }
-    if (op.type == ShellOperation::DeleteFile)
-        return Caution;
+    if (op.type == ShellOperation::DeleteFile) return Caution;
 
-    if (cmd.isEmpty())
-        return Safe;
+    if (cmd.isEmpty()) return Safe;
 
     // ── 危险命令 (Unix) ──
-    if (cmd.contains(QRegularExpression("\\bsudo\\b"))
-        || cmd.contains(QRegularExpression("\\bsu\\b\\s+-"))
-        || cmd.contains(QRegularExpression("\\bdoas\\b"))
-        || cmd.contains(QRegularExpression("\\bpkexec\\b"))) {
+    if (cmd.contains(QRegularExpression("\\bsudo\\b")) ||
+        cmd.contains(QRegularExpression("\\bsu\\b\\s+-")) ||
+        cmd.contains(QRegularExpression("\\bdoas\\b")) ||
+        cmd.contains(QRegularExpression("\\bpkexec\\b"))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression("\\brm\\s+.*(-r|-rf|--recursive)\\b.*/"))
-        || cmd.contains(QRegularExpression("\\bmkfs\\."))
-        || cmd.contains(QRegularExpression("\\bdd\\s+if="))
-        || cmd.contains(QRegularExpression("\\bfdisk\\b"))) {
+    if (cmd.contains(QRegularExpression("\\brm\\s+.*(-r|-rf|--recursive)\\b.*/")) ||
+        cmd.contains(QRegularExpression("\\bmkfs\\.")) ||
+        cmd.contains(QRegularExpression("\\bdd\\s+if=")) ||
+        cmd.contains(QRegularExpression("\\bfdisk\\b"))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression(">\\s*/dev/(sd|disk|nvme)"))
-        || cmd.contains(QRegularExpression("\\bchmod\\s+777\\s+/"))
-        || cmd.contains(QRegularExpression("\\bchown\\s+-R\\s+/"))) {
+    if (cmd.contains(QRegularExpression(">\\s*/dev/(sd|disk|nvme)")) ||
+        cmd.contains(QRegularExpression("\\bchmod\\s+777\\s+/")) ||
+        cmd.contains(QRegularExpression("\\bchown\\s+-R\\s+/"))) {
         return Dangerous;
     }
 
     // ── 危险命令 (Windows) ──
-    if (cmd.contains(QRegularExpression("\\brunas\\b|\\bpsexec\\b|-Verb\\s+RunAs", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\brunas\\b|\\bpsexec\\b|-Verb\\s+RunAs",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression("\\bformat\\s+[A-Za-z]:|\\bdiskpart\\b|>\\s*\\\\\\\\.\\\\", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\bformat\\s+[A-Za-z]:|\\bdiskpart\\b|>\\s*\\\\\\\\.\\\\",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression("\\breg\\s+delete\\s+(HKLM|HKEY_LOCAL_MACHINE)", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\breg\\s+delete\\s+(HKLM|HKEY_LOCAL_MACHINE)",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression("\\bsc\\s+(delete|stop)\\b", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\bsc\\s+(delete|stop)\\b",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression("\\btaskkill\\s+/f\\s+/im\\s+(lsass|winlogon|csrss)", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\btaskkill\\s+/f\\s+/im\\s+(lsass|winlogon|csrss)",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
     }
 
-    if (cmd.contains(QRegularExpression("\\bshutdown\\s+/(s|r)\\s+/t\\s+0|\\bbcdedit\\s+/delete|\\bvssadmin\\s+delete", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\bshutdown\\s+/(s|r)\\s+/t\\s+0|\\bbcdedit\\s+/"
+                                        "delete|\\bvssadmin\\s+delete",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
     }
 
     // ── 需要确认的操作 ──
-    if (cmd.contains(QRegularExpression("\\brm\\b"))
-        || cmd.contains(QRegularExpression("\\bgit\\s+push\\s+.*--force"))
-        || cmd.contains(QRegularExpression("\\bcurl\\b"))
-        || cmd.contains(QRegularExpression("\\bwget\\b"))) {
+    if (cmd.contains(QRegularExpression("\\brm\\b")) ||
+        cmd.contains(QRegularExpression("\\bgit\\s+push\\s+.*--force")) ||
+        cmd.contains(QRegularExpression("\\bcurl\\b")) ||
+        cmd.contains(QRegularExpression("\\bwget\\b"))) {
         return Caution;
     }
 
     // Windows caution patterns
-    if (cmd.contains(QRegularExpression("\\bdel\\s+/f|Remove-Item\\s+.*-Recurse", QRegularExpression::CaseInsensitiveOption))) {
+    if (cmd.contains(QRegularExpression("\\bdel\\s+/f|Remove-Item\\s+.*-Recurse",
+                                        QRegularExpression::CaseInsensitiveOption))) {
         return Caution;
     }
 
     return Safe;
 }
 
-SafetyChecker::Result SafetyChecker::validatePlan(const OperationPlan &plan)
-{
+SafetyChecker::Result SafetyChecker::validatePlan(const OperationPlan& plan) {
     if (plan.isEmpty()) {
         m_lastBlockReason = tr("操作计划为空");
         return Blocked;
@@ -132,27 +130,22 @@ SafetyChecker::Result SafetyChecker::validatePlan(const OperationPlan &plan)
 
     bool hasDangerous = false;
 
-    for (const auto &op : plan.operations) {
+    for (const auto& op : plan.operations) {
         Result r = validateOperation(op);
-        if (r == Blocked)
-            return Blocked;
-        if (r == NeedsConfirmation)
-            hasDangerous = true;
+        if (r == Blocked) return Blocked;
+        if (r == NeedsConfirmation) hasDangerous = true;
     }
 
-    if (hasDangerous)
-        return NeedsConfirmation;
+    if (hasDangerous) return NeedsConfirmation;
 
     return plan.requiresConfirmation ? NeedsConfirmation : Approved;
 }
 
-SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation &op)
-{
+SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation& op) {
     // Native file operations: validate source/target paths directly
     if (op.type == ShellOperation::CreateDir || op.type == ShellOperation::MoveFile ||
         op.type == ShellOperation::DeleteFile || op.type == ShellOperation::CopyFile ||
         op.type == ShellOperation::WriteFile || op.type == ShellOperation::SearchFiles) {
-
         // Collect paths to check from source/target
         QStringList pathsToCheck;
         if (!op.source.isEmpty()) pathsToCheck.append(op.source);
@@ -163,7 +156,7 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation &op)
             return Blocked;
         }
 
-        for (const auto &path : pathsToCheck) {
+        for (const auto& path : pathsToCheck) {
             if (isSystemPath(path)) {
                 m_lastBlockReason = tr("禁止操作系统目录: ") + path;
                 return Blocked;
@@ -175,8 +168,7 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation &op)
         }
 
         // DeleteFile is always Caution (destructive)
-        if (op.type == ShellOperation::DeleteFile)
-            return NeedsConfirmation;
+        if (op.type == ShellOperation::DeleteFile) return NeedsConfirmation;
 
         return Approved;
     }
@@ -207,7 +199,7 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation &op)
 
     // 命令中提取路径进行路径白名单校验
     QStringList paths = extractPathsFromCommand(op.command);
-    for (const auto &path : paths) {
+    for (const auto& path : paths) {
         if (isSystemPath(path)) {
             m_lastBlockReason = tr("禁止操作系统目录: ") + path;
             return Blocked;
@@ -218,71 +210,59 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation &op)
         }
     }
 
-    if (level == Caution)
-        return NeedsConfirmation;
+    if (level == Caution) return NeedsConfirmation;
 
     return Approved;
 }
 
-bool SafetyChecker::hasCommandInjection(const QString &command)
-{
+bool SafetyChecker::hasCommandInjection(const QString& command) {
     // Unix: 反引号命令替换: `cmd`
     static QRegularExpression backtick(QStringLiteral("`[^`]+`"));
-    if (backtick.match(command).hasMatch())
-        return true;
+    if (backtick.match(command).hasMatch()) return true;
 
     // Unix: $() 命令替换
     static QRegularExpression dollarParen(QStringLiteral("\\$\\([^)]+\\)"));
-    if (dollarParen.match(command).hasMatch())
-        return true;
+    if (dollarParen.match(command).hasMatch()) return true;
 
     // Unix: eval / exec / source 命令
     static QRegularExpression evalCmd(QStringLiteral("\\beval\\b|\\bexec\\b|\\bsource\\b\\s+/"));
-    if (evalCmd.match(command).hasMatch())
-        return true;
+    if (evalCmd.match(command).hasMatch()) return true;
 
     // Windows: PowerShell eval (Invoke-Expression / iex)
     static QRegularExpression psEval(QStringLiteral("\\b(Invoke-Expression|iex)\\b"),
                                      QRegularExpression::CaseInsensitiveOption);
-    if (psEval.match(command).hasMatch())
-        return true;
+    if (psEval.match(command).hasMatch()) return true;
 
     // Windows: PowerShell Invoke-Command
     static QRegularExpression psIcm(QStringLiteral("\\b(Invoke-Command|icm)\\b"),
                                     QRegularExpression::CaseInsensitiveOption);
-    if (psIcm.match(command).hasMatch())
-        return true;
+    if (psIcm.match(command).hasMatch()) return true;
 
     // Windows: obfuscated PowerShell (-EncodedCommand)
     static QRegularExpression psEncoded(QStringLiteral("-EncodedCommand\\s+\\S"),
                                         QRegularExpression::CaseInsensitiveOption);
-    if (psEncoded.match(command).hasMatch())
-        return true;
+    if (psEncoded.match(command).hasMatch()) return true;
 
     // Windows: cmd /c or cmd /k sub-shell chaining
     static QRegularExpression cmdSubshell(QStringLiteral("\\bcmd\\s+/(c|k)\\b"),
                                           QRegularExpression::CaseInsensitiveOption);
-    if (cmdSubshell.match(command).hasMatch())
-        return true;
+    if (cmdSubshell.match(command).hasMatch()) return true;
 
     // Windows: COMSPEC expansion
     static QRegularExpression comspec(QStringLiteral("%COMSPEC%"),
                                       QRegularExpression::CaseInsensitiveOption);
-    if (comspec.match(command).hasMatch())
-        return true;
+    if (comspec.match(command).hasMatch()) return true;
 
     // Windows: Living-off-the-land binaries
-    static QRegularExpression lolbin(QStringLiteral(
-        "\\b(certutil\\s+-urlcache|mshta\\b|cscript\\b|wscript\\b|rundll32\\b|regsvr32\\b)"),
-        QRegularExpression::CaseInsensitiveOption);
-    if (lolbin.match(command).hasMatch())
-        return true;
+    static QRegularExpression lolbin(QStringLiteral("\\b(certutil\\s+-urlcache|mshta\\b|cscript\\b|"
+                                                    "wscript\\b|rundll32\\b|regsvr32\\b)"),
+                                     QRegularExpression::CaseInsensitiveOption);
+    if (lolbin.match(command).hasMatch()) return true;
 
     return false;
 }
 
-bool SafetyChecker::isDangerousCommand(const QString &command)
-{
+bool SafetyChecker::isDangerousCommand(const QString& command) {
     // ── 权限提升 (Unix) ──
     if (command.contains(QRegularExpression("\\bsudo\\b"))) {
         m_lastBlockReason = tr("禁止使用 sudo 提权");
@@ -298,15 +278,18 @@ bool SafetyChecker::isDangerousCommand(const QString &command)
     }
 
     // ── 权限提升 (Windows) ──
-    if (command.contains(QRegularExpression("\\brunas\\b", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(
+                QRegularExpression("\\brunas\\b", QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止使用 runas 提权");
         return true;
     }
-    if (command.contains(QRegularExpression("\\bpsexec\\b", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(
+                QRegularExpression("\\bpsexec\\b", QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止使用 PsExec");
         return true;
     }
-    if (command.contains(QRegularExpression("Start-Process\\s+.*-Verb\\s+RunAs", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("Start-Process\\s+.*-Verb\\s+RunAs",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止提权启动进程");
         return true;
     }
@@ -330,74 +313,90 @@ bool SafetyChecker::isDangerousCommand(const QString &command)
     }
 
     // ── 磁盘级破坏操作 (Windows) ──
-    if (command.contains(QRegularExpression("\\bformat\\s+[A-Za-z]:\\b", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\bformat\\s+[A-Za-z]:\\b",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止格式化磁盘");
         return true;
     }
-    if (command.contains(QRegularExpression("\\bdiskpart\\b", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(
+                QRegularExpression("\\bdiskpart\\b", QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止磁盘分区操作");
         return true;
     }
-    if (command.contains(QRegularExpression(">\\s*\\\\\\\\\\.\\\\PhysicalDrive", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression(">\\s*\\\\\\\\\\.\\\\PhysicalDrive",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止直接写入物理磁盘");
         return true;
     }
 
     // ── 系统级权限修改 (Unix) ──
-    if (command.contains(QRegularExpression("\\bchmod\\s+[0-7]*7[0-7]*\\s+/"))
-        || command.contains(QRegularExpression("\\bchown\\s+-R\\s+/"))) {
+    if (command.contains(QRegularExpression("\\bchmod\\s+[0-7]*7[0-7]*\\s+/")) ||
+        command.contains(QRegularExpression("\\bchown\\s+-R\\s+/"))) {
         m_lastBlockReason = tr("禁止修改系统目录权限");
         return true;
     }
 
     // ── Windows 权限接管 ──
-    if (command.contains(QRegularExpression("\\bicacls\\s+.*\\/deny", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\bicacls\\s+.*\\/deny",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止修改 ACL 权限");
         return true;
     }
-    if (command.contains(QRegularExpression("\\btakeown\\s+/f\\s+[A-Za-z]:\\\\", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\btakeown\\s+/f\\s+[A-Za-z]:\\\\",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止夺取系统目录所有权");
         return true;
     }
 
     // ── Windows 注册表破坏 ──
-    if (command.contains(QRegularExpression("\\breg\\s+delete\\s+(HKLM|HKEY_LOCAL_MACHINE)", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\breg\\s+delete\\s+(HKLM|HKEY_LOCAL_MACHINE)",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止删除系统注册表项");
         return true;
     }
-    if (command.contains(QRegularExpression("Remove-Item\\s+.*HKLM:", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("Remove-Item\\s+.*HKLM:",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止通过 PowerShell 删除注册表");
         return true;
     }
 
     // ── Windows 关键服务操作 ──
-    if (command.contains(QRegularExpression("\\bsc\\s+(delete|stop)\\b", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\bsc\\s+(delete|stop)\\b",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止操作系统服务");
         return true;
     }
 
     // ── Windows 关键进程终止 ──
-    if (command.contains(QRegularExpression("\\btaskkill\\s+/f\\s+/im\\s+(lsass|winlogon|csrss|services|svchost|explorer)", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\btaskkill\\s+/f\\s+/"
+                                            "im\\s+(lsass|winlogon|csrss|services|svchost|"
+                                            "explorer)",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止终止关键系统进程");
         return true;
     }
 
     // ── Windows 系统破坏 ──
-    if (command.contains(QRegularExpression("\\bshutdown\\s+/(s|r)\\s+/t\\s+0", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\bshutdown\\s+/(s|r)\\s+/t\\s+0",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止强制关机/重启");
         return true;
     }
-    if (command.contains(QRegularExpression("\\bbcdedit\\s+/delete", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\bbcdedit\\s+/delete",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止修改引导配置");
         return true;
     }
-    if (command.contains(QRegularExpression("\\bvssadmin\\s+delete\\s+shadows", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("\\bvssadmin\\s+delete\\s+shadows",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止删除卷影副本");
         return true;
     }
 
     // ── Windows 防火墙破坏 ──
-    if (command.contains(QRegularExpression("netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+state\\s+off", QRegularExpression::CaseInsensitiveOption))) {
+    if (command.contains(QRegularExpression("netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+"
+                                            "state\\s+off",
+                                            QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止关闭防火墙");
         return true;
     }
@@ -405,8 +404,7 @@ bool SafetyChecker::isDangerousCommand(const QString &command)
     return false;
 }
 
-QStringList SafetyChecker::extractPathsFromCommand(const QString &command) const
-{
+QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const {
     QStringList paths;
 
     // 匹配双引号路径
@@ -415,8 +413,8 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString &command) const
     while (it.hasNext()) {
         QRegularExpressionMatch m = it.next();
         QString p = m.captured(1);
-        if (p.contains(QLatin1Char('/')) || p.contains(QLatin1Char('\\'))
-            || p.startsWith(QLatin1Char('~')))
+        if (p.contains(QLatin1Char('/')) || p.contains(QLatin1Char('\\')) ||
+            p.startsWith(QLatin1Char('~')))
             paths.append(p);
     }
 
@@ -426,13 +424,14 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString &command) const
     while (it.hasNext()) {
         QRegularExpressionMatch m = it.next();
         QString p = m.captured(1);
-        if (p.contains(QLatin1Char('/')) || p.contains(QLatin1Char('\\'))
-            || p.startsWith(QLatin1Char('~')))
+        if (p.contains(QLatin1Char('/')) || p.contains(QLatin1Char('\\')) ||
+            p.startsWith(QLatin1Char('~')))
             paths.append(p);
     }
 
     // Unix: 匹配未引号的绝对路径或 ~/ 路径
-    static QRegularExpression barePath(QStringLiteral("(?<![\\w=-])(/~|/[^\\s;|&<>]+|~[^\\s;|&<>]*)"));
+    static QRegularExpression barePath(
+            QStringLiteral("(?<![\\w=-])(/~|/[^\\s;|&<>]+|~[^\\s;|&<>]*)"));
     it = barePath.globalMatch(command);
     while (it.hasNext()) {
         QRegularExpressionMatch m = it.next();
@@ -460,15 +459,13 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString &command) const
     return paths;
 }
 
-static QString resolveCanonicalPath(const QString &path)
-{
+static QString resolveCanonicalPath(const QString& path) {
     // Resolve symlinks where possible. For non-existent paths,
     // resolve the longest existing parent and append the rest.
     QString clean = QDir::cleanPath(path);
     QFileInfo fi(clean);
     QString canonical = fi.canonicalFilePath();
-    if (!canonical.isEmpty())
-        return canonical;
+    if (!canonical.isEmpty()) return canonical;
 
     // Path doesn't exist — walk up to find existing parent
     QDir dir(clean);
@@ -477,104 +474,79 @@ static QString resolveCanonicalPath(const QString &path)
         missingParts.prepend(dir.dirName());
         dir = QDir(QDir::cleanPath(dir.path() + QStringLiteral("/..")));
     }
-    return QDir::cleanPath(dir.canonicalPath() + QStringLiteral("/") + missingParts.join(QStringLiteral("/")));
+    return QDir::cleanPath(dir.canonicalPath() + QStringLiteral("/") +
+                           missingParts.join(QStringLiteral("/")));
 }
 
-bool SafetyChecker::isPathSafe(const QString &path) const
-{
+bool SafetyChecker::isPathSafe(const QString& path) const {
     QString resolved = resolveCanonicalPath(
-        QFileInfo(path).isAbsolute()
-            ? path
-            : (QDir::currentPath() + QStringLiteral("/") + path));
+            QFileInfo(path).isAbsolute() ? path
+                                         : (QDir::currentPath() + QStringLiteral("/") + path));
 
-    for (const auto &allowed : m_allowedPaths) {
+    for (const auto& allowed : m_allowedPaths) {
         QString allowedResolved = resolveCanonicalPath(allowed);
-        if (resolved.startsWith(allowedResolved))
-            return true;
+        if (resolved.startsWith(allowedResolved)) return true;
     }
 
     return false;
 }
 
-bool SafetyChecker::isSystemPath(const QString &path) const
-{
+bool SafetyChecker::isSystemPath(const QString& path) const {
     QString resolved = QDir::cleanPath(path).toLower();
 
     static const QStringList systemPaths = {
-        QStringLiteral("/system"),
-        QStringLiteral("/etc"),
-        QStringLiteral("/boot"),
-        QStringLiteral("/root"),
-        QStringLiteral("/usr/lib"),
-        QStringLiteral("/usr/sbin"),
-        QStringLiteral("/usr/bin"),
-        QStringLiteral("/bin"),
-        QStringLiteral("/sbin"),
-        QStringLiteral("/lib"),
-        QStringLiteral("/lib64"),
-        QStringLiteral("/proc"),
-        QStringLiteral("/sys"),
-        QStringLiteral("/dev"),
+            QStringLiteral("/system"),  QStringLiteral("/etc"),     QStringLiteral("/boot"),
+            QStringLiteral("/root"),    QStringLiteral("/usr/lib"), QStringLiteral("/usr/sbin"),
+            QStringLiteral("/usr/bin"), QStringLiteral("/bin"),     QStringLiteral("/sbin"),
+            QStringLiteral("/lib"),     QStringLiteral("/lib64"),   QStringLiteral("/proc"),
+            QStringLiteral("/sys"),     QStringLiteral("/dev"),
     };
 
-    for (const auto &sysPath : systemPaths) {
-        if (resolved == sysPath || resolved.startsWith(sysPath + QStringLiteral("/")))
-            return true;
+    for (const auto& sysPath : systemPaths) {
+        if (resolved == sysPath || resolved.startsWith(sysPath + QStringLiteral("/"))) return true;
     }
 
 #ifdef Q_OS_MACOS
     static const QStringList macSystemPaths = {
-        QStringLiteral("/System"),
-        QStringLiteral("/Library"),
-        QStringLiteral("/.vol"),
-        QStringLiteral("/.file"),
-        QStringLiteral("/private/etc"),
-        QStringLiteral("/private/var"),
+            QStringLiteral("/System"),      QStringLiteral("/Library"),
+            QStringLiteral("/.vol"),        QStringLiteral("/.file"),
+            QStringLiteral("/private/etc"), QStringLiteral("/private/var"),
     };
-    for (const auto &sysPath : macSystemPaths) {
-        if (resolved == sysPath || resolved.startsWith(sysPath + QStringLiteral("/")))
-            return true;
+    for (const auto& sysPath : macSystemPaths) {
+        if (resolved == sysPath || resolved.startsWith(sysPath + QStringLiteral("/"))) return true;
     }
 #endif
 
 #ifdef Q_OS_WIN
     {
         QString winDir = QDir::cleanPath(qEnvironmentVariable("WINDIR")).toLower();
-        if (!winDir.isEmpty() && resolved.startsWith(winDir))
-            return true;
-        if (resolved.contains(QStringLiteral(":\\windows")))
-            return true;
+        if (!winDir.isEmpty() && resolved.startsWith(winDir)) return true;
+        if (resolved.contains(QStringLiteral(":\\windows"))) return true;
 
         // System32 and SysWOW64
         static const QStringList winSysPaths = {
-            QStringLiteral("c:\\windows\\system32"),
-            QStringLiteral("c:\\windows\\syswow64"),
-            QStringLiteral("c:\\program files"),
-            QStringLiteral("c:\\program files (x86)"),
-            QStringLiteral("c:\\programdata"),
+                QStringLiteral("c:\\windows\\system32"), QStringLiteral("c:\\windows\\syswow64"),
+                QStringLiteral("c:\\program files"),     QStringLiteral("c:\\program files (x86)"),
+                QStringLiteral("c:\\programdata"),
         };
-        for (const auto &sysPath : winSysPaths) {
+        for (const auto& sysPath : winSysPaths) {
             if (resolved == sysPath || resolved.startsWith(sysPath + QStringLiteral("\\")))
                 return true;
         }
 
         // Dynamic paths from environment
         QString progFiles = QDir::cleanPath(qEnvironmentVariable("ProgramFiles")).toLower();
-        if (!progFiles.isEmpty() && resolved.startsWith(progFiles))
-            return true;
+        if (!progFiles.isEmpty() && resolved.startsWith(progFiles)) return true;
         QString progFiles86 = QDir::cleanPath(qEnvironmentVariable("ProgramFiles(x86)")).toLower();
-        if (!progFiles86.isEmpty() && resolved.startsWith(progFiles86))
-            return true;
+        if (!progFiles86.isEmpty() && resolved.startsWith(progFiles86)) return true;
         QString progData = QDir::cleanPath(qEnvironmentVariable("ProgramData")).toLower();
-        if (!progData.isEmpty() && resolved.startsWith(progData))
-            return true;
+        if (!progData.isEmpty() && resolved.startsWith(progData)) return true;
         QString sysRoot = QDir::cleanPath(qEnvironmentVariable("SystemRoot")).toLower();
-        if (!sysRoot.isEmpty() && resolved.startsWith(sysRoot))
-            return true;
+        if (!sysRoot.isEmpty() && resolved.startsWith(sysRoot)) return true;
 
         // Physical drive access
-        if (resolved.startsWith(QStringLiteral("\\\\.\\physicaldrive"))
-            || resolved.startsWith(QStringLiteral("\\\\.\\c:")))
+        if (resolved.startsWith(QStringLiteral("\\\\.\\physicaldrive")) ||
+            resolved.startsWith(QStringLiteral("\\\\.\\c:")))
             return true;
     }
 #endif

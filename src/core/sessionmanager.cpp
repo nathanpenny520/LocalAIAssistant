@@ -1,16 +1,15 @@
 #include "sessionmanager.h"
-#include <QFile>
+
 #include <QDir>
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QStandardPaths>
 #include <QSettings>
+#include <QStandardPaths>
 
 SessionManager* SessionManager::m_instance = nullptr;
 
-SessionManager::SessionManager(QObject *parent)
-    : QObject(parent)
-{
+SessionManager::SessionManager(QObject* parent) : QObject(parent) {
     QSettings settings("LocalAIAssistant", "Settings");
     m_maxMessages = settings.value("sessionMaxMessages", 500).toInt();
     if (m_maxMessages > 0 && m_maxMessages < 10) {
@@ -19,21 +18,18 @@ SessionManager::SessionManager(QObject *parent)
     createNewSession();
 }
 
-SessionManager* SessionManager::instance()
-{
+SessionManager* SessionManager::instance() {
     if (!m_instance) {
         m_instance = new SessionManager();
     }
     return m_instance;
 }
 
-ChatSession& SessionManager::currentSession()
-{
+ChatSession& SessionManager::currentSession() {
     return m_sessions[m_currentSessionId];
 }
 
-void SessionManager::createNewSession(const QString &title)
-{
+void SessionManager::createNewSession(const QString& title) {
     QString sessionTitle = title.isEmpty() ? QStringLiteral("新对话") : title;
     ChatSession newSession(sessionTitle);
     m_sessions[newSession.id] = newSession;
@@ -46,8 +42,7 @@ void SessionManager::createNewSession(const QString &title)
     emit sessionChanged(m_currentSessionId);
 }
 
-void SessionManager::switchToSession(const QString &sessionId)
-{
+void SessionManager::switchToSession(const QString& sessionId) {
     if (m_sessions.contains(sessionId)) {
         m_currentSessionId = sessionId;
 
@@ -59,16 +54,15 @@ void SessionManager::switchToSession(const QString &sessionId)
     }
 }
 
-void SessionManager::addMessageToCurrentSession(const QString &role, const QString &content)
-{
+void SessionManager::addMessageToCurrentSession(const QString& role, const QString& content) {
     m_sessions[m_currentSessionId].messages.append(ChatMessage(role, content));
     truncateSession(m_currentSessionId);
     saveSessionsToFile();
     emit sessionChanged(m_currentSessionId);
 }
 
-void SessionManager::addMessageToCurrentSession(const QString &role, const QString &content, const QVector<FileAttachment> &attachments)
-{
+void SessionManager::addMessageToCurrentSession(const QString& role, const QString& content,
+                                                const QVector<FileAttachment>& attachments) {
     ChatMessage msg(role, content);
     msg.attachments = attachments;
     m_sessions[m_currentSessionId].messages.append(msg);
@@ -77,8 +71,8 @@ void SessionManager::addMessageToCurrentSession(const QString &role, const QStri
     emit sessionChanged(m_currentSessionId);
 }
 
-void SessionManager::addMessageToSession(const QString &sessionId, const QString &role, const QString &content)
-{
+void SessionManager::addMessageToSession(const QString& sessionId, const QString& role,
+                                         const QString& content) {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].messages.append(ChatMessage(role, content));
         truncateSession(sessionId);
@@ -87,8 +81,7 @@ void SessionManager::addMessageToSession(const QString &sessionId, const QString
     }
 }
 
-void SessionManager::updateSessionTitle(const QString &sessionId, const QString &title)
-{
+void SessionManager::updateSessionTitle(const QString& sessionId, const QString& title) {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].title = title;
         m_sessions[sessionId].autoNamed = true;
@@ -96,26 +89,23 @@ void SessionManager::updateSessionTitle(const QString &sessionId, const QString 
     }
 }
 
-void SessionManager::setSessionPinned(const QString &sessionId, bool pinned)
-{
+void SessionManager::setSessionPinned(const QString& sessionId, bool pinned) {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].pinned = pinned;
         emit sessionChanged(sessionId);
     }
 }
 
-void SessionManager::removeSession(const QString &sessionId)
-{
+void SessionManager::removeSession(const QString& sessionId) {
     m_sessions.remove(sessionId);
 }
 
-void SessionManager::truncateSession(const QString &sessionId)
-{
+void SessionManager::truncateSession(const QString& sessionId) {
     if (m_maxMessages <= 0 || !m_sessions.contains(sessionId)) {
         return;
     }
 
-    ChatSession &session = m_sessions[sessionId];
+    ChatSession& session = m_sessions[sessionId];
     int removed = session.messages.size() - m_maxMessages;
     if (removed <= 0) {
         return;
@@ -124,13 +114,11 @@ void SessionManager::truncateSession(const QString &sessionId)
     session.messages.remove(0, removed);
 
     // Prepend system message to inform user about truncation
-    QString info = QString("Session auto-trimmed, keeping last %1 messages")
-                       .arg(m_maxMessages);
+    QString info = QString("Session auto-trimmed, keeping last %1 messages").arg(m_maxMessages);
     session.messages.prepend(ChatMessage("system", info));
 }
 
-void SessionManager::setMaxMessages(int limit)
-{
+void SessionManager::setMaxMessages(int limit) {
     if (limit > 0 && limit < 10) {
         limit = 10;
     }
@@ -144,8 +132,7 @@ void SessionManager::setMaxMessages(int limit)
     }
 }
 
-QString SessionManager::getStorageFilePath() const
-{
+QString SessionManager::getStorageFilePath() const {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir dir(dataPath);
     if (!dir.exists()) {
@@ -154,8 +141,7 @@ QString SessionManager::getStorageFilePath() const
     return dataPath + "/chat_history.json";
 }
 
-void SessionManager::saveSessionsToFile()
-{
+void SessionManager::saveSessionsToFile() {
     QString filePath = getStorageFilePath();
     QFile file(filePath);
 
@@ -165,7 +151,7 @@ void SessionManager::saveSessionsToFile()
 
     QJsonArray sessionsArray;
     for (auto it = m_sessions.constBegin(); it != m_sessions.constEnd(); ++it) {
-        const ChatSession &session = it.value();
+        const ChatSession& session = it.value();
 
         QJsonObject sessionObj;
         sessionObj["id"] = session.id;
@@ -174,7 +160,7 @@ void SessionManager::saveSessionsToFile()
         sessionObj["autoNamed"] = session.autoNamed;
 
         QJsonArray messagesArray;
-        for (const auto &msg : session.messages) {
+        for (const auto& msg : session.messages) {
             QJsonObject msgObj;
             msgObj["role"] = msg.role;
             msgObj["content"] = msg.content;
@@ -182,7 +168,7 @@ void SessionManager::saveSessionsToFile()
             // 序列化附件
             if (!msg.attachments.isEmpty()) {
                 QJsonArray attachmentsArray;
-                for (const auto &attachment : msg.attachments) {
+                for (const auto& attachment : msg.attachments) {
                     QJsonObject attachObj;
                     attachObj["path"] = attachment.path;
                     attachObj["type"] = attachment.type;
@@ -206,8 +192,7 @@ void SessionManager::saveSessionsToFile()
     file.close();
 }
 
-void SessionManager::loadSessionsFromFile()
-{
+void SessionManager::loadSessionsFromFile() {
     QString filePath = getStorageFilePath();
     QFile file(filePath);
 
@@ -230,7 +215,7 @@ void SessionManager::loadSessionsFromFile()
     m_sessions.clear();
 
     QJsonArray sessionsArray = doc.array();
-    for (const auto &sessionVal : sessionsArray) {
+    for (const auto& sessionVal : sessionsArray) {
         if (!sessionVal.isObject()) {
             continue;
         }
@@ -244,20 +229,17 @@ void SessionManager::loadSessionsFromFile()
         session.autoNamed = sessionObj["autoNamed"].toBool(false);
 
         QJsonArray messagesArray = sessionObj["messages"].toArray();
-        for (const auto &msgVal : messagesArray) {
+        for (const auto& msgVal : messagesArray) {
             if (!msgVal.isObject()) {
                 continue;
             }
             QJsonObject msgObj = msgVal.toObject();
-            ChatMessage msg(
-                msgObj["role"].toString(),
-                msgObj["content"].toString()
-            );
+            ChatMessage msg(msgObj["role"].toString(), msgObj["content"].toString());
 
             // 反序列化附件
             if (msgObj.contains("attachments")) {
                 QJsonArray attachmentsArray = msgObj["attachments"].toArray();
-                for (const auto &attachVal : attachmentsArray) {
+                for (const auto& attachVal : attachmentsArray) {
                     if (!attachVal.isObject()) {
                         continue;
                     }
