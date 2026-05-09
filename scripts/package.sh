@@ -174,18 +174,24 @@ package_macos() {
 
     if [ -n "$macdeployqt" ]; then
         echo ""
-        echo "[1/3] Bundling Qt frameworks with macdeployqt..."
+        echo "[1/4] Bundling Qt frameworks with macdeployqt..."
         "$macdeployqt" "$app_path" -verbose=1 -no-strip 2>&1 | sed 's/^/  /' \
             || echo "  Warning: macdeployqt reported issues, continuing anyway..."
+
+        # Re-sign with ad-hoc signature (macdeployqt invalidates the original)
+        echo ""
+        echo "[2/4] Re-signing app bundle (ad-hoc)..."
+        codesign --force --deep --sign - "$app_path" 2>&1 | sed 's/^/  /' \
+            || echo "  Warning: ad-hoc signing failed, app may not launch"
     else
         echo ""
-        echo "[1/3] macdeployqt not found — Qt frameworks will NOT be bundled."
+        echo "[1/4] macdeployqt not found — Qt frameworks will NOT be bundled."
         echo "  The app will only run on machines with Qt installed."
     fi
 
     # --- Create DMG staging directory ---
     echo ""
-    echo "[2/3] Creating DMG staging directory..."
+    echo "[3/4] Creating DMG staging directory..."
     local staging="$OUTPUT_DIR/staging"
     mkdir -p "$staging"
     cp -R "$app_path" "$staging/"
@@ -229,7 +235,7 @@ package_macos() {
 
     # --- Create DMG ---
     echo ""
-    echo "[3/3] Creating DMG..."
+    echo "[4/4] Creating DMG..."
     local dmg_path="$OUTPUT_DIR/$dmg_name"
     hdiutil create -volname "LocalAIAssistant" \
         -srcfolder "$staging" \
