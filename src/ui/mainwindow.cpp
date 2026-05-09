@@ -444,6 +444,7 @@ void MainWindow::retranslateUi()
     }
 
     updateSessionList();
+    setInputEnabled(!m_isStreaming);
 }
 
 
@@ -646,21 +647,30 @@ void MainWindow::setInputEnabled(bool enabled)
     }
 }
 
+void MainWindow::stopCurrentStreamingSession()
+{
+    m_networkManager->abortCurrentRequest();
+    if (!m_streamingContent.isEmpty()) {
+        SessionManager::instance()->addMessageToSession(
+            m_requestSessionId, "assistant", m_streamingContent);
+    }
+    m_isStreaming = false;
+    m_streamingContent.clear();
+    m_requestSessionId.clear();
+}
+
 void MainWindow::onSendClicked()
 {
-    // If currently streaming, treat click as stop request
+    // If another session is streaming, stop it first, then proceed with normal send
+    if (m_isStreaming && !m_requestSessionId.isEmpty()
+        && m_requestSessionId != SessionManager::instance()->currentSessionId()) {
+        stopCurrentStreamingSession();
+        // Fall through to normal send below
+    }
+
+    // If THIS session is streaming, treat click as stop
     if (m_isStreaming) {
-        m_networkManager->abortCurrentRequest();
-
-        // Save partial streaming content as assistant message
-        if (!m_streamingContent.isEmpty()) {
-            SessionManager::instance()->addMessageToSession(
-                m_requestSessionId, "assistant", m_streamingContent);
-        }
-
-        m_isStreaming = false;
-        m_streamingContent.clear();
-        m_requestSessionId.clear();
+        stopCurrentStreamingSession();
         setInputEnabled(true);
         return;
     }
@@ -904,6 +914,11 @@ void MainWindow::onNewChatClicked()
     m_inputLine->clear();
     m_inputLine->setFocus();
     updateSessionList();
+
+    // Re-enable input when creating a new session during active streaming
+    if (m_isStreaming) {
+        setInputEnabled(true);
+    }
 }
 
 void MainWindow::onToggleHistoryPanel()
@@ -930,18 +945,26 @@ void MainWindow::onSessionItemClicked(QListWidgetItem *item)
         return;
     }
 
-    // If streaming is active, renderCurrentSession would have been blocked
-    // by the old m_isStreaming check; now m_suppressRender only gates the
-    // send flow, so switchToSession → sessionChanged → renderCurrentSession
-    // runs normally. Chunks stop appearing because onStreamChunkReceived
-    // checks m_requestSessionId != currentSessionId().
     QString sessionId = item->data(Qt::UserRole).toString();
+
+    // No-op if already viewing this session (prevents unnecessary re-render
+    // that would wipe live streaming display)
+    if (sessionId == SessionManager::instance()->currentSessionId()) {
+        return;
+    }
+
     SessionManager::instance()->switchToSession(sessionId);
     updateSessionList();
 
     // Re-enable input when switching to a non-streaming session
-    if (m_isStreaming && sessionId != m_requestSessionId) {
+    if (m_isStreaming && !m_requestSessionId.isEmpty()
+        && sessionId != m_requestSessionId) {
         setInputEnabled(true);
+    }
+    // Restore stop button when switching back to the streaming session
+    else if (m_isStreaming && !m_requestSessionId.isEmpty()
+             && sessionId == m_requestSessionId) {
+        setInputEnabled(false);
     }
 }
 
@@ -1640,7 +1663,9 @@ void MainWindow::onGirlfriendClicked()
 
 void MainWindow::adjustInputHeight()
 {
-    // Calculate required height from document content, clamped to [singleLine, m_maxInputHeight]
+    // Force synchronous layout recalculation so document()->size() is current
+    m_inputLine->document()->adjustSize();
+
     int docHeight = static_cast<int>(m_inputLine->document()->size().height());
     int margins = m_inputLine->contentsMargins().top() + m_inputLine->contentsMargins().bottom();
     int frame = static_cast<int>(2 * m_inputLine->frameWidth());

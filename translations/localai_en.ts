@@ -616,6 +616,11 @@
         <translation>Send</translation>
     </message>
     <message>
+        <location filename="../src/ui/mainwindow.cpp" line="644"/>
+        <source>停止</source>
+        <translation>Stop</translation>
+    </message>
+    <message>
         <location filename="../src/ui/mainwindow.cpp" line="141"/>
         <location filename="../src/ui/mainwindow.cpp" line="390"/>
         <source>+ 新建对话</source>
