@@ -29,12 +29,7 @@ jobs:
             libpugixml-dev \
             cmake ninja-build
 
-          # Workaround for broken libzip-dev CMake config (references missing binaries)
-          for tool in zipcmp zipmerge; do
-            if [ ! -f "/usr/bin/$tool" ]; then
-              sudo ln -s /usr/bin/true "/usr/bin/$tool"
-            fi
-          done
+          # libzip-dev is installed for find_library; broken CMake config is bypassed
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

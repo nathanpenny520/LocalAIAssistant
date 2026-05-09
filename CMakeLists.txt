@@ -60,15 +60,14 @@ if(PkgConfig_FOUND)
 endif()
 
 # DOCX support: libzip for ZIP decompression + pugixml for XML
-list(
-    APPEND
-    CMAKE_PREFIX_PATH
-    "/opt/homebrew/lib/cmake"
-    "/usr/local/lib/cmake")
-find_package(libzip QUIET)
-if(libzip_FOUND)
+# Use find_library to avoid broken libzip CMake config on some platforms
+find_path(libzip_INCLUDE_DIRS zip.h)
+find_library(libzip_LIBRARIES NAMES zip libzip)
+if(libzip_INCLUDE_DIRS AND libzip_LIBRARIES)
+    set(libzip_FOUND TRUE)
     message(STATUS "libzip found, DOCX support enabled")
 else()
+    set(libzip_FOUND FALSE)
     message(STATUS "libzip not found, DOCX support disabled")
 endif()
 
@@ -101,12 +100,8 @@ endif()
 
 # DOCX support (libzip + pugixml)
 if(libzip_FOUND)
-    if(TARGET libzip::zip)
-        target_link_libraries(FileParser PUBLIC libzip::zip)
-    else()
-        target_include_directories(FileParser PUBLIC ${libzip_INCLUDE_DIRS})
-        target_link_libraries(FileParser PUBLIC ${libzip_LIBRARIES})
-    endif()
+    target_include_directories(FileParser PUBLIC ${libzip_INCLUDE_DIRS})
+    target_link_libraries(FileParser PUBLIC ${libzip_LIBRARIES})
     target_compile_definitions(FileParser PUBLIC HAS_LIBZIP)
 endif()
 
@@ -548,8 +543,10 @@ if(WIN32)
     # Windows configuration
     set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE TRUE)
 
-    # Fix windres path space issues by using temp file instead of popen
-    set(CMAKE_RC_FLAGS "--use-temp-file")
+    # Fix windres (MinGW) path space issues by using temp file instead of popen
+    if(MINGW)
+        set(CMAKE_RC_FLAGS "--use-temp-file")
+    endif()
 
     # Windows icon resource (requires app.ico) Copy ico to build directory first to avoid path space
     # issues
