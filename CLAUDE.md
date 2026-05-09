@@ -48,6 +48,7 @@ LocalAIAssistantCore  (src/core/, src/prompts/)   — network, sessions, file I/
 - **CLI**: links Core + TaskModule only (no Girlfriend, no Knowledge)
 - **GUI**: links GirlfriendModule → transitively pulls in Core
 - Settings: `QSettings("LocalAIAssistant", "Settings")`
+- **UI Theme**: `AppTheme` color token system (`src/ui/apptheme.h`) — light/dark themes with ~40 semantic color tokens. `StyleSheetManager` (singleton) generates QSS from tokens. `MarkdownRenderer::toHtml()` renders markdown theme-aware without requiring a theme parameter.
 
 ## Code Standards
 

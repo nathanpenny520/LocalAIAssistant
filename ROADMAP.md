@@ -101,15 +101,15 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 **收益**: Windows 用户可正常使用任务执行功能，文件操作不再依赖 shell，安全性覆盖 Windows 平台
 
-#### 2.2 UI theme fixes 🟡 **可访问性问题**
+#### 2.2 UI theme fixes ✅ **DONE**
 **风险**: 低（只修改颜色值）  
 **重要性**: 高（light theme 文字不可见）
 
-- [ ] Fix disabled button text contrast in light theme (`src/ui/stylesheetmanager.cpp:168`, `#e0e0e0` → higher contrast)
-- [ ] Replace hardcoded `#ff9500` with theme-aware colors in `src/ui/settingsdialog.cpp:133`
-- [ ] Fix hardcoded `#ff9500` in `src/ui/operationconfirmdialog.cpp:72`
+- [x] Fix disabled button text contrast in light theme — resolved via `AppTheme::disabledButtonBg` token
+- [x] Replace hardcoded `#ff9500` with theme-aware colors — resolved via `QLabel#warningLabel` in QSS
+- [x] Fix hardcoded `#ff9500` in `src/ui/operationconfirmdialog.cpp:72` — resolved via `QLabel#warningLabel` in QSS
 
-**收益**: Light theme 可正常使用
+**收益**: Light theme 可正常使用. Full refactoring introduced `AppTheme` unified color token system (~40 semantic tokens) serving as single source of truth for all UI colors.
 
 #### 2.3 Windows resource copying 🟢 **功能缺失**
 **风险**: 低（添加缺失的资源复制）  
@@ -137,9 +137,9 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 **风险**: 中（UI 相关）  
 **重要性**: 低（可选优化）
 
-- [ ] `src/ui/stylesheetmanager.cpp` (575) → `stylesheetmanager.cpp/h` (manager, ~290) + `theme_dark.cpp/h` (~280) + `theme_light.cpp/h` (~280)
+- [ ] `src/ui/stylesheetmanager.cpp` (361) → `stylesheetmanager.cpp/h` (manager, ~250) + `theme_qss.cpp/h` (~110). Color tokens already extracted to `apptheme.h/cpp` (174 lines).
 
-**前提**: Phase 0 测试完成 + Phase 2.2 theme fixes 完成
+**前提**: Phase 0 测试完成 + Phase 2.2 theme fixes ✅ DONE
 
 #### 3.3 Fix build.sh interactive prompt 🟡
 **风险**: 中（影响构建流程）  
@@ -293,7 +293,7 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 | `CMakeLists.txt` | 788 | 🟢 Phase 7.1 (optional) |
 | `src/knowledge/embedder.cpp` | 591 | 🟢 Phase 3.1 |
 | `src/core/networkmanager.cpp` | ~~581~~ 240 | ✅ **Phase 1.2 done** — split into ApiProvider + 3 providers |
-| `src/ui/stylesheetmanager.cpp` | 575 | 🟡 Phase 3.2 |
+| `src/ui/stylesheetmanager.cpp` | 361 | 🟡 Phase 3.2 |
 | `src/tasks/safetychecker.cpp` | 562 | 🟡 Phase 2.1 added Windows safety patterns |
 | `src/knowledge/vectordb.cpp` | 555 | 🟢 Phase 3.1 |
 | `src/tasks/commandexecutor.cpp` | 551 | 🟡 Phase 2.1 added native file ops + shell detection |
@@ -310,7 +310,7 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 
 **近期（有基础测试后）**:
 4. ✅ **Tier 2.1**: Windows command execution 已完成
-5. 🟢 **Tier 2.2-2.3**: UI theme fixes + Windows resource copying
+5. ✅ **Tier 2.2** (DONE): UI theme fixes | 🟢 **Tier 2.3**: Windows resource copying
 6. 🟢 **Tier 3**: 中等风险重构（embedder, vectordb, stylesheetmanager）
 
 **远期（有完整测试覆盖后）**:
@@ -336,6 +336,6 @@ Run these after completing critical phases:
 - [ ] `ctest` — all tests pass
 - [ ] `./scripts/build.sh run --gui` — UI loads, all features work
 - [ ] `./scripts/build.sh run --cli` — CLI chat works
-- [ ] Open settings dialog in light theme — all text readable
+- [x] Open settings dialog in light theme — all text readable
 - [ ] Voice input/output works (requires iFlytek credentials)
 - [ ] Windows build and run — command execution works
