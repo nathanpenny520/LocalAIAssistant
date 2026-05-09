@@ -20,8 +20,8 @@
 
 ### Size Limits
 
-- **Files**: ≤ 500 lines (current violations tracked in ROADMAP.md)
-- **Functions**: ≤ 50 lines — extract private helpers aggressively
+- **Files**: had better(not necessary) ≤ 500 lines (current violations tracked in ROADMAP.md)
+- **Functions**: had better(not necessary) ≤ 50 lines — extract private helpers aggressively
 - One class / one concern per file. Qt signals/slots for cross-object communication.
 
 ### Directory Structure
@@ -185,7 +185,130 @@ NetworkManager::NetworkManager(QObject* parent)
 
 ---
 
-## 3. Comments
+## 3. Internationalization (i18n)
+
+This project supports **both English and Chinese** locales. Every user-facing string must go through
+the Qt translation system. Hardcoding user-visible text in one language is a bug.
+
+### Core Principle
+
+**All user-facing strings use `tr()`.** Internal strings (log messages, QSettings keys, file paths)
+use `QStringLiteral()` or raw strings.
+
+```cpp
+// CORRECT — user-facing, goes through translation
+button->setText(tr("Send"));
+label->setText(tr("Connection lost, retrying..."));
+
+// CORRECT — internal, not user-visible
+settings->setValue(QStringLiteral("window/geometry"), geometry);
+qDebug() << "NetworkManager: request sent to" << url;
+
+// WRONG — user-facing string hardcoded in English
+label->setText("Connection lost");           // not translatable
+button->setText(QStringLiteral("Send"));     // not translatable
+```
+
+### Translation Infrastructure
+
+| Component | File(s) | Purpose |
+|-----------|---------|---------|
+| Qt `.ts` files | `translations/localai_en.ts`, `translations/localai_zh_CN.ts` | Translation source files |
+| Translator loader | `src/ui/translationmanager.h/cpp` | Singleton that loads `.qm` files at runtime |
+| Girlfriend translations | `src/girlfriend/girlfriend_translations.h` | `GTr` static class for girlfriend UI strings |
+| Prompt templates | `src/prompts/en/`, `src/prompts/zh_CN/` | Locale-specific AI system/task/knowledge/girlfriend prompts |
+| Docs | `docs/USAGE.md`, `docs/USAGE_zh_CN.md` | User-facing documentation in both languages |
+| README | `README.md`, `README_EN.md` | Project readme in both languages |
+
+### How to Use tr() Correctly
+
+**In QObject subclasses:**
+
+Use `tr()` directly. Qt's `Q_OBJECT` macro auto-generates the translation context.
+
+```cpp
+class SettingsDialog : public QDialog {
+    Q_OBJECT
+    // tr() available — context is "SettingsDialog"
+    void setupUI() {
+        setWindowTitle(tr("Settings"));
+        m_okButton->setText(tr("OK"));
+    }
+};
+```
+
+**In non-QObject classes:**
+
+Declare `Q_DECLARE_TR_FUNCTIONS(ClassName)` to gain access to `tr()`.
+
+```cpp
+class SafetyChecker {
+    Q_DECLARE_TR_FUNCTIONS(SafetyChecker)
+    // tr() now available — context is "SafetyChecker"
+public:
+    QString blockReason() const {
+        return tr("Operation blocked: unsafe path detected");
+    }
+};
+```
+
+**In free functions or structs:**
+
+Use `QCoreApplication::translate()` with an explicit context.
+
+```cpp
+struct ShellOperation {
+    static inline QString tr(const char* s, const char* c = nullptr, int n = -1) {
+        return QCoreApplication::translate("ShellOperation", s, c, n);
+    }
+};
+```
+
+### Adding a New Language
+
+1. Generate the `.ts` base file:
+   ```bash
+   lupdate src/ -ts translations/localai_<locale>.ts
+   ```
+2. Edit `.ts` file in Qt Linguist or directly (XML format)
+3. The `.ts` file is compiled to `.qm` at build time via CMake's `qt_add_translations()`
+4. `TranslationManager::loadTranslation("zh_CN")` loads the compiled `.qm` at runtime
+
+### Bilingual Prompt Templates
+
+AI system prompts exist in **two parallel directory trees** under `src/prompts/`:
+
+```
+src/prompts/
+├── en/                    # English prompts
+│   ├── system.md          # System prompt
+│   ├── task.md            # Task execution prompt
+│   ├── knowledge.md       # Knowledge retrieval prompt
+│   └── girlfriend.md      # Girlfriend personality prompt
+└── zh_CN/                 # Chinese prompts
+    ├── system.md
+    ├── task.md
+    ├── knowledge.md
+    └── girlfriend.md
+```
+
+When the user switches language in Settings, `PromptManager::setLanguage()` switches the prompt
+directory. **When modifying prompts, update BOTH the English and Chinese versions.** The Chinese
+version is not a literal translation — it should feel natural to a native Chinese speaker.
+
+### Review Checklist for i18n
+
+Before committing, verify:
+
+- [ ] Every `setText()`, `setWindowTitle()`, `setPlaceholderText()`, `setToolTip()` uses `tr()`
+- [ ] No user-visible string is wrapped in `QStringLiteral()` (that bypasses translation)
+- [ ] Prompt changes are mirrored in both `en/` and `zh_CN/` directories
+- [ ] `Q_DECLARE_TR_FUNCTIONS` is declared in non-QObject classes that call `tr()`
+- [ ] New `.ts` entries are added with translations for both languages
+
+---
+
+## 4. Comments
 
 ### Golden Rule
 
@@ -255,7 +378,7 @@ auto* button = new QPushButton(this);
 
 ---
 
-## 4. Formatting Tools
+## 5. Formatting Tools
 
 All project formatting is enforced by tooling. Run the appropriate formatter before every commit.
 
@@ -303,7 +426,7 @@ npm install -g prettier
 
 ---
 
-## 5. Git Conventions
+## 6. Git Conventions
 
 ### Commit Format
 
@@ -338,7 +461,7 @@ git reset --hard HEAD~1   # Discard changes (CAUTION)
 
 ---
 
-## 6. Testing Standards
+## 7. Testing Standards
 
 ### Framework
 
@@ -378,7 +501,7 @@ tests/test_markdownrenderer.cpp
 
 ---
 
-## 7. Project Architecture Reference
+## 8. Project Architecture Reference
 
 ```
 LocalAIAssistantCore (src/core/, src/prompts/)   — network, sessions, file I/O, prompts
@@ -397,7 +520,7 @@ LocalAIAssistantCore (src/core/, src/prompts/)   — network, sessions, file I/O
 
 ---
 
-## 8. Pre-Commit Checklist
+## 9. Pre-Commit Checklist
 
 Before every commit, verify:
 
@@ -407,4 +530,6 @@ Before every commit, verify:
 - [ ] `prettier --write` on changed `.md`/`.yml` files
 - [ ] `cmake --build build --parallel 4` — clean build
 - [ ] `ctest --test-dir build` — all tests pass
+- [ ] User-facing strings use `tr()` (not raw strings or `QStringLiteral()`)
+- [ ] Prompt changes mirrored in both `en/` and `zh_CN/` directories
 - [ ] Commit message follows `type(scope): description` format
