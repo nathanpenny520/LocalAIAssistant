@@ -25,7 +25,7 @@ jobs:
             libpoppler-cpp-dev \
             libzip-dev \
             libpugixml-dev \
-            cmake ninja-build
+            cmake ninja-build ccache
 
           # libzip-dev is installed for find_library; broken CMake config is bypassed
 
@@ -75,7 +75,7 @@ jobs:
 
       - name: Install Qt6 and dependencies
         run: |
-          brew install --quiet qt@6 poppler libzip pugixml ninja
+          brew install --quiet qt@6 poppler libzip pugixml ninja ccache
 
       - name: Cache ccache
         uses: actions/cache@v5
@@ -131,6 +131,9 @@ jobs:
           version: '6.7.*'
           modules: 'qtmultimedia qtwebsockets'
           cache: true
+
+      - name: Install ccache
+        run: choco install ccache --no-progress -y
 
       - name: Cache ccache
         uses: actions/cache@v5
