@@ -9,6 +9,7 @@
 #include <QTextBrowser>
 
 #include "../tasks/operationplan.h"
+#include "../tasks/safetychecker.h"
 
 class OperationConfirmDialog : public QDialog {
     Q_OBJECT
@@ -23,6 +24,9 @@ public:
         return m_modifyRequested;
     }
 
+    void setPathViolations(const QVector<PathViolation>& violations);
+    QVector<int> pathViolationResponses() const;  // 0=Deny, 1=Allow Once, 2=Always Allow
+
 private slots:
     void onConfirm();
     void onCancel();
@@ -35,12 +39,16 @@ private:
     bool m_confirmed = false;
     bool m_modifyRequested = false;
 
+    QVector<PathViolation> m_pathViolations;
+    QVector<int> m_pathViolationResponses;
+
     QLabel* m_titleLabel;
     QTextBrowser* m_planPreview;
     QTextBrowser* m_shellPreview;
     QPushButton* m_confirmBtn;
     QPushButton* m_cancelBtn;
     QPushButton* m_modifyBtn;
+    QWidget* m_pathWarningArea = nullptr;
 };
 
 #endif  // OPERATIONCONFIRMDIALOG_H

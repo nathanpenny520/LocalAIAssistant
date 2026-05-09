@@ -22,6 +22,7 @@ macro(add_unit_test TEST_NAME TEST_SOURCE)
 endmacro()
 
 add_unit_test(test_safetychecker test_safetychecker.cpp TaskModule)
+add_unit_test(test_agentloop test_agentloop.cpp TaskModule Qt6::Widgets)
 add_unit_test(test_commandexecutor test_commandexecutor.cpp TaskModule Qt6::Widgets)
 add_unit_test(test_sessionmanager test_sessionmanager.cpp LocalAIAssistantCore Qt6::Network)
 add_unit_test(test_fileparser test_fileparser.cpp LocalAIAssistantCore Qt6::Network)

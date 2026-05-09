@@ -65,6 +65,12 @@ void OperationConfirmDialog::setupUI(const OperationPlan& plan) {
     m_shellPreview->setFont(monoFont);
     mainLayout->addWidget(m_shellPreview);
 
+    // Path access warning area (hidden by default, populated by setPathViolations)
+    m_pathWarningArea = new QWidget(this);
+    m_pathWarningArea->setVisible(false);
+    m_pathWarningArea->setObjectName(QStringLiteral("pathWarningArea"));
+    mainLayout->addWidget(m_pathWarningArea);
+
     // Warning
     auto* warningLabel = new QLabel(tr("Commands will execute in a real terminal"), this);
     QFont warnFont;
@@ -100,6 +106,17 @@ void OperationConfirmDialog::setupUI(const OperationPlan& plan) {
 }
 
 void OperationConfirmDialog::onConfirm() {
+    // If there are path violations, check none are denied
+    if (!m_pathViolations.isEmpty()) {
+        for (int i = 0; i < m_pathViolationResponses.size(); ++i) {
+            if (m_pathViolationResponses[i] == 0) {
+                // At least one path is still denied — reject confirmation
+                m_confirmed = false;
+                reject();
+                return;
+            }
+        }
+    }
     m_confirmed = true;
     accept();
 }
@@ -112,4 +129,88 @@ void OperationConfirmDialog::onCancel() {
 void OperationConfirmDialog::onModify() {
     m_modifyRequested = true;
     reject();
+}
+
+void OperationConfirmDialog::setPathViolations(const QVector<PathViolation>& violations) {
+    m_pathViolations = violations;
+    m_pathViolationResponses.resize(violations.size());
+    m_pathViolationResponses.fill(0);  // default: Deny
+
+    if (violations.isEmpty() || !m_pathWarningArea) return;
+
+    // Clear existing content
+    QLayout* existingLayout = m_pathWarningArea->layout();
+    if (existingLayout) {
+        QLayoutItem* item;
+        while ((item = existingLayout->takeAt(0)) != nullptr) {
+            delete item->widget();
+            delete item;
+        }
+        delete existingLayout;
+    }
+
+    auto* areaLayout = new QVBoxLayout(m_pathWarningArea);
+    areaLayout->setContentsMargins(0, 8, 0, 4);
+
+    auto* headerLabel = new QLabel(tr("Path Access Warning"), m_pathWarningArea);
+    QFont headerFont;
+    headerFont.setPointSize(11);
+    headerFont.setBold(true);
+    headerLabel->setFont(headerFont);
+    headerLabel->setObjectName(QStringLiteral("warningLabel"));
+    areaLayout->addWidget(headerLabel);
+
+    for (int i = 0; i < violations.size(); ++i) {
+        const auto& v = violations[i];
+
+        auto* row = new QWidget(m_pathWarningArea);
+        auto* rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(4, 4, 4, 4);
+
+        // Icon and path label
+        QString icon = v.isWriteOp ? QStringLiteral("🔴") : QStringLiteral("🟡");
+        QString labelText = v.isWriteOp && v.violationType == PathViolation::SystemPath
+                                    ? tr("%1 %2 — This is a protected system directory")
+                                              .arg(icon, v.path)
+                                    : QStringLiteral("%1 %2").arg(icon, v.path);
+        auto* label = new QLabel(labelText, row);
+        label->setWordWrap(true);
+        rowLayout->addWidget(label, 1);
+
+        // Allow Once button
+        auto* allowOnceBtn = new QPushButton(tr("Allow Once"), row);
+        allowOnceBtn->setToolTip(tr("Allow this session only"));
+        int idx = i;
+        connect(allowOnceBtn, &QPushButton::clicked, this, [this, idx]() {
+            m_pathViolationResponses[idx] = 1;
+            // Update button states for this row
+        });
+        rowLayout->addWidget(allowOnceBtn);
+
+        // Always Allow button
+        auto* alwaysAllowBtn = new QPushButton(tr("Always Allow"), row);
+        alwaysAllowBtn->setToolTip(tr("Permanently add to allowed paths"));
+        connect(alwaysAllowBtn, &QPushButton::clicked, this, [this, idx]() {
+            m_pathViolationResponses[idx] = 2;
+        });
+        rowLayout->addWidget(alwaysAllowBtn);
+
+        // Deny button
+        auto* denyBtn = new QPushButton(tr("Deny"), row);
+        denyBtn->setDefault(true);
+        connect(denyBtn, &QPushButton::clicked, this, [this, idx]() {
+            m_pathViolationResponses[idx] = 0;
+        });
+        rowLayout->addWidget(denyBtn);
+
+        areaLayout->addWidget(row);
+    }
+
+    m_pathWarningArea->setVisible(true);
+    // Resize dialog to accommodate the new content
+    resize(width(), height() + violations.size() * 50);
+}
+
+QVector<int> OperationConfirmDialog::pathViolationResponses() const {
+    return m_pathViolationResponses;
 }

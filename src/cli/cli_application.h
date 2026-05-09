@@ -8,7 +8,9 @@
 
 #include "commandexecutor.h"
 #include "operationplan.h"
+#include "safetychecker.h"
 
+class AgentLoop;
 class NetworkManager;
 class FileManager;
 class TaskEngine;
@@ -54,6 +56,12 @@ private slots:
     void onErrorOccurred(const QString& error);
     void onStreamChunkReceived(const QString& chunk);
     void onStreamFinished(const QString& fullContent);
+
+    // AgentLoop slots
+    void onAgentLoopResultReady(const QString& feedbackMessage, const QString& sessionId);
+    void onAgentLoopPlanConfirm(const OperationPlan& plan,
+                                const QVector<PathViolation>& violations);
+    void onAgentLoopFinished(const QString& summary, const QString& sessionId);
 
 private:
     NetworkManager* m_networkManager;

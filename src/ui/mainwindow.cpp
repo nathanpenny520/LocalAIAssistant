@@ -203,6 +203,13 @@ MainWindow::MainWindow(QWidget* parent)
             &MainWindow::onStreamChunkReceived);
     connect(m_networkManager, &NetworkManager::streamFinished, this, &MainWindow::onStreamFinished);
     connect(m_networkManager, &NetworkManager::errorOccurred, this, &MainWindow::onNetworkError);
+
+    // AgentLoop signal connections
+    AgentLoop* loop = AgentLoop::instance();
+    connect(loop, &AgentLoop::executionResultReady, this, &MainWindow::onAgentLoopResultReady);
+    connect(loop, &AgentLoop::planRequiresConfirmation, this, &MainWindow::onAgentLoopPlanConfirm);
+    connect(loop, &AgentLoop::loopFinished, this, &MainWindow::onAgentLoopFinished);
+
     connect(SessionManager::instance(), &SessionManager::sessionChanged, this,
             [this](const QString& sessionId) {
                 // Only re-render if the changed session is currently being displayed.
@@ -666,6 +673,14 @@ void MainWindow::stopCurrentStreamingSession() {
 }
 
 void MainWindow::onSendClicked() {
+    // If AgentLoop is running or awaiting confirmation, treat click as stop
+    if (AgentLoop::instance()->state() == AgentLoop::Running ||
+        AgentLoop::instance()->state() == AgentLoop::AwaitingUserConfirm) {
+        AgentLoop::instance()->stop();
+        setInputEnabled(true);
+        return;
+    }
+
     // If another session is streaming, stop it first, then proceed with normal send
     if (m_isStreaming && !m_requestSessionId.isEmpty() &&
         m_requestSessionId != SessionManager::instance()->currentSessionId()) {
@@ -744,9 +759,18 @@ void MainWindow::onNetworkFinished(const QString& response) {
 
     // Check if response contains a task plan
     if (response.contains(QStringLiteral("[TASK_PLAN]"))) {
-        handleTaskResponse(response);
-        m_requestSessionId.clear();
-        setInputEnabled(true);
+        if (AgentLoop::instance()->state() == AgentLoop::Running) {
+            AgentLoop::instance()->continueWithResponse(response);
+        } else {
+            handleTaskResponse(response);
+        }
+        return;
+    }
+
+    // Check for TASK_COMPLETE without TASK_PLAN
+    if (AgentLoop::instance()->state() == AgentLoop::Running &&
+        response.contains(QStringLiteral("[TASK_COMPLETE]"), Qt::CaseInsensitive)) {
+        AgentLoop::instance()->continueWithResponse(response);
         return;
     }
 
@@ -835,10 +859,22 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
 
     // Check if response contains a task plan
     if (fullContent.contains(QStringLiteral("[TASK_PLAN]"))) {
-        handleTaskResponse(fullContent);
+        if (AgentLoop::instance()->state() == AgentLoop::Running) {
+            // Continuation response within an active loop
+            AgentLoop::instance()->continueWithResponse(fullContent);
+        } else {
+            handleTaskResponse(fullContent);
+        }
         m_streamingContent.clear();
-        m_requestSessionId.clear();
-        setInputEnabled(true);
+        // Don't clear m_requestSessionId or enable input — AgentLoop manages lifecycle
+        return;
+    }
+
+    // Check for [TASK_COMPLETE] without TASK_PLAN (loop completion signal)
+    if (AgentLoop::instance()->state() == AgentLoop::Running &&
+        fullContent.contains(QStringLiteral("[TASK_COMPLETE]"), Qt::CaseInsensitive)) {
+        AgentLoop::instance()->continueWithResponse(fullContent);
+        m_streamingContent.clear();
         return;
     }
 
@@ -1471,87 +1507,42 @@ void MainWindow::appendCommandOutput(const QString& line) {
 }
 
 void MainWindow::handleTaskResponse(const QString& response) {
-    TaskEngine* engine = TaskEngine::instance();
-    OperationPlan plan = engine->parsePlanFromAIResponse(response);
+    AgentLoop::instance()->start(response, m_requestSessionId);
+}
 
-    if (plan.isEmpty()) {
-        // Cannot parse operation plan; display as normal message
-        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
-        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
-            renderCurrentSession();
-        }
-        return;
+void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QString& sessionId) {
+    Q_UNUSED(feedbackMessage);
+    // Send the full message history (including ITERATION_FEEDBACK) back to AI
+    if (sessionId == SessionManager::instance()->currentSessionId()) {
+        QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+        m_requestSessionId = sessionId;
+        m_networkManager->sendChatRequestWithContext(messages);
     }
+}
 
-    SafetyChecker::Result safetyResult = engine->validatePlan(plan);
-    if (safetyResult == SafetyChecker::Blocked) {
-        QString errMsg = tr("⚠️ 操作被安全拦截：%1").arg(engine->safetyChecker().lastBlockReason());
-        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", errMsg);
-        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
-            renderCurrentSession();
-        }
-        return;
-    }
-
+void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
+                                         const QVector<PathViolation>& violations) {
     OperationConfirmDialog dialog(plan, this);
+
+    if (!violations.isEmpty()) {
+        dialog.setPathViolations(violations);
+    }
+
     dialog.exec();
 
     if (dialog.isConfirmed()) {
-        // User confirmed — connect CommandExecutor signals for live output
-        CommandExecutor* executor = engine->executor();
-        QString accumulatedOutput;
-
-        QMetaObject::Connection connStart =
-                connect(executor, &CommandExecutor::operationStarted, this,
-                        [this](int index, const QString& command) {
-                            Q_UNUSED(index);
-                            appendCommandOutput(QStringLiteral("$ %1").arg(command));
-                        });
-
-        QMetaObject::Connection connStdout = connect(executor, &CommandExecutor::stdoutLineReceived,
-                                                     this, [this](const QString& line, int index) {
-                                                         Q_UNUSED(index);
-                                                         appendCommandOutput(line);
-                                                     });
-
-        QMetaObject::Connection connStderr = connect(executor, &CommandExecutor::stderrLineReceived,
-                                                     this, [this](const QString& line, int index) {
-                                                         Q_UNUSED(index);
-                                                         appendCommandOutput(line);
-                                                     });
-
-        QVector<CommandResult> results = engine->executePlan(plan);
-
-        disconnect(connStart);
-        disconnect(connStdout);
-        disconnect(connStderr);
-
-        QString resultMsg;
-        int successCount = 0;
-        int failCount = 0;
-        for (const auto& r : results) {
-            if (r.success)
-                successCount++;
-            else {
-                failCount++;
-                if (!r.errorMessage.isEmpty())
-                    appendCommandOutput(QStringLiteral("  ❌ %1").arg(r.errorMessage));
+        // Process path violation responses
+        SafetyChecker& sc = TaskEngine::instance()->safetyChecker();
+        QVector<int> responses = dialog.pathViolationResponses();
+        for (int i = 0; i < violations.size() && i < responses.size(); ++i) {
+            if (responses[i] == 2) {
+                sc.persistentlyAllowPath(violations[i].path);
+            } else if (responses[i] == 1) {
+                sc.temporarilyAllowPath(violations[i].path);
             }
         }
-
-        resultMsg = tr("✅ 命令执行完成：%1 成功").arg(successCount);
-        if (failCount > 0) resultMsg += tr("，%1 失败").arg(failCount);
-
-        if (engine->canUndo())
-            resultMsg += QLatin1String("\n\n") + tr("💡 提示：可以输入「撤销刚才的操作」来恢复");
-
-        // Append plan summary and results to chat
-        QString fullMsg = plan.generateSummary() + QStringLiteral("\n\n") + resultMsg +
-                          QStringLiteral("\n\n") + response;
-
-        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullMsg);
+        AgentLoop::instance()->confirmPlan();
     } else if (dialog.isModifyRequested()) {
-        // User requested modification of the plan
         QString modifyMsg =
                 tr("📝 请补充说明需要如何调整计划，例如：\n"
                    "  • 修改目标路径\n"
@@ -1559,15 +1550,34 @@ void MainWindow::handleTaskResponse(const QString& response) {
                    "  • 添加筛选条件\n"
                    "我会根据你的反馈重新生成计划。");
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", modifyMsg);
+        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+            renderCurrentSession();
+        }
+        AgentLoop::instance()->cancelPlan();
     } else {
-        // User cancelled
         QString cancelMsg = tr("❌ 操作已取消。");
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", cancelMsg);
+        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+            renderCurrentSession();
+        }
+        AgentLoop::instance()->cancelPlan();
+    }
+}
+
+void MainWindow::onAgentLoopFinished(const QString& summary, const QString& sessionId) {
+    if (sessionId == m_requestSessionId && sessionId == SessionManager::instance()->currentSessionId()) {
+        // Append completion summary to chat
+        QTextCursor cursor = m_chatDisplay->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        cursor.insertBlock();
+        QTextCharFormat fmt;
+        fmt.setForeground(QColor(QStringLiteral("#666666")));
+        fmt.setFontPointSize(11);
+        cursor.insertText(summary, fmt);
     }
 
-    if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
-        renderCurrentSession();
-    }
+    setInputEnabled(true);
+    m_requestSessionId.clear();
 }
 
 void MainWindow::onGirlfriendClicked() {

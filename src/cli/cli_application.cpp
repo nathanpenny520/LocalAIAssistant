@@ -21,6 +21,7 @@
 #endif
 
 #include "../knowledge/knowledgebase.h"
+#include "../tasks/agentloop.h"
 #include "../tasks/taskengine.h"
 #include "networkmanager.h"
 #include "sessionmanager.h"
@@ -103,6 +104,12 @@ int CLIApplication::run(int argc, char* argv[]) {
             &CLIApplication::onStreamChunkReceived);
     connect(m_networkManager, &NetworkManager::streamFinished, this,
             &CLIApplication::onStreamFinished);
+
+    // AgentLoop signal connections
+    AgentLoop* loop = AgentLoop::instance();
+    connect(loop, &AgentLoop::executionResultReady, this, &CLIApplication::onAgentLoopResultReady);
+    connect(loop, &AgentLoop::planRequiresConfirmation, this, &CLIApplication::onAgentLoopPlanConfirm);
+    connect(loop, &AgentLoop::loopFinished, this, &CLIApplication::onAgentLoopFinished);
 
     QCommandLineParser parser;
     parser.setApplicationDescription(
@@ -413,13 +420,23 @@ void CLIApplication::handleCommand(const QString& command) {
         std::cout << "Usage: /search <keyword>" << std::endl;
         std::cout << "Example: /search hello" << std::endl;
     } else if (cmd == "/confirm") {
-        if (m_hasPendingPlan) {
+        if (AgentLoop::instance()->state() == AgentLoop::AwaitingUserConfirm) {
+            // Auto-allow all path violations for this session (CLI convenience)
+            SafetyChecker& sc = m_taskEngine->safetyChecker();
+            QVector<PathViolation> violations = sc.lastPathViolations();
+            for (const auto& v : violations) {
+                sc.temporarilyAllowPath(v.path);
+            }
+            AgentLoop::instance()->confirmPlan();
+        } else if (m_hasPendingPlan) {
             executeConfirmedPlan();
         } else {
             std::cout << "No pending command plan to confirm." << std::endl;
         }
     } else if (cmd == "/cancel") {
-        if (m_hasPendingPlan) {
+        if (AgentLoop::instance()->state() == AgentLoop::AwaitingUserConfirm) {
+            AgentLoop::instance()->cancelPlan();
+        } else if (m_hasPendingPlan) {
             m_hasPendingPlan = false;
             m_pendingPlan = OperationPlan();
             std::cout << "Pending command plan cancelled." << std::endl;
@@ -791,6 +808,18 @@ void CLIApplication::onStreamFinished(const QString& fullContent) {
         m_isStreaming = false;
         m_streamingContent.clear();
 
+        // Route to AgentLoop if it's running (continuation response)
+        if (AgentLoop::instance()->state() == AgentLoop::Running) {
+            if (fullContent.contains(QStringLiteral("[TASK_PLAN]")) ||
+                fullContent.contains(QStringLiteral("[TASK_COMPLETE]"), Qt::CaseInsensitive)) {
+                AgentLoop::instance()->continueWithResponse(fullContent);
+                return;
+            }
+            // Loop ended naturally (no TASK_PLAN in response)
+            AgentLoop::instance()->continueWithResponse(fullContent);
+            return;
+        }
+
         if (extractAndHandleTaskPlan(fullContent)) return;
     }
 
@@ -989,63 +1018,15 @@ void CLIApplication::searchMessages(const QString& keyword) {
 
 bool CLIApplication::extractAndHandleTaskPlan(const QString& response) {
     // Check for [TASK_PLAN] ... [/TASK_PLAN] tags
+    if (!response.contains(QStringLiteral("[TASK_PLAN]"))) return false;
+
+    // Display text before the task plan
     int startIdx = response.indexOf(QStringLiteral("[TASK_PLAN]"));
-    if (startIdx < 0) return false;
-
-    int endIdx = response.indexOf(QStringLiteral("[/TASK_PLAN]"), startIdx);
-    if (endIdx < 0) return false;
-
-    QString jsonStr = response.mid(startIdx + 11, endIdx - startIdx - 11).trimmed();
-
-    // Also extract the display text (text before the task plan)
     QString displayText = response.left(startIdx).trimmed();
     if (!displayText.isEmpty()) std::cout << "\nAI: " << displayText.toStdString() << std::endl;
 
-    OperationPlan plan = m_taskEngine->parsePlanFromAIResponse(response);
-    if (plan.isEmpty()) {
-        std::cout << "Warning: Could not parse task plan from AI response." << std::endl;
-        return false;
-    }
-
-    // Validate with safety checker
-    SafetyChecker::Result safetyResult = m_taskEngine->validatePlan(plan);
-    if (safetyResult == SafetyChecker::Blocked) {
-        std::cout << "\n*** Command blocked: "
-                  << m_taskEngine->safetyChecker().lastBlockReason().toStdString() << " ***"
-                  << std::endl;
-        // In ask mode, quit after showing block reason
-        if (!m_interactiveMode) QTimer::singleShot(0, this, &CLIApplication::quit);
-        return true;
-    }
-
-    // Always require confirmation (matching GUI behavior)
-    std::cout << "\n*** Command plan requires confirmation ***" << std::endl;
-    showPlanPreview(plan);
-
-    if (m_interactiveMode) {
-        std::cout << "Type /confirm to execute, /cancel to abort." << std::endl;
-        m_pendingPlan = plan;
-        m_hasPendingPlan = true;
-    } else {
-        // Ask mode: inline confirmation prompt
-        if (m_autoConfirm) {
-            std::cout << "Auto-confirming (--yes)..." << std::endl;
-            executePlanNow(plan);
-        } else {
-            std::cout << "Execute? [Y/n]: " << std::flush;
-            QTextStream in(stdin);
-            QString line = in.readLine().trimmed().toLower();
-            if (line.isEmpty() || line == QStringLiteral("y") || line == QStringLiteral("yes")) {
-                executePlanNow(plan);
-            } else {
-                std::cout << "Cancelled." << std::endl;
-            }
-        }
-        // Ask mode: always quit after handling plan
-        QTimer::singleShot(0, this, &CLIApplication::quit);
-    }
-
-    return true;  // task plan handled
+    AgentLoop::instance()->start(response, SessionManager::instance()->currentSessionId());
+    return true;
 }
 
 void CLIApplication::showPlanPreview(const OperationPlan& plan) {
@@ -1115,6 +1096,80 @@ QString CLIApplication::formatCommandResult(int index, const CommandResult& resu
         return QStringLiteral("  [%1] OK  (%2ms)").arg(index + 1).arg(result.elapsedMs);
     } else {
         return QStringLiteral("  [%1] FAIL  %2").arg(index + 1).arg(result.errorMessage);
+    }
+}
+
+void CLIApplication::onAgentLoopResultReady(const QString& feedbackMessage,
+                                                 const QString& sessionId) {
+    Q_UNUSED(feedbackMessage);
+    // Send full message history back to AI
+    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    m_networkManager->sendChatRequestWithContext(messages);
+}
+
+void CLIApplication::onAgentLoopPlanConfirm(const OperationPlan& plan,
+                                             const QVector<PathViolation>& violations) {
+    std::cout << "\n*** Command plan requires confirmation ***" << std::endl;
+    showPlanPreview(plan);
+
+    if (!violations.isEmpty()) {
+        std::cout << "\n*** Path access warnings ***" << std::endl;
+        for (int i = 0; i < violations.size(); ++i) {
+            const auto& v = violations[i];
+            QString icon = v.isWriteOp ? QStringLiteral("[WRITE]") : QStringLiteral("[READ]");
+            QString sysTag = v.violationType == PathViolation::SystemPath
+                                     ? QStringLiteral(" [SYSTEM PATH]")
+                                     : QStringLiteral(" [OUTSIDE WHITELIST]");
+            std::cout << "  " << (i + 1) << ". " << icon.toStdString()
+                      << sysTag.toStdString() << " " << v.path.toStdString() << std::endl;
+        }
+        std::cout << "\na=allow all once, p=permanently allow all, d=deny all, "
+                  << "or enter number to toggle" << std::endl;
+    }
+
+    if (m_interactiveMode) {
+        std::cout << "Type /confirm to execute, /cancel to abort, "
+                  << "or handle path violations first." << std::endl;
+        m_pendingPlan = plan;
+        m_hasPendingPlan = true;
+    } else {
+        if (m_autoConfirm) {
+            std::cout << "Auto-confirming (--yes)..." << std::endl;
+            // Auto-allow all path violations
+            SafetyChecker& sc = m_taskEngine->safetyChecker();
+            for (const auto& v : violations) {
+                sc.temporarilyAllowPath(v.path);
+            }
+            AgentLoop::instance()->confirmPlan();
+        } else {
+            // Ask mode with path violations inline
+            std::cout << "Execute? [Y/n]: " << std::flush;
+            QTextStream in(stdin);
+            QString line = in.readLine().trimmed().toLower();
+            if (line.isEmpty() || line == QStringLiteral("y") || line == QStringLiteral("yes")) {
+                // Auto-allow path violations for this session
+                SafetyChecker& sc = m_taskEngine->safetyChecker();
+                for (const auto& v : violations) {
+                    sc.temporarilyAllowPath(v.path);
+                }
+                AgentLoop::instance()->confirmPlan();
+            } else {
+                std::cout << "Cancelled." << std::endl;
+                AgentLoop::instance()->cancelPlan();
+            }
+        }
+    }
+}
+
+void CLIApplication::onAgentLoopFinished(const QString& summary, const QString& sessionId) {
+    Q_UNUSED(sessionId);
+    std::cout << "\n--- " << summary.toStdString() << " ---" << std::endl;
+
+    if (m_interactiveMode) {
+        m_running = false;
+        QTimer::singleShot(0, this, &CLIApplication::readInput);
+    } else {
+        quit();
     }
 }
 

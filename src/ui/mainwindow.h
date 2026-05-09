@@ -19,6 +19,8 @@
 #include <QTextDocument>
 
 #include "../knowledge/knowledgebase.h"
+#include "../tasks/agentloop.h"
+#include "../tasks/safetychecker.h"
 #include "../tasks/taskengine.h"
 #include "filemanager.h"
 #include "girlfriendwindow.h"
@@ -57,6 +59,12 @@ private slots:
     void onToggleHistoryPanel();
     void onGirlfriendClicked();                        // AI girlfriend entry point
     void handleTaskResponse(const QString& response);  // Handle task plan in AI response
+
+    // AgentLoop slots
+    void onAgentLoopResultReady(const QString& feedbackMessage, const QString& sessionId);
+    void onAgentLoopPlanConfirm(const OperationPlan& plan,
+                                const QVector<PathViolation>& violations);
+    void onAgentLoopFinished(const QString& summary, const QString& sessionId);
 
     // File operations
     void onFileButtonClicked();

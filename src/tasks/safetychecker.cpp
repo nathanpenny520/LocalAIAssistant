@@ -3,10 +3,12 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QStandardPaths>
 
 SafetyChecker::SafetyChecker() {
     resetToDefaults();
+    loadPersistentlyAllowedPaths();
 }
 
 void SafetyChecker::setAllowedPaths(const QStringList& paths) {
@@ -123,25 +125,35 @@ SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation& op) 
 }
 
 SafetyChecker::Result SafetyChecker::validatePlan(const OperationPlan& plan) {
+    m_lastPathViolations.clear();
+
     if (plan.isEmpty()) {
         m_lastBlockReason = tr("操作计划为空");
         return Blocked;
     }
 
-    bool hasDangerous = false;
+    bool hasConfirmation = false;
+    QVector<PathViolation> allViolations;
 
     for (const auto& op : plan.operations) {
         Result r = validateOperation(op);
+        if (!m_lastPathViolations.isEmpty()) {
+            allViolations.append(m_lastPathViolations);
+        }
         if (r == Blocked) return Blocked;
-        if (r == NeedsConfirmation) hasDangerous = true;
+        if (r == NeedsConfirmation) hasConfirmation = true;
     }
 
-    if (hasDangerous) return NeedsConfirmation;
+    m_lastPathViolations = allViolations;
+
+    if (hasConfirmation) return NeedsConfirmation;
 
     return plan.requiresConfirmation ? NeedsConfirmation : Approved;
 }
 
 SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation& op) {
+    m_lastPathViolations.clear();
+
     // Native file operations: validate source/target paths directly
     if (op.type == ShellOperation::CreateDir || op.type == ShellOperation::MoveFile ||
         op.type == ShellOperation::DeleteFile || op.type == ShellOperation::CopyFile ||
@@ -156,15 +168,30 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation& op)
             return Blocked;
         }
 
+        bool hasConfirmation = false;
+        bool isWrite = (op.type != ShellOperation::SearchFiles);
+
         for (const auto& path : pathsToCheck) {
             if (isSystemPath(path)) {
-                m_lastBlockReason = tr("禁止操作系统目录: ") + path;
-                return Blocked;
+                PathViolation v;
+                v.path = path;
+                v.violationType = PathViolation::SystemPath;
+                v.isWriteOp = isWrite;
+                m_lastPathViolations.append(v);
+                hasConfirmation = true;
+            } else if (!isPathSafe(path)) {
+                PathViolation v;
+                v.path = path;
+                v.violationType = PathViolation::OutsideWhitelist;
+                v.isWriteOp = isWrite;
+                m_lastPathViolations.append(v);
+                hasConfirmation = true;
             }
-            if (!isPathSafe(path)) {
-                m_lastBlockReason = tr("路径不在允许范围内: ") + path;
-                return Blocked;
-            }
+        }
+
+        if (hasConfirmation) {
+            m_lastBlockReason = tr("路径访问需要确认");
+            return NeedsConfirmation;
         }
 
         // DeleteFile is always Caution (destructive)
@@ -195,16 +222,30 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation& op)
     }
 
     // Extract paths from command for whitelist validation
+    bool hasConfirmation = false;
+    bool cmdIsReadOnly = isReadOnlyCommand(op.command);
     QStringList paths = extractPathsFromCommand(op.command);
     for (const auto& path : paths) {
         if (isSystemPath(path)) {
-            m_lastBlockReason = tr("禁止操作系统目录: ") + path;
-            return Blocked;
+            PathViolation v;
+            v.path = path;
+            v.violationType = PathViolation::SystemPath;
+            v.isWriteOp = !cmdIsReadOnly;
+            m_lastPathViolations.append(v);
+            hasConfirmation = true;
+        } else if (!isPathSafe(path)) {
+            PathViolation v;
+            v.path = path;
+            v.violationType = PathViolation::OutsideWhitelist;
+            v.isWriteOp = !cmdIsReadOnly;
+            m_lastPathViolations.append(v);
+            hasConfirmation = true;
         }
-        if (!isPathSafe(path)) {
-            m_lastBlockReason = tr("路径不在允许范围内: ") + path;
-            return Blocked;
-        }
+    }
+
+    if (hasConfirmation) {
+        m_lastBlockReason = tr("路径访问需要确认");
+        return NeedsConfirmation;
     }
 
     if (level == Caution) return NeedsConfirmation;
@@ -480,6 +521,12 @@ bool SafetyChecker::isPathSafe(const QString& path) const {
             QFileInfo(path).isAbsolute() ? path
                                          : (QDir::currentPath() + QStringLiteral("/") + path));
 
+    // Check temporary (session-scoped) allowed paths first
+    for (const auto& temp : m_temporaryAllowedPaths) {
+        QString tempResolved = resolveCanonicalPath(temp);
+        if (resolved.startsWith(tempResolved)) return true;
+    }
+
     for (const auto& allowed : m_allowedPaths) {
         QString allowedResolved = resolveCanonicalPath(allowed);
         if (resolved.startsWith(allowedResolved)) return true;
@@ -549,4 +596,131 @@ bool SafetyChecker::isSystemPath(const QString& path) const {
 #endif
 
     return false;
+}
+
+QVector<PathViolation> SafetyChecker::lastPathViolations() const {
+    return m_lastPathViolations;
+}
+
+// IMPORTANT: Session vs Loop scope
+//   m_temporaryAllowedPaths = session-scoped (app process lifetime).
+//   Paths added via "Allow Once" are valid for all subsequent iterations
+//   within this session. They do NOT persist across app restarts.
+//   m_allowedPaths (including QSettings-loaded persistent paths) are
+//   permanent and survive restarts.
+void SafetyChecker::temporarilyAllowPath(const QString& path) {
+    if (!m_temporaryAllowedPaths.contains(path)) m_temporaryAllowedPaths.append(path);
+}
+
+void SafetyChecker::persistentlyAllowPath(const QString& path) {
+    // Deduplicate: don't add if already in m_allowedPaths
+    if (m_allowedPaths.contains(path)) return;
+
+    m_allowedPaths.append(path);
+
+    // Persist to QSettings, deduplicating the stored array
+    QSettings settings(QStringLiteral("LocalAIAssistant"), QStringLiteral("Settings"));
+    QStringList persisted =
+            settings.value(QStringLiteral("SafetyChecker/PersistentlyAllowedPaths")).toStringList();
+    if (!persisted.contains(path)) {
+        persisted.append(path);
+        settings.setValue(QStringLiteral("SafetyChecker/PersistentlyAllowedPaths"), persisted);
+    }
+}
+
+QStringList SafetyChecker::persistentlyAllowedPaths() const {
+    QSettings settings(QStringLiteral("LocalAIAssistant"), QStringLiteral("Settings"));
+    return settings.value(QStringLiteral("SafetyChecker/PersistentlyAllowedPaths")).toStringList();
+}
+
+void SafetyChecker::loadPersistentlyAllowedPaths() {
+    QSettings settings(QStringLiteral("LocalAIAssistant"), QStringLiteral("Settings"));
+    QStringList persisted =
+            settings.value(QStringLiteral("SafetyChecker/PersistentlyAllowedPaths")).toStringList();
+    for (const auto& path : persisted) {
+        if (!m_allowedPaths.contains(path)) m_allowedPaths.append(path);
+    }
+}
+
+bool SafetyChecker::isReadOnlyCommand(const QString& command) {
+    if (command.trimmed().isEmpty()) return true;
+
+    // Check for output redirection — makes any command a write
+    if (command.contains(QLatin1Char('>')) &&
+        !command.contains(QStringLiteral(">>=")) &&
+        !command.contains(QRegularExpression("\\d\\s*>\\s*\\d")))
+        return false;
+    if (command.contains(QStringLiteral("| tee")) ||
+        command.contains(QStringLiteral("Out-File"), Qt::CaseInsensitive) ||
+        command.contains(QStringLiteral("Set-Content"), Qt::CaseInsensitive))
+        return false;
+
+    // Split by command separators; if any segment is a write, whole command is write
+    static QRegularExpression sep(QStringLiteral("[;&|]"));
+    const QStringList segments = command.split(sep, Qt::SkipEmptyParts);
+
+    // Unix read-only commands
+    static const QStringList unixReadOnly = {
+            QStringLiteral("ls"),    QStringLiteral("cat"),   QStringLiteral("head"),
+            QStringLiteral("tail"),  QStringLiteral("less"),  QStringLiteral("which"),
+            QStringLiteral("where"), QStringLiteral("du"),    QStringLiteral("df"),
+            QStringLiteral("pwd"),   QStringLiteral("file"),  QStringLiteral("stat"),
+            QStringLiteral("grep"),  QStringLiteral("wc"),    QStringLiteral("echo"),
+            QStringLiteral("find"),
+    };
+
+    // Windows read-only commands
+    static const QStringList winReadOnly = {
+            QStringLiteral("dir"),      QStringLiteral("type"),
+            QStringLiteral("findstr"),  QStringLiteral("where"),
+            QStringLiteral("tree"),     QStringLiteral("more"),
+            QStringLiteral("fc"),       QStringLiteral("comp"),
+            QStringLiteral("systeminfo"), QStringLiteral("driverquery"),
+            QStringLiteral("tasklist"), QStringLiteral("ver"),
+            QStringLiteral("set"),      QStringLiteral("path"),
+    };
+
+    for (const auto& seg : segments) {
+        QString trimmed = seg.trimmed();
+        if (trimmed.isEmpty()) continue;
+
+        // Extract the base command (first word, strip path prefix)
+        QString firstWord =
+                trimmed.section(QRegularExpression(QStringLiteral("[\\s;|&<>]")), 0, 0,
+                                QString::SectionSkipEmpty);
+        // Strip leading path (e.g. /usr/bin/ls -> ls)
+        int lastSlash = firstWord.lastIndexOf(QLatin1Char('/'));
+        int lastBackslash = firstWord.lastIndexOf(QLatin1Char('\\'));
+        int slashIdx = qMax(lastSlash, lastBackslash);
+        if (slashIdx >= 0) firstWord = firstWord.mid(slashIdx + 1);
+
+        // Skip privilege prefixes (these are already blocked, but be safe)
+        if (firstWord == QStringLiteral("sudo") || firstWord == QStringLiteral("runas") ||
+            firstWord == QStringLiteral("doas") || firstWord == QStringLiteral("pkexec")) {
+            continue;
+        }
+
+        // find with -delete or -exec is a write
+        if (firstWord == QStringLiteral("find")) {
+            if (trimmed.contains(QStringLiteral("-delete")) ||
+                trimmed.contains(QStringLiteral("-exec")))
+                return false;
+            continue;
+        }
+
+        // echo with redirection was caught above, but also check append
+        if (firstWord == QStringLiteral("echo")) {
+            if (trimmed.contains(QStringLiteral(">>"))) return false;
+            continue;
+        }
+
+        if (winReadOnly.contains(firstWord.toLower())) continue;
+
+        if (unixReadOnly.contains(firstWord)) continue;
+
+        // Unknown command — assume it could write
+        return false;
+    }
+
+    return true;
 }

@@ -236,7 +236,8 @@ private slots:
         ShellOperation op;
         op.type = ShellOperation::CreateDir;
         op.target = "/etc/bad";
-        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+        // Three-tier security: system paths now return NeedsConfirmation instead of Blocked
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
     }
 
     void testNativeOp_DeleteFile_NeedsConfirmation() {
@@ -264,7 +265,8 @@ private slots:
         op.type = ShellOperation::MoveFile;
         op.source = "/tmp/src";
         op.target = "/etc/dst";
-        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+        // Three-tier security: system paths now return NeedsConfirmation
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
     }
 
     void testNativeOp_CopyFile_BothPathsChecked() {
@@ -274,7 +276,8 @@ private slots:
         op.type = ShellOperation::CopyFile;
         op.source = "/etc/passwd";  // system path
         op.target = "/home/user/projects/dst";
-        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+        // Three-tier security: system paths now return NeedsConfirmation
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
     }
 
     void testNativeOp_WriteFile_Approved() {
@@ -293,7 +296,8 @@ private slots:
         op.type = ShellOperation::WriteFile;
         op.target = "/etc/config";
         op.command = "bad config";
-        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+        // Three-tier security: system paths now return NeedsConfirmation
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
     }
 
     void testNativeOp_SearchFiles_Approved() {
@@ -386,6 +390,286 @@ private slots:
         op.type = ShellOperation::DeleteFile;
         op.source = "/tmp/test";
         QCOMPARE(sc.dangerLevel(op), SafetyChecker::Caution);
+    }
+
+    // ── isReadOnlyCommand ──
+
+    void testIsReadOnlyCommand_Ls() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("ls /etc"));
+    }
+
+    void testIsReadOnlyCommand_Cat() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("cat /etc/passwd"));
+    }
+
+    void testIsReadOnlyCommand_Find() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("find /tmp -name '*.txt'"));
+    }
+
+    void testIsReadOnlyCommand_Which() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("which python3"));
+    }
+
+    void testIsReadOnlyCommand_Rm() {
+        QVERIFY(!SafetyChecker::isReadOnlyCommand("rm /tmp/file.txt"));
+    }
+
+    void testIsReadOnlyCommand_Touch() {
+        QVERIFY(!SafetyChecker::isReadOnlyCommand("touch /tmp/newfile.txt"));
+    }
+
+    void testIsReadOnlyCommand_EchoRedirect() {
+        QVERIFY(!SafetyChecker::isReadOnlyCommand("echo hello > /tmp/file.txt"));
+    }
+
+    void testIsReadOnlyCommand_EchoNoRedirect() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("echo hello"));
+    }
+
+    void testIsReadOnlyCommand_FindDelete() {
+        QVERIFY(!SafetyChecker::isReadOnlyCommand("find /tmp -name '*.tmp' -delete"));
+    }
+
+    void testIsReadOnlyCommand_FindExec() {
+        QVERIFY(!SafetyChecker::isReadOnlyCommand("find /tmp -name '*.txt' -exec rm {} \\;"));
+    }
+
+    void testIsReadOnlyCommand_WindowsDir() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("dir C:\\Windows"));
+    }
+
+    void testIsReadOnlyCommand_WindowsType() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand("type C:\\file.txt"));
+    }
+
+    void testIsReadOnlyCommand_Empty() {
+        QVERIFY(SafetyChecker::isReadOnlyCommand(""));
+    }
+
+    void testIsReadOnlyCommand_Pipe() {
+        // Pipe with tee makes it a write
+        QVERIFY(!SafetyChecker::isReadOnlyCommand("ls /etc | tee output.txt"));
+    }
+
+    // ── Path violations: NeedsConfirmation instead of Blocked ──
+
+    void testSystemPath_ReturnsNeedsConfirmation() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "ls /etc";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
+    }
+
+    void testSystemPath_ViolationRecorded() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "ls /etc";
+        sc.validateOperation(op);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QCOMPARE(violations[0].violationType, PathViolation::SystemPath);
+    }
+
+    void testOutsideWhitelist_ReturnsNeedsConfirmation() {
+        SafetyChecker sc;
+        sc.setAllowedPaths({"/home/user/projects"});
+        ShellOperation op;
+        op.command = "ls /opt/homebrew";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
+    }
+
+    void testOutsideWhitelist_ViolationRecorded() {
+        SafetyChecker sc;
+        sc.setAllowedPaths({"/home/user/projects"});
+        ShellOperation op;
+        op.command = "ls /opt/homebrew";
+        sc.validateOperation(op);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QCOMPARE(violations[0].violationType, PathViolation::OutsideWhitelist);
+    }
+
+    void testNativeOp_SystemPath_NeedsConfirmation() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.type = ShellOperation::CreateDir;
+        op.target = "/etc/bad_dir";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
+    }
+
+    void testNativeOp_OutsideWhitelist_NeedsConfirmation() {
+        SafetyChecker sc;
+        sc.setAllowedPaths({"/home/user/projects"});
+        ShellOperation op;
+        op.type = ShellOperation::WriteFile;
+        op.target = "/opt/test.txt";
+        op.command = "content";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::NeedsConfirmation);
+    }
+
+    // ── Command injection and dangerous commands still Blocked ──
+
+    void testCommandInjection_StillBlocked() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "eval echo $(whoami)";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+    }
+
+    void testSudo_StillBlocked() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "sudo ls /home";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+    }
+
+    void testRmRfRoot_StillBlocked() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "rm -rf /";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::Blocked);
+    }
+
+    // ── isWriteOp flag ──
+
+    void testSystemPath_ReadOnly_IsNotWrite() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "ls /etc";
+        sc.validateOperation(op);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QVERIFY(!violations[0].isWriteOp);
+    }
+
+    void testSystemPath_Write_IsWrite() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.command = "rm /etc/file.txt";
+        sc.validateOperation(op);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QVERIFY(violations[0].isWriteOp);
+    }
+
+    void testNativeOp_CreateDir_IsWrite() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.type = ShellOperation::CreateDir;
+        op.target = "/etc/test_dir";
+        sc.validateOperation(op);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QVERIFY(violations[0].isWriteOp);
+    }
+
+    void testNativeOp_SearchFiles_IsNotWrite() {
+        SafetyChecker sc;
+        ShellOperation op;
+        op.type = ShellOperation::SearchFiles;
+        op.source = "/etc";
+        op.command = "*.conf";
+        sc.validateOperation(op);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QVERIFY(!violations[0].isWriteOp);
+    }
+
+    // ── Persistent and temporary path allow ──
+
+    void testTemporarilyAllowPath() {
+        SafetyChecker sc;
+        sc.setAllowedPaths({"/home/user/projects"});
+        sc.temporarilyAllowPath("/opt/homebrew");
+
+        ShellOperation op;
+        op.command = "ls /opt/homebrew";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::Approved);
+    }
+
+    void testTemporarilyAllowPath_NotPersisted() {
+        SafetyChecker sc1;
+        sc1.setAllowedPaths({"/home/user/projects"});
+        sc1.temporarilyAllowPath("/opt/homebrew");
+
+        // New instance shouldn't have the temporary path
+        SafetyChecker sc2;
+        sc2.setAllowedPaths({"/home/user/projects"});
+        ShellOperation op;
+        op.command = "ls /opt/homebrew";
+        QCOMPARE(sc2.validateOperation(op), SafetyChecker::NeedsConfirmation);
+    }
+
+    void testPersistentlyAllowPath() {
+        SafetyChecker sc;
+        sc.setAllowedPaths({"/home/user/projects"});
+        sc.persistentlyAllowPath("/opt/custom");
+
+        ShellOperation op;
+        op.command = "ls /opt/custom";
+        QCOMPARE(sc.validateOperation(op), SafetyChecker::Approved);
+    }
+
+    void testPersistentlyAllowPath_Deduplicate() {
+        SafetyChecker sc;
+        sc.setAllowedPaths({"/home/user/projects"});
+        sc.persistentlyAllowPath("/opt/custom");
+        // Second call should not add duplicate
+        sc.persistentlyAllowPath("/opt/custom");
+
+        QStringList allowed = sc.allowedPaths();
+        int count = allowed.count(QStringLiteral("/opt/custom"));
+        QCOMPARE(count, 1);
+    }
+
+    // ── lastPathViolations cleared between calls ──
+
+    void testLastPathViolations_Cleared() {
+        SafetyChecker sc;
+        ShellOperation op1;
+        op1.command = "ls /etc";
+        sc.validateOperation(op1);
+        QVERIFY(!sc.lastPathViolations().isEmpty());
+
+        ShellOperation op2;
+        op2.command = "echo hello";
+        sc.validateOperation(op2);
+        QVERIFY(sc.lastPathViolations().isEmpty());
+    }
+
+    // ── validatePlan collects violations ──
+
+    void testValidatePlan_CollectsViolations() {
+        SafetyChecker sc;
+        OperationPlan plan;
+        plan.requiresConfirmation = false;
+
+        ShellOperation op1;
+        op1.command = "ls /etc";
+        ShellOperation op2;
+        op2.command = "echo hello";
+        plan.operations = {op1, op2};
+
+        QCOMPARE(sc.validatePlan(plan), SafetyChecker::NeedsConfirmation);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(!violations.isEmpty());
+        QCOMPARE(violations[0].path, QStringLiteral("/etc"));
+    }
+
+    void testValidatePlan_MultipleViolations() {
+        SafetyChecker sc;
+        OperationPlan plan;
+        plan.requiresConfirmation = false;
+
+        ShellOperation op1;
+        op1.command = "ls /etc";
+        ShellOperation op2;
+        op2.command = "cat /bin/config";
+        plan.operations = {op1, op2};
+
+        QCOMPARE(sc.validatePlan(plan), SafetyChecker::NeedsConfirmation);
+        QVector<PathViolation> violations = sc.lastPathViolations();
+        QVERIFY(violations.size() >= 2);
     }
 
     // ── Last block reason ──

@@ -232,7 +232,9 @@ add_library(
     src/tasks/safetychecker.cpp
     src/tasks/safetychecker.h
     src/tasks/taskengine.cpp
-    src/tasks/taskengine.h)
+    src/tasks/taskengine.h
+    src/tasks/agentloop.cpp
+    src/tasks/agentloop.h)
 target_include_directories(TaskModule PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks
                                              ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
 target_link_libraries(TaskModule PUBLIC LocalAIAssistantCore Qt6::Widgets)

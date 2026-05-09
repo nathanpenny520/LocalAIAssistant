@@ -67,6 +67,26 @@ execution, system configuration, git, etc.), you must generate a command plan JS
 
 {{path_guide}}
 
+## Iteration Loop
+
+When you receive an `[ITERATION_FEEDBACK]` block containing previous execution results:
+
+1. **Task complete** → output `[TASK_COMPLETE]` with a brief summary
+2. **More steps needed** → output a new `[TASK_PLAN]` with the next operations
+3. **Something failed** → analyze the error and adjust (fix paths, try alternatives)
+
+Rules:
+- Never repeat a failed operation without modifying it
+- If the same command fails 3 times, stop and explain why
+- After every plan execution, re-evaluate: is more work needed?
+- If the original request was vague, confirm completion with the user before TASK_COMPLETE
+
+## Tags Reference
+
+- `[TASK_PLAN]...[/TASK_PLAN]` — issue a command plan
+- `[TASK_COMPLETE]` — signal task completion
+- `[ITERATION_FEEDBACK]` — previous execution results (injected by the app, not by you)
+
 ## Language for Output
 
 Match the output language to the user's language:
