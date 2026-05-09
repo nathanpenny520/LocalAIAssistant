@@ -115,7 +115,8 @@ jobs:
         if: success()
         shell: bash
         run: |
-          ./scripts/package.sh --build-dir build --output-dir release
+          # MSVC multi-config puts executables in build/Release/
+          ./scripts/package.sh --build-dir build/Release --output-dir release
           # NSIS skipped: makensis not on default runner
 
       - name: Upload Windows artifacts

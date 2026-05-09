@@ -119,11 +119,12 @@ if(Qt6LinguistTools_FOUND)
     set(TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
                  ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts)
 
-    qt_add_lrelease(
-        TS_FILES
-        ${TS_FILES}
-        LRELEASE_TARGET
-        translations_target)
+    # qt_add_lrelease interface changed in Qt 6.5
+    if(Qt6_VERSION VERSION_GREATER_EQUAL "6.5.0")
+        qt_add_lrelease(TS_FILES ${TS_FILES} LRELEASE_TARGET translations_target)
+    else()
+        qt_add_lrelease(translations_target TS_FILES ${TS_FILES})
+    endif()
     add_custom_target(translations ALL DEPENDS ${translations_target})
 
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/translations)
