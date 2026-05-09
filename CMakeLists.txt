@@ -347,15 +347,17 @@ if(APPLE)
     set(PROMPTS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts)
     set(PROMPTS_DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/prompts)
 
+    file(GLOB PROMPTS_DEP_FILES "${PROMPTS_SOURCE_DIR}/en/*.md" "${PROMPTS_SOURCE_DIR}/zh_CN/*.md")
+
     add_custom_command(
         OUTPUT ${PROMPTS_DEST_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${PROMPTS_DEST_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROMPTS_SOURCE_DIR} ${PROMPTS_DEST_DIR}
-        DEPENDS ${PROMPTS_SOURCE_DIR}/*
+        DEPENDS ${PROMPTS_DEP_FILES}
         COMMENT "Copying prompts to build directory")
 
     add_custom_target(app_icon ALL DEPENDS ${APP_ICON_DEST})
-    add_custom_target(prompts ALL DEPENDS ${PROMPTS_DEST_DIR})
+    add_custom_target(copy_prompts_dev ALL DEPENDS ${PROMPTS_DEST_DIR})
 
     set_target_properties(
         ${PROJECT_NAME}
@@ -470,7 +472,7 @@ if(APPLE)
                 ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/.env
         COMMENT "Copying .env to app bundle Resources (if exists)")
 
-    add_dependencies(${PROJECT_NAME} app_icon prompts)
+    add_dependencies(${PROJECT_NAME} app_icon copy_prompts_dev)
 
     # macOS CLI .app bundle with iTerm2 detection Create CLI wrapper script that detects iTerm2
     set(CLI_WRAPPER_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cli-wrapper.sh)
