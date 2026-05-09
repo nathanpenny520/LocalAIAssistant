@@ -44,6 +44,7 @@ find_package(
     Qt6 REQUIRED
     COMPONENTS Widgets
                Network
+               Concurrent
                Multimedia
                MultimediaWidgets
                WebSockets
