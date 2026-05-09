@@ -1,61 +1,52 @@
 # Fix Plan: CLI Interactive Mode Per-Violation Path Toggle
 
-> Status: **DRAFT — awaiting review**
-> Date: 2026-05-09
+> Status: **APPROVED**  
+> Date: 2026-05-09  
 > Related: [cli-test-plan.md](cli-test-plan.md) — Known Limitations
 
 ## Problem
 
 In CLI interactive mode (`chat`), when `AgentLoop::planRequiresConfirmation` fires, the
-`onAgentLoopPlanConfirm` method in `cli_application.cpp` prints:
+`onAgentLoopPlanConfirm` method prints:
 
 ```
 a=allow all once, p=permanently allow all, d=deny all, or enter number to toggle
 ```
 
-But then immediately prints:
+Then immediately prints:
 
 ```
 Type /confirm to execute, /cancel to abort, or handle path violations first.
 ```
 
-And sets `m_pendingPlan = plan; m_hasPendingPlan = true;` before returning to the `readInput` loop.
+The single-key inputs (`a`, `p`, `d`, numbers) are **never parsed** — `readInput` only routes to
+`handleCommand()` for `/`-prefixed commands or sends the input as a chat message.
 
-The `readInput` loop only routes to `handleCommand()` for `/`-prefixed commands or sends the input
-as a chat message. The single-key inputs (`a`, `p`, `d`, numbers) are **never parsed**.
-
-**Current behavior** (line 422-435 of cli_application.cpp):
-- `/confirm` → auto-allows ALL violations temporarily, calls `confirmPlan()`
-- `/cancel` → calls `cancelPlan()`
-- Any other input → treated as a new chat message, stops AgentLoop
-
-**Missing behavior**:
-- `a` → allow all once (temporarily) — this is what `/confirm` already does
-- `p` → permanently allow all (write to QSettings)
-- `d` → deny all (same as `/cancel`)
-- Number toggle → per-violation: toggle individual violation response (0=Deny, 1=Allow Once, 2=Always Allow)
-
-## Fix Approach: Per-Violation State Machine in Interactive Mode
-
-### Option A: Single-key intercept in `readInput` (Recommended)
+## Fix: Single-Key Intercept in `readInput` (Option A)
 
 When `m_hasPendingPlan == true` AND `m_pendingViolations` is non-empty, intercept raw
-single-character inputs in the `readInput` loop before routing to `handleCommand()`.
+single-character inputs before routing to `handleCommand()`.
 
-**Changes to `cli_application.h`:**
+---
+
+## Changes to `cli_application.h`
 
 ```cpp
-// New member to store pending violations for interactive toggling
-QVector<PathViolation> m_pendingViolations;
+// Pending path violation toggle state (interactive mode only)
+QVector<SafetyChecker::PathViolation> m_pendingViolations;
 QVector<int> m_pendingViolationResponses; // 0=Deny, 1=Allow Once, 2=Always Allow
 
-// Helper to render current violation toggle state
 void renderPathViolationToggles() const;
+void clearPendingPlan();
 ```
 
-**Changes to `cli_application.cpp`:**
+---
 
-In `onAgentLoopPlanConfirm()`, when in interactive mode and violations are non-empty:
+## Changes to `cli_application.cpp`
+
+### 1. `onAgentLoopPlanConfirm()` — store violations and render toggles
+
+Replace the current interactive-mode block (lines 1130–1134):
 
 ```cpp
 if (m_interactiveMode) {
@@ -71,38 +62,56 @@ if (m_interactiveMode) {
 }
 ```
 
-In `readInput()` (before `handleCommand()` call):
+### 2. `readInput()` — intercept single-key toggles before `handleCommand()`
+
+Insert between reading the line and calling `handleCommand()`:
 
 ```cpp
-// Intercept single-key path violation toggles
+// Intercept single-key path violation toggles (interactive mode only)
 if (m_hasPendingPlan && !m_pendingViolations.isEmpty()) {
-    QString raw = QString::fromLocal8Bit(line);
-    if (raw == QStringLiteral("a")) {
-        m_pendingViolationResponses.fill(1); // All Allow Once
-        renderPathViolationToggles();
-        return;
-    } else if (raw == QStringLiteral("p")) {
-        m_pendingViolationResponses.fill(2); // All Always Allow
-        renderPathViolationToggles();
-        return;
-    } else if (raw == QStringLiteral("d")) {
-        AgentLoop::instance()->cancelPlan();
-        return;
-    } else {
+    QString raw = QString::fromLocal8Bit(line).trimmed();
+
+    // Only intercept single-character inputs — longer input is a chat message
+    if (raw.length() == 1) {
+        QChar c = raw[0];
+
+        if (c == QLatin1Char('a')) {
+            m_pendingViolationResponses.fill(1);
+            renderPathViolationToggles();
+            return;
+        }
+        if (c == QLatin1Char('p')) {
+            m_pendingViolationResponses.fill(2);
+            renderPathViolationToggles();
+            return;
+        }
+        if (c == QLatin1Char('d')) {
+            m_pendingViolationResponses.fill(0);
+            renderPathViolationToggles();
+            return;
+        }
         bool ok;
         int idx = raw.toInt(&ok);
         if (ok && idx >= 1 && idx <= m_pendingViolations.size()) {
-            // Cycle: 0→1→2→0
+            // Cycle: Deny(0) → Allow Once(1) → Always Allow(2) → Deny(0)
             int& resp = m_pendingViolationResponses[idx - 1];
             resp = (resp + 1) % 3;
             renderPathViolationToggles();
             return;
         }
+        // Single char but not a valid toggle key — give a hint
+        std::cout << "Invalid input. Use a/p/d/number, /confirm, or /cancel."
+                  << std::endl;
+        return;
     }
+    // Longer input → treated as a normal chat message
+    // Falls through to handleCommand() which will stop the pending plan
 }
 ```
 
-In `handleCommand()` for `/confirm`:
+### 3. `handleCommand()` — `/confirm` applies per-violation choices
+
+Replace the AgentLoop `/confirm` block (lines 422–430):
 
 ```cpp
 } else if (cmd == "/confirm") {
@@ -116,16 +125,35 @@ In `handleCommand()` for `/confirm`:
             } else if (resp == 1) {
                 sc.temporarilyAllowPath(v.path);
             }
-            // resp == 0: deny — but AgentLoop confirmation still proceeds
-            // (individual path denial is handled differently)
+            // resp == 0: Deny — path not allowed, plan still executes for other paths
         }
+        clearPendingPlan();
         AgentLoop::instance()->confirmPlan();
+    } else if (m_hasPendingPlan) {
+        executeConfirmedPlan();
+    } else {
+        std::cout << "No pending command plan to confirm." << std::endl;
     }
-    // ... existing m_hasPendingPlan handling
-}
 ```
 
-**New method `renderPathViolationToggles()`:**
+### 4. `handleCommand()` — `/cancel` clears state
+
+Replace the AgentLoop `/cancel` block (lines 436–445):
+
+```cpp
+} else if (cmd == "/cancel") {
+    if (AgentLoop::instance()->state() == AgentLoop::AwaitingUserConfirm) {
+        clearPendingPlan();
+        AgentLoop::instance()->cancelPlan();
+    } else if (m_hasPendingPlan) {
+        clearPendingPlan();
+        std::cout << "Pending command plan cancelled." << std::endl;
+    } else {
+        std::cout << "No pending command plan to cancel." << std::endl;
+    }
+```
+
+### 5. New method `renderPathViolationToggles()`
 
 ```cpp
 void CLIApplication::renderPathViolationToggles() const {
@@ -134,11 +162,12 @@ void CLIApplication::renderPathViolationToggles() const {
     for (int i = 0; i < m_pendingViolations.size(); ++i) {
         const auto& v = m_pendingViolations[i];
         int resp = m_pendingViolationResponses[i];
-        QString icon = v.isWriteOp ? "[WRITE]" : "[READ]";
-        QString sysTag = v.violationType == PathViolation::SystemPath
-            ? "[SYSTEM PATH]" : "[OUTSIDE WHITELIST]";
+        QString icon = v.isWriteOp ? QStringLiteral("[WRITE]") : QStringLiteral("[READ]");
+        QString sysTag = v.violationType == SafetyChecker::PathViolation::SystemPath
+            ? QStringLiteral(" [SYSTEM PATH]")
+            : QStringLiteral(" [OUTSIDE WHITELIST]");
         std::cout << "  " << (i + 1) << ". " << icon.toStdString()
-                  << " " << sysTag.toStdString()
+                  << sysTag.toStdString()
                   << " " << v.path.toStdString()
                   << " → " << labels[resp] << std::endl;
     }
@@ -147,49 +176,49 @@ void CLIApplication::renderPathViolationToggles() const {
 }
 ```
 
-### Option B: `/allow` `/deny` `/always` subcommands (Alternative)
+### 6. New method `clearPendingPlan()`
 
-Instead of single-key intercepts, add slash commands with optional path index:
-
+```cpp
+void CLIApplication::clearPendingPlan() {
+    m_hasPendingPlan = false;
+    m_pendingPlan = OperationPlan();
+    m_pendingViolations.clear();
+    m_pendingViolationResponses.clear();
+}
 ```
-> /allow 1          # Allow path #1 once (this session)
-> /always 2         # Permanently allow path #2
-> /deny 3           # Deny path #3
-> /allow all        # Allow all once
-> /deny all         # Deny all
-```
 
-More verbose but consistent with the existing `/command` paradigm. No state machine in `readInput`.
+---
 
-**Tradeoff**: Option B is easier to implement and test but less fluid. Option A is more user-friendly
-(one keystroke toggles) but requires a more invasive change to `readInput`.
+## Key Design Decisions
 
-### Recommendation: Option A
+| Decision | Rationale |
+|----------|-----------|
+| `d` = all Deny, NOT cancel | `d` toggles the violation response to "Deny" — the plan is still pending. `/cancel` is the only way to abort the plan. Consistent with `a`/`p` which also only toggle state. |
+| `.trimmed()` on raw input | CLI input always includes a trailing newline. `trimmed()` normalizes before comparison. |
+| Single-char guard (`raw.length() == 1`) | Prevents multi-character input from being treated as a toggle. Anything longer falls through to normal chat routing (which stops the pending plan). |
+| Invalid single-char hint | If the user types `x` or another single char, print a quick hint instead of silently doing nothing. |
+| `clearPendingPlan()` helper | Deduplicates cleanup logic across `/confirm`, `/cancel`, and normal chat interrupt paths. |
+| Default `fill(1)` = Allow Once | Safest default: path is allowed for this session but not persisted. User must explicitly choose `p` for permanent. |
 
-The prompt already tells users to type `a`/`p`/`d`/`number` — we should make it work as documented.
-Option A is the natural completion of the already-printed UI.
+---
 
 ## Files Changed
 
 | Action | File | Lines |
 |--------|------|-------|
-| EDIT | `src/cli/cli_application.h` | +3 members |
-| EDIT | `src/cli/cli_application.cpp` | +60 (readInput intercept, renderPathViolationToggles, updated /confirm handler) |
+| EDIT | `src/cli/cli_application.h` | +4 members |
+| EDIT | `src/cli/cli_application.cpp` | ~70 (readInput intercept, renderPathViolationToggles, clearPendingPlan, updated /confirm and /cancel handlers) |
 
-## Risk Assessment
-
-- **Risk**: Low. Only affects interactive mode when `m_hasPendingPlan && !m_pendingViolations.isEmpty()`.
-- **Regression surface**: Regular chat, ask mode, and non-violation plan confirmation are unchanged.
-- **Testing**: Covered by Phase 5 and Phase 8 of `cli-test-plan.md`.
+---
 
 ## Acceptance Criteria
 
-1. In CLI interactive mode, after a plan with path violations is shown:
-   - Typing `a` toggles all violations to "Allow Once" and re-renders the list
-   - Typing `p` toggles all to "Always Allow" and re-renders
-   - Typing `d` cancels the plan immediately
-   - Typing a number (e.g., `1`) cycles that violation through Deny→Allow Once→Always Allow
-2. `/confirm` applies the per-violation choices: response=2 calls `persistentlyAllowPath()`,
-   response=1 calls `temporarilyAllowPath()`, response=0 does nothing
-3. `/cancel` still works and clears the pending state
-4. Typing a normal chat message still stops AgentLoop and starts a new conversation
+1. Typing `a` → all violations set to **Allow Once**, list re-renders
+2. Typing `p` → all violations set to **Always Allow**, list re-renders
+3. Typing `d` → all violations set to **Deny**, list re-renders (plan NOT cancelled)
+4. Typing a number (e.g., `1`) → that violation cycles Deny→Allow Once→Always Allow, list re-renders
+5. Typing a non-toggle single char (e.g., `x`) → hint printed, plan still pending
+6. `/confirm` → applies per-violation choices (`persistentlyAllowPath` for 2, `temporarilyAllowPath` for 1, nothing for 0), clears pending state, executes plan
+7. `/cancel` → clears pending state, cancels plan
+8. Typing a normal chat message → falls through, stops AgentLoop, starts new conversation
+9. All pending state (`m_hasPendingPlan`, `m_pendingPlan`, `m_pendingViolations`, `m_pendingViolationResponses`) is cleared after `/confirm`, `/cancel`, or chat interrupt
