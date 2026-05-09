@@ -94,7 +94,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.*'
-          modules: 'qtmultimedia qtwebsockets'
+          modules: 'qtmultimedia qtwebsockets qttools'
 
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
