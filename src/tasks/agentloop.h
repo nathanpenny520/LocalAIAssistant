@@ -28,6 +28,8 @@ public:
     State state() const;
     int iterationCount() const;
     void setMaxIterations(int max);
+    void setPreserveLoopMessages(bool preserve);
+    bool preserveLoopMessages() const;
 
 signals:
     void executionResultReady(const QString& feedbackMessage, const QString& sessionId);
@@ -48,6 +50,7 @@ private:
     State m_state = Idle;
     int m_iterationCount = 0;
     int m_maxIterations = 10;
+    bool m_preserveLoopMessages = true;
     OperationPlan m_pendingPlan;
     QString m_sessionId;
 };

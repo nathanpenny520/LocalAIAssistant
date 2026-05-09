@@ -471,6 +471,7 @@ void MainWindow::renderCurrentSession() {
 
     for (int i = 0; i < session.messages.size(); ++i) {
         const auto& msg = session.messages[i];
+        if (msg.messageType == ChatMessage::SystemNotification) continue;
         QString rendered = formatMessageWithThinking(msg.role, msg.content);
 
         if (msg.role == "user" && !msg.attachments.isEmpty()) {

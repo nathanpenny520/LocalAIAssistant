@@ -17,7 +17,7 @@ QJsonArray OllamaProvider::buildMessagesArray(const QVector<ChatMessage>& messag
     jsonMessages.append(systemObj);
 
     int totalCount = messages.size();
-    int startIndex = qMax(0, totalCount - m_maxContext);
+    int startIndex = computeContextStartIndex(messages);
 
     for (int i = startIndex; i < totalCount; ++i) {
         const ChatMessage& msg = messages[i];

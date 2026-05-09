@@ -2,18 +2,25 @@
 
 #include <QDebug>
 #include <QJsonDocument>
+#include <QSettings>
 
 GirlfriendSession::GirlfriendSession()
         : m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
         , m_currentEmotion("default")
-        , m_mood(0.6)  // default mood value
+        , m_mood(0.6)
         , m_messages() {
+    QSettings settings("LocalAIAssistant", "Settings");
+    m_maxMessages = settings.value("sessionMaxMessages", 500).toInt();
+    if (m_maxMessages > 0 && m_maxMessages < 10) {
+        m_maxMessages = 10;
+    }
 }
 
 void GirlfriendSession::addMessage(const QString& role, const QString& content,
                                    const QString& emotion) {
     GirlfriendMessage msg(role, content, emotion);
     m_messages.append(msg);
+    truncateMessages();
 }
 
 void GirlfriendSession::setCurrentEmotion(const QString& emotion) {
@@ -22,6 +29,30 @@ void GirlfriendSession::setCurrentEmotion(const QString& emotion) {
 
 void GirlfriendSession::setMood(double mood) {
     m_mood = qBound(0.0, mood, 1.0);
+}
+
+void GirlfriendSession::setMaxMessages(int limit) {
+    if (limit > 0 && limit < 10) {
+        limit = 10;
+    }
+    m_maxMessages = limit;
+    QSettings settings("LocalAIAssistant", "Settings");
+    settings.setValue("sessionMaxMessages", limit);
+    truncateMessages();
+}
+
+void GirlfriendSession::truncateMessages() {
+    if (m_maxMessages <= 0) return;
+
+    int removed = m_messages.size() - m_maxMessages;
+    if (removed <= 0) return;
+
+    m_messages.remove(0, removed);
+
+    GirlfriendMessage info("system",
+                           QString("Session auto-trimmed, keeping last %1 messages").arg(m_maxMessages));
+    info.isSystemNotification = true;
+    m_messages.prepend(info);
 }
 
 void GirlfriendSession::clearMessages() {
@@ -88,6 +119,8 @@ QJsonObject GirlfriendSession::toJson() const {
         msgObj["role"] = msg.role;
         msgObj["content"] = msg.content;
         msgObj["emotion"] = msg.emotion;
+        if (msg.isSystemNotification)
+            msgObj["isSystemNotification"] = true;
         messagesArray.append(msgObj);
     }
     json["messages"] = messagesArray;
@@ -108,6 +141,7 @@ void GirlfriendSession::fromJson(const QJsonObject& json) {
         msg.role = msgObj["role"].toString();
         msg.content = msgObj["content"].toString();
         msg.emotion = msgObj["emotion"].toString("default");
+        msg.isSystemNotification = msgObj["isSystemNotification"].toBool(false);
         m_messages.append(msg);
     }
 }

@@ -25,9 +25,12 @@ struct FileAttachment {
 };
 
 struct ChatMessage {
+    enum MessageType { Normal, SystemNotification };
     QString role;
     QString content;
     QVector<FileAttachment> attachments;
+    bool isAgentLoopInjected = false;
+    MessageType messageType = Normal;
 
     ChatMessage() = default;
     ChatMessage(const QString& r, const QString& c) : role(r), content(c) {

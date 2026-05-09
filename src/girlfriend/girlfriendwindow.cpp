@@ -1856,6 +1856,7 @@ void GirlfriendWindow::loadSessionMessages() {
     if (!session) return;
 
     for (const GirlfriendMessage& msg : session->messages()) {
+        if (msg.isSystemNotification) continue;
         addMessageBubble(msg.role, msg.content);
     }
 

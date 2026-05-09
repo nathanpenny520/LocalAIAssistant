@@ -47,6 +47,9 @@ public:
     void sendChatRequest(const QVector<ChatMessage>& messages);
     void abortCurrentRequest();
 
+    // Context window — shared across all providers
+    int computeContextStartIndex(const QVector<ChatMessage>& messages) const;
+
 signals:
     void responseReceived(const QString& content);
     void streamChunkReceived(const QString& chunk);

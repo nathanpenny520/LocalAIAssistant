@@ -30,7 +30,8 @@ public:
     void addMessageToCurrentSession(const QString& role, const QString& content,
                                     const QVector<FileAttachment>& attachments);
     void addMessageToSession(const QString& sessionId, const QString& role,
-                             const QString& content);  // Add a message directly to a specific session
+                             const QString& content);
+    void addMessageToSession(const QString& sessionId, const ChatMessage& message);
     void updateSessionTitle(const QString& sessionId, const QString& title);
     void setSessionPinned(const QString& sessionId, bool pinned);
     void removeSession(const QString& sessionId);

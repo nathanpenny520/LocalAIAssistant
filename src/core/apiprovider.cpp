@@ -288,6 +288,43 @@ QJsonObject ApiProvider::buildImageContentBlock(const QString& base64Data,
     return block;
 }
 
+int ApiProvider::computeContextStartIndex(const QVector<ChatMessage>& messages) const {
+    int totalCount = messages.size();
+    if (totalCount == 0) return 0;
+
+    // When false, agent loop injected messages are excluded from context entirely
+    QSettings settings("LocalAIAssistant", "Settings");
+    bool preserveLoopMessages = settings.value("preserveAgentLoopMessages", true).toBool();
+
+    int realIncluded = 0;
+    int injectedIncluded = 0;
+    int skippedInjected = 0;
+    for (int i = totalCount - 1; i >= 0; --i) {
+        if (messages[i].isAgentLoopInjected) {
+            if (!preserveLoopMessages) {
+                skippedInjected++;
+                continue;
+            }
+            injectedIncluded++;
+        } else {
+            realIncluded++;
+        }
+        if (realIncluded >= m_maxContext) {
+            qDebug() << "[ContextWindow] startIndex:" << i
+                     << "realMessages:" << realIncluded
+                     << "injectedMessages:" << injectedIncluded
+                     << "skippedInjected:" << skippedInjected
+                     << "totalSent:" << (totalCount - i - skippedInjected);
+            return i;
+        }
+    }
+    qDebug() << "[ContextWindow] startIndex: 0 (all messages)"
+             << "realMessages:" << realIncluded
+             << "injectedMessages:" << injectedIncluded
+             << "skippedInjected:" << skippedInjected;
+    return 0;
+}
+
 QJsonObject ApiProvider::buildFileContentBlock(const FileAttachment& file) const {
     QJsonObject block;
     block["type"] = "text";

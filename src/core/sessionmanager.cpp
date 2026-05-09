@@ -81,6 +81,15 @@ void SessionManager::addMessageToSession(const QString& sessionId, const QString
     }
 }
 
+void SessionManager::addMessageToSession(const QString& sessionId, const ChatMessage& message) {
+    if (m_sessions.contains(sessionId)) {
+        m_sessions[sessionId].messages.append(message);
+        truncateSession(sessionId);
+        saveSessionsToFile();
+        emit sessionChanged(sessionId);
+    }
+}
+
 void SessionManager::updateSessionTitle(const QString& sessionId, const QString& title) {
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].title = title;
@@ -115,7 +124,9 @@ void SessionManager::truncateSession(const QString& sessionId) {
 
     // Prepend system message to inform user about truncation
     QString info = QString("Session auto-trimmed, keeping last %1 messages").arg(m_maxMessages);
-    session.messages.prepend(ChatMessage("system", info));
+    ChatMessage truncMsg("system", info);
+    truncMsg.messageType = ChatMessage::SystemNotification;
+    session.messages.prepend(truncMsg);
 }
 
 void SessionManager::setMaxMessages(int limit) {
@@ -164,6 +175,11 @@ void SessionManager::saveSessionsToFile() {
             QJsonObject msgObj;
             msgObj["role"] = msg.role;
             msgObj["content"] = msg.content;
+            if (msg.isAgentLoopInjected)
+                msgObj["isAgentLoopInjected"] = true;
+            if (msg.messageType != ChatMessage::Normal)
+                msgObj["messageType"] = (msg.messageType == ChatMessage::SystemNotification)
+                        ? QStringLiteral("SystemNotification") : QStringLiteral("Normal");
 
             // Serialize attachments
             if (!msg.attachments.isEmpty()) {
@@ -235,6 +251,10 @@ void SessionManager::loadSessionsFromFile() {
             }
             QJsonObject msgObj = msgVal.toObject();
             ChatMessage msg(msgObj["role"].toString(), msgObj["content"].toString());
+            msg.isAgentLoopInjected = msgObj.value("isAgentLoopInjected").toBool(false);
+            QString mtStr = msgObj.value("messageType").toString();
+            if (mtStr == QStringLiteral("SystemNotification"))
+                msg.messageType = ChatMessage::SystemNotification;
 
             // Deserialize attachments
             if (msgObj.contains("attachments")) {

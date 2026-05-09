@@ -37,7 +37,7 @@ QJsonArray AnthropicProvider::buildMessagesArray(const QVector<ChatMessage>& mes
     // No system message — system prompt is at top level via buildBasePayload()
 
     int totalCount = messages.size();
-    int startIndex = qMax(0, totalCount - m_maxContext);
+    int startIndex = computeContextStartIndex(messages);
 
     for (int i = startIndex; i < totalCount; ++i) {
         const ChatMessage& msg = messages[i];

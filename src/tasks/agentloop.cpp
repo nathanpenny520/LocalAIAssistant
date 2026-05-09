@@ -1,6 +1,7 @@
 #include "agentloop.h"
 
 #include <QRegularExpression>
+#include <QSettings>
 
 #include "../core/sessionmanager.h"
 #include "taskengine.h"
@@ -13,6 +14,8 @@ AgentLoop* AgentLoop::instance() {
 }
 
 AgentLoop::AgentLoop(QObject* parent) : QObject(parent) {
+    QSettings settings("LocalAIAssistant", "Settings");
+    m_preserveLoopMessages = settings.value("preserveAgentLoopMessages", true).toBool();
 }
 
 AgentLoop::State AgentLoop::state() const {
@@ -25,6 +28,16 @@ int AgentLoop::iterationCount() const {
 
 void AgentLoop::setMaxIterations(int max) {
     m_maxIterations = max;
+}
+
+void AgentLoop::setPreserveLoopMessages(bool preserve) {
+    m_preserveLoopMessages = preserve;
+    QSettings settings("LocalAIAssistant", "Settings");
+    settings.setValue("preserveAgentLoopMessages", preserve);
+}
+
+bool AgentLoop::preserveLoopMessages() const {
+    return m_preserveLoopMessages;
 }
 
 void AgentLoop::start(const QString& aiResponse, const QString& sessionId) {
@@ -126,11 +139,14 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     QString feedback = buildResultFeedback(results);
 
     // Save the original AI response (with TASK_PLAN) as assistant message
-    SessionManager::instance()->addMessageToSession(m_sessionId, "assistant",
-                                                     plan.generateSummary());
+    ChatMessage planMsg("assistant", plan.generateSummary());
+    planMsg.isAgentLoopInjected = true;
+    SessionManager::instance()->addMessageToSession(m_sessionId, planMsg);
 
     // Add feedback as a user message to continue the conversation
-    SessionManager::instance()->addMessageToSession(m_sessionId, "user", feedback);
+    ChatMessage feedbackMsg("user", feedback);
+    feedbackMsg.isAgentLoopInjected = true;
+    SessionManager::instance()->addMessageToSession(m_sessionId, feedbackMsg);
 
     emit executionResultReady(feedback, m_sessionId);
 }

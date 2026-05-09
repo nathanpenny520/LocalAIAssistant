@@ -229,6 +229,12 @@ void GirlfriendSessionManager::markSessionAutoNamed(const QString& sessionId) {
     }
 }
 
+void GirlfriendSessionManager::setMaxMessages(int limit) {
+    if (m_currentSession) {
+        m_currentSession->setMaxMessages(limit);
+    }
+}
+
 void GirlfriendSessionManager::saveAll() {
     saveSessionsList();
     if (m_currentSession) {

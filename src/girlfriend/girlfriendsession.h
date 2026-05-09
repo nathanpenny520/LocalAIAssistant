@@ -17,6 +17,7 @@ struct GirlfriendMessage {
     QString content;
     QString emotion;  // current emotion: happy, shy, love, hate, sad, angry, afraid, awaiting,
                       // studying, default
+    bool isSystemNotification = false;
 
     GirlfriendMessage() : emotion("default") {
     }
@@ -48,6 +49,9 @@ public:
     void setMood(double mood);
     void clearMessages();
 
+    int maxMessages() const { return m_maxMessages; }
+    void setMaxMessages(int limit);
+
     // 持久化
     void saveToFile();
     void loadFromFile();
@@ -59,7 +63,10 @@ private:
     QString m_id;
     QString m_currentEmotion;
     double m_mood = 0.6;  // mood value (0.0-1.0), default 0.6
+    int m_maxMessages = 500;
     QVector<GirlfriendMessage> m_messages;
+
+    void truncateMessages();
 
     QJsonObject toJson() const;
     void fromJson(const QJsonObject& json);

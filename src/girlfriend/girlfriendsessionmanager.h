@@ -44,6 +44,9 @@ public:
     bool setSessionPinned(const QString& sessionId, bool pinned);
     void markSessionAutoNamed(const QString& sessionId);
 
+    // Settings
+    void setMaxMessages(int limit);
+
     // Persistence
     void saveAll();
     void loadAll();
