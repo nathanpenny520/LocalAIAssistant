@@ -1,11 +1,30 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Prioritize official Qt over Homebrew Qt cmake stubs. Set QT_PATH env var or edit this line to
-# match your Qt installation.
+# Auto-detect Qt path, prioritizing official Qt over Homebrew stubs.
+# Override with: cmake -B build -DQT_PATH=/custom/qt/path
 if(NOT DEFINED QT_PATH)
-    set(QT_PATH "$ENV{HOME}/Qt/6.10.3/macos")
+    if(APPLE AND EXISTS "$ENV{HOME}/Qt")
+        file(GLOB qt_dirs RELATIVE "$ENV{HOME}/Qt" "$ENV{HOME}/Qt/6.*")
+        list(SORT qt_dirs COMPARE NATURAL)
+        list(REVERSE qt_dirs)
+        if(qt_dirs)
+            list(GET qt_dirs 0 latest)
+            set(QT_PATH "$ENV{HOME}/Qt/${latest}/macos")
+        endif()
+    elseif(UNIX AND NOT APPLE AND EXISTS "$ENV{HOME}/Qt")
+        file(GLOB qt_dirs RELATIVE "$ENV{HOME}/Qt" "$ENV{HOME}/Qt/6.*")
+        list(SORT qt_dirs COMPARE NATURAL)
+        list(REVERSE qt_dirs)
+        if(qt_dirs)
+            list(GET qt_dirs 0 latest)
+            set(QT_PATH "$ENV{HOME}/Qt/${latest}/gcc_64")
+        endif()
+    endif()
 endif()
-list(PREPEND CMAKE_PREFIX_PATH "${QT_PATH}")
+
+if(DEFINED QT_PATH AND QT_PATH)
+    list(PREPEND CMAKE_PREFIX_PATH "${QT_PATH}")
+endif()
 
 project(
     LocalAIAssistant
