@@ -3,6 +3,7 @@ name: Build and Test
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
     branches: [main, master]
 
@@ -124,3 +125,46 @@ jobs:
           name: LocalAIAssistant-Windows
           path: release/*
           if-no-files-found: warn
+
+  create-release:
+    needs: [test-linux, test-macos, test-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: LocalAIAssistant-Linux
+          path: release-linux
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: LocalAIAssistant-macOS
+          path: release-macos
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: LocalAIAssistant-Windows
+          path: release-windows
+
+      - name: Show files
+        run: |
+          echo "=== Linux ===" && ls -la release-linux/
+          echo "=== macOS ===" && ls -la release-macos/
+          echo "=== Windows ===" && ls -la release-windows/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: |
+            自动构建发布。
+
+            ** macOS 用户 **：首次打开请在应用上 右键 → 打开，或进入 系统设置 → 隐私与安全性 中允许。
+          files: |
+            release-linux/*
+            release-macos/*
+            release-windows/*
+          fail_on_unmatched_files: true
