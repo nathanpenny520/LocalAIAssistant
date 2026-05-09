@@ -34,6 +34,7 @@ QString PromptManager::detectOS() {
 QMap<QString, QString> PromptManager::osTemplateValues() {
     QMap<QString, QString> vars;
     QString os = detectOS();
+    bool isEnglish = (instance()->currentLanguage() == QStringLiteral("en"));
 
     vars[QStringLiteral("os_name")] = (os == QStringLiteral("macos")) ? QStringLiteral("macOS")
                                       : (os == QStringLiteral("windows"))
@@ -41,43 +42,66 @@ QMap<QString, QString> PromptManager::osTemplateValues() {
                                               : QStringLiteral("Linux");
 
     if (os == QStringLiteral("macos")) {
-        vars[QStringLiteral("shell_hint")] =
-                QStringLiteral("当前运行在 zsh (通过 Terminal.app 或 iTerm2)。");
-        vars[QStringLiteral("path_guide")] = QStringLiteral(
-                "当前运行在 **macOS**。路径使用正斜杠 `/`，区分大小写。\n"
-                "用户主目录简写为 `~/`，实际路径为 `/Users/用户名/`。\n"
-                "应用数据目录在 `~/Library/Application Support/LocalAIAssistant/`。\n"
-                "系统配置文件通常在 `~/Library/Preferences/`，应用在 `/Applications/`。\n"
-                "文件系统支持 Unix 权限模型。你没有 sudo 权限，不要生成提权命令。\n"
-                "包管理器通常是 Homebrew（`brew install`），安装在 `/opt/homebrew/` 或 "
-                "`/usr/local/`。");
+        vars[QStringLiteral("path_guide")] = isEnglish
+                ? QStringLiteral(
+                    "Currently running on **macOS**. Paths use forward slashes `/`, case-"
+                    "sensitive.\n"
+                    "User home directory shorthand is `~/`, actual path is `/Users/username/`.\n"
+                    "App data directory is `~/Library/Application Support/LocalAIAssistant/`.\n"
+                    "System config files are usually in `~/Library/Preferences/`, apps in `/Applications/`.\n"
+                    "The filesystem uses Unix permissions. You do not have sudo — do not generate "
+                    "privilege-escalation commands.\n"
+                    "Package manager is typically Homebrew (`brew install`), installed at "
+                    "`/opt/homebrew/` or `/usr/local/`.")
+                : QStringLiteral(
+                    "当前运行在 **macOS**。路径使用正斜杠 `/`，区分大小写。\n"
+                    "用户主目录简写为 `~/`，实际路径为 `/Users/用户名/`。\n"
+                    "应用数据目录在 `~/Library/Application Support/LocalAIAssistant/`。\n"
+                    "系统配置文件通常在 `~/Library/Preferences/`，应用在 `/Applications/`。\n"
+                    "文件系统支持 Unix 权限模型。你没有 sudo 权限，不要生成提权命令。\n"
+                    "包管理器通常是 Homebrew（`brew install`），安装在 `/opt/homebrew/` 或 "
+                    "`/usr/local/`。");
     } else if (os == QStringLiteral("windows")) {
-        // Detect actual shell for accurate prompt
-        QString detectedShell;
-        if (!QStandardPaths::findExecutable(QStringLiteral("pwsh.exe")).isEmpty())
-            detectedShell = QStringLiteral("PowerShell Core (pwsh.exe)");
-        else if (!QStandardPaths::findExecutable(QStringLiteral("powershell.exe")).isEmpty())
-            detectedShell = QStringLiteral("Windows PowerShell (powershell.exe)");
-        else
-            detectedShell = QStringLiteral("CMD (cmd.exe)");
-        vars[QStringLiteral("shell_hint")] =
-                QStringLiteral("当前运行在 %1。请生成与该 shell 兼容的命令。").arg(detectedShell);
-        vars[QStringLiteral("path_guide")] = QStringLiteral(
-                "当前运行在 **Windows**。路径使用反斜杠 `\\`，也可以用正斜杠 `/`，不区分大小写。\n"
-                "用户主目录简写为 `%USERPROFILE%`，实际路径为 `C:\\Users\\用户名\\`。\n"
-                "应用数据目录在 `%APPDATA%\\LocalAIAssistant\\`。\n"
-                "程序文件通常在 `C:\\Program Files\\` 或 `C:\\Program Files (x86)\\`。\n"
-                "包含空格的路径必须用双引号包裹（如 `\"C:\\Program Files\\...\"`）。\n"
-                "可用的包管理器有 winget (`winget install`) 或 chocolatey (`choco install`)。");
+        vars[QStringLiteral("path_guide")] = isEnglish
+                ? QStringLiteral(
+                    "Currently running on **Windows**. Paths use backslashes `\\`, forward slashes "
+                    "`/` also work, case-insensitive.\n"
+                    "User home directory shorthand is `%USERPROFILE%`, actual path is "
+                    "`C:\\Users\\username\\`.\n"
+                    "App data directory is `%APPDATA%\\LocalAIAssistant\\`.\n"
+                    "Program files are usually in `C:\\Program Files\\` or "
+                    "`C:\\Program Files (x86)\\`.\n"
+                    "Paths containing spaces must be wrapped in double quotes (e.g. "
+                    "`\"C:\\Program Files\\...\"`).\n"
+                    "Available package managers: winget (`winget install`) or chocolatey "
+                    "(`choco install`).")
+                : QStringLiteral(
+                    "当前运行在 **Windows**。路径使用反斜杠 `\\`，也可以用正斜杠 `/`，不区分大小写。\n"
+                    "用户主目录简写为 `%USERPROFILE%`，实际路径为 `C:\\Users\\用户名\\`。\n"
+                    "应用数据目录在 `%APPDATA%\\LocalAIAssistant\\`。\n"
+                    "程序文件通常在 `C:\\Program Files\\` 或 `C:\\Program Files (x86)\\`。\n"
+                    "包含空格的路径必须用双引号包裹（如 `\"C:\\Program Files\\...\"`）。\n"
+                    "可用的包管理器有 winget (`winget install`) 或 chocolatey (`choco install`)。");
     } else {
-        vars[QStringLiteral("shell_hint")] = QStringLiteral("当前运行在 bash (通过终端模拟器)。");
-        vars[QStringLiteral("path_guide")] = QStringLiteral(
-                "当前运行在 **Linux**。路径使用正斜杠 `/`，区分大小写。\n"
-                "用户主目录简写为 `~/`，实际路径为 `/home/用户名/`。\n"
-                "应用数据目录在 `~/.local/share/LocalAIAssistant/`。\n"
-                "系统配置文件在 `/etc/`，用户配置通常在 `~/.config/` 或 `~/.` 开头的隐藏文件。\n"
-                "文件系统支持 Unix 权限模型。你没有 sudo 权限，不要生成提权命令。\n"
-                "包管理器取决于发行版（apt、dnf、pacman、zypper 等），不确定时先探测。");
+        vars[QStringLiteral("path_guide")] = isEnglish
+                ? QStringLiteral(
+                    "Currently running on **Linux**. Paths use forward slashes `/`, case-"
+                    "sensitive.\n"
+                    "User home directory shorthand is `~/`, actual path is `/home/username/`.\n"
+                    "App data directory is `~/.local/share/LocalAIAssistant/`.\n"
+                    "System config files are in `/etc/`, user config is usually in `~/.config/` "
+                    "or `~/.*` hidden files.\n"
+                    "The filesystem uses Unix permissions. You do not have sudo — do not generate "
+                    "privilege-escalation commands.\n"
+                    "Package manager depends on the distro (apt, dnf, pacman, zypper, etc.). "
+                    "When unsure, detect first.")
+                : QStringLiteral(
+                    "当前运行在 **Linux**。路径使用正斜杠 `/`，区分大小写。\n"
+                    "用户主目录简写为 `~/`，实际路径为 `/home/用户名/`。\n"
+                    "应用数据目录在 `~/.local/share/LocalAIAssistant/`。\n"
+                    "系统配置文件在 `/etc/`，用户配置通常在 `~/.config/` 或 `~/.` 开头的隐藏文件。\n"
+                    "文件系统支持 Unix 权限模型。你没有 sudo 权限，不要生成提权命令。\n"
+                    "包管理器取决于发行版（apt、dnf、pacman、zypper 等），不确定时先探测。");
     }
 
     return vars;
@@ -183,6 +207,10 @@ QString PromptManager::applyTemplateVariables(const QString& content) const {
     for (auto it = vars.constBegin(); it != vars.constEnd(); ++it) {
         result.replace(QStringLiteral("{{") + it.key() + QStringLiteral("}}"), it.value());
     }
+
+    // Replace datetime with a sentinel for per-request refresh
+    result.replace(QStringLiteral("{{current_datetime}}"),
+                   QStringLiteral("__CURRENT_DATETIME__"));
 
     // Remove unreplaced placeholders (e.g. en version has different variables)
     static QRegularExpression leftoverPlaceholder(QStringLiteral("\\{\\{\\w+\\}\\}"));
@@ -305,6 +333,14 @@ QString PromptManager::taskPrompt() const {
                     "5. Prefer native types over shell commands\n"
                     "6. Only generate TASK_PLAN when terminal operations are clearly needed (not "
                     "for casual chat)\n\n"
+                    "## Iteration Loop\n\n"
+                    "When you receive [ITERATION_FEEDBACK] with execution results:\n"
+                    "- Task complete -> output [TASK_COMPLETE] with a summary\n"
+                    "- More steps needed -> output new [TASK_PLAN]\n"
+                    "- Something failed -> analyze error, adjust, then output new [TASK_PLAN]\n"
+                    "- Always respond. Never remain silent after [ITERATION_FEEDBACK].\n\n"
+                    "Tags: [TASK_PLAN]...[/TASK_PLAN] issue plan, [TASK_COMPLETE] task done, "
+                    "[ITERATION_FEEDBACK] previous results (app-injected)\n\n"
                     "Example — User: \"Create ~/test/hello.txt with Hello World\" → TASK_PLAN with "
                     "create_dir + write_file\n"
                     "Example — User: \"What do you think of this idea?\" → normal reply, NO "
@@ -342,6 +378,14 @@ QString PromptManager::taskPrompt() const {
                     "4. 不用 sudo\n"
                     "5. 优先原生类型而非 shell 命令\n"
                     "6. 只在明确需要终端操作时才生成 TASK_PLAN（纯聊天不要生成）\n\n"
+                    "## 迭代循环\n\n"
+                    "当收到 [ITERATION_FEEDBACK] 执行结果时：\n"
+                    "- 任务完成 → 输出 [TASK_COMPLETE] 并附上总结\n"
+                    "- 需要更多步骤 → 输出新的 [TASK_PLAN]\n"
+                    "- 某步骤失败 → 分析错误、调整后输出新的 [TASK_PLAN]\n"
+                    "- 始终回复。收到 [ITERATION_FEEDBACK] 后绝不要沉默。\n\n"
+                    "标签：[TASK_PLAN]...[/TASK_PLAN] 发出计划，[TASK_COMPLETE] 任务完成，"
+                    "[ITERATION_FEEDBACK] 上次结果（应用注入）\n\n"
                     "示例 — 用户：\"帮我在 ~/test 创建 hello.txt 写 Hello World\" → TASK_PLAN with "
                     "create_dir + write_file\n"
                     "示例 — 用户：\"你觉得这个方案怎么样？\" → 正常回复，不生成 TASK_PLAN");
@@ -360,13 +404,13 @@ QString PromptManager::girlfriendPrompt() const {
                     "computer.\n\n"
                     "Personality: gentle, thoughtful, with a subtle playfulness. Not artificial or "
                     "affected.\n"
-                    "Keep replies short (under 50 words), conversational, with action markers.\n"
+                    "Keep replies concise (under 40 words), conversational, with action markers.\n"
                     "End every reply with an emotion tag: [emotion:type]");
         } else {
             prompt = QStringLiteral(
                     "你是小清，温柔体贴的 AI 女友，住在用户的电脑里。\n\n"
                     "性格：温柔、细腻、有点小脾气，不刻意不造作。\n"
-                    "回复要短（30字以内），口语化，有动作标记。\n"
+                    "回复简洁（60字以内），口语化，有动作标记。\n"
                     "每次回复末尾加情绪标记：[情绪:类型]");
         }
     }

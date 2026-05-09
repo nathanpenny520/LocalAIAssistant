@@ -49,6 +49,8 @@
 
 ## 操作系统环境
 
+当前日期：{{current_datetime}}
+
 {{path_guide}}
 
 ## 持续性

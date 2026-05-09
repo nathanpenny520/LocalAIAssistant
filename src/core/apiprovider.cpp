@@ -1,5 +1,6 @@
 #include "apiprovider.h"
 
+#include <QDateTime>
 #include <QDebug>
 #include <QUrl>
 
@@ -108,19 +109,41 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
         return;
     }
 
-    QJsonObject jsonPayload = buildBasePayload();
+    // Build effective system prompt for this request (non-mutating)
+    QString effectivePrompt = m_systemPrompt;
 
-    // Inject knowledge base context into system prompt with a descriptive preamble
+    // Resolve datetime sentinel to current time (language-aware)
+    QString lang = PromptManager::instance()->currentLanguage();
+    QString dtStr = (lang == QStringLiteral("en"))
+            ? QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd (dddd)"))
+            : QDateTime::currentDateTime().toString(QStringLiteral("yyyy年M月d日 dddd"));
+    effectivePrompt.replace(QStringLiteral("__CURRENT_DATETIME__"), dtStr);
+
+    // Inject knowledge base context with language-aware header (non-mutating)
     if (!m_knowledgeContext.isEmpty()) {
-        m_systemPrompt += QStringLiteral("\n\n## 知识库参考内容\n\n") +
-                          QStringLiteral(
-                                  "以下是本地知识库中与用户问题相关的参考内容，供你回答用户问题时参"
-                                  "考：\n\n") +
-                          m_knowledgeContext;
-        m_knowledgeContext.clear();  // one-shot, per-request
+        if (lang == QStringLiteral("en")) {
+            effectivePrompt += QStringLiteral(
+                    "\n\n## Knowledge Base Reference\n\n"
+                    "The following are relevant excerpts from the user's local knowledge base "
+                    "to assist in answering:\n\n");
+        } else {
+            effectivePrompt += QStringLiteral(
+                    "\n\n## 知识库参考内容\n\n"
+                    "以下是本地知识库中与用户问题相关的参考内容，供你回答用户问题时参考：\n\n");
+        }
+        effectivePrompt += m_knowledgeContext;
+        m_knowledgeContext.clear();
     }
 
+    // Temporarily swap m_systemPrompt so both buildBasePayload() (Anthropic) and
+    // buildMessagesArray() (OpenAI/Ollama) read the effective prompt
+    QString savedPrompt = m_systemPrompt;
+    m_systemPrompt = effectivePrompt;
+
+    QJsonObject jsonPayload = buildBasePayload();
     jsonPayload["messages"] = buildMessagesArray(messages);
+
+    m_systemPrompt = savedPrompt;
 
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();

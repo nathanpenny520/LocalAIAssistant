@@ -64,6 +64,8 @@ and suggest alternatives.
 
 ## Operating System Environment
 
+Current date: {{current_datetime}}
+
 {{path_guide}}
 
 ## Continuity
