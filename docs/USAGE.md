@@ -68,7 +68,7 @@ Click the **📎** button to attach files before sending:
 The left panel shows your conversation sessions:
 - Click **+ New Session** to start a new chat
 - Click any session to switch to it
-- Right-click a session to delete it
+- Right-click a session to rename, pin, or delete it
 - Conversations auto-save as you chat
 
 ### Keyboard Shortcuts

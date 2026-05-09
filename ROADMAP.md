@@ -285,7 +285,7 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 | File | Lines | Status |
 |------|-------|--------|
 | `src/girlfriend/girlfriendwindow.cpp` | 1,937 | ⚠️ **DEFERRED** - Phase 4.1 |
-| `src/ui/mainwindow.cpp` | 1,769 | ⚠️ **DEFERRED** - Phase 4.2 |
+| `src/ui/mainwindow.cpp` | 1,678 | ⚠️ **DEFERRED** - Phase 4.2 |
 | `src/girlfriend/voicemanager.cpp` | 1,505 | ⚠️ **DEFERRED** - Phase 4.3 |
 | `scripts/build.sh` | 1,278 | 🟡 Phase 3.3 (fix prompt) → Phase 7.2 (split) |
 | `src/cli/cli_application.cpp` | 1,165 | ⚠️ **DEFERRED** - Phase 4.4 |

@@ -78,6 +78,16 @@ LocalAIAssistantCore  (src/core/, src/prompts/)   — network, sessions, file I/
 
 See `ROADMAP.md` for full refactoring plan, priority order, known issues, and verification checklist.
 
+## Documentation Maintenance
+
+After every major fix or feature, update these docs if the changes affect them:
+- **ROADMAP.md** — mark completed items, update line counts, add new findings
+- **USAGE.md / USAGE_zh_CN.md** — if UI or user-facing behavior changed
+- **README.md / README_EN.md** — if features, build steps, or config changed
+- **CLAUDE.md** — if architecture, build commands, or standards changed
+
+Do not wait for the user to ask. Review docs as the final step of any non-trivial change.
+
 ## Platform Notes
 
 - **macOS**: `libedit` (readline-compatible). `macdeployqt` bundles frameworks.
