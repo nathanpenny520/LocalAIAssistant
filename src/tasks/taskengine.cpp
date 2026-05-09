@@ -9,6 +9,11 @@
 
 TaskEngine* TaskEngine::s_instance = nullptr;
 
+const QString TaskEngine::kTagTaskPlan      = QStringLiteral("[TASK_PLAN]");
+const QString TaskEngine::kTagTaskPlanClose = QStringLiteral("[/TASK_PLAN]");
+const QString TaskEngine::kTagTaskComplete  = QStringLiteral("[TASK_COMPLETE]");
+const QString TaskEngine::kTagTaskFinished  = QStringLiteral("[TASK_FINISHED]");
+
 TaskEngine* TaskEngine::instance() {
     if (!s_instance) s_instance = new TaskEngine();
     return s_instance;
@@ -19,8 +24,9 @@ TaskEngine::TaskEngine(QObject* parent) : QObject(parent), m_executor(this) {
 
 OperationPlan TaskEngine::parsePlanFromAIResponse(const QString& aiResponse) const {
     // Extract content between [TASK_PLAN] ... [/TASK_PLAN]
-    static QRegularExpression re(QStringLiteral(R"(\[TASK_PLAN\]\s*(.*?)\s*\[/TASK_PLAN\])"),
-                                 QRegularExpression::DotMatchesEverythingOption);
+    QString pattern = QRegularExpression::escape(kTagTaskPlan) + QStringLiteral("\\s*(.*?)\\s*") +
+                      QRegularExpression::escape(kTagTaskPlanClose);
+    static QRegularExpression re(pattern, QRegularExpression::DotMatchesEverythingOption);
 
     QRegularExpressionMatch match = re.match(aiResponse);
     if (match.hasMatch()) {

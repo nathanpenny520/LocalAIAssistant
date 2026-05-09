@@ -180,15 +180,20 @@ QString AgentLoop::buildResultFeedback(const QVector<CommandResult>& results) co
 
     feedback += tr("  Total: %1 succeeded, %2 failed\n").arg(successCount).arg(failCount);
     feedback += QStringLiteral("\n");
-    feedback += tr("You MUST respond now. If all operations succeeded, output [TASK_COMPLETE] with "
+    feedback += tr("You MUST respond now. If all operations succeeded, output %1 or %2 with "
                    "a user-facing summary of what was accomplished. If more work is needed, output "
-                   "a new [TASK_PLAN]. Never remain silent — the conversation will stall.");
+                   "a new %3. Never remain silent — the conversation will stall.")
+                        .arg(TaskEngine::kTagTaskComplete,
+                             TaskEngine::kTagTaskFinished,
+                             TaskEngine::kTagTaskPlan);
 
     return feedback;
 }
 
 bool AgentLoop::isTaskComplete(const QString& response) const {
-    static QRegularExpression re(QStringLiteral("\\[TASK_COMPLETE\\]|\\[TASK_FINISHED\\]"),
-                                 QRegularExpression::CaseInsensitiveOption);
+    QString pattern = QRegularExpression::escape(TaskEngine::kTagTaskComplete) +
+                      QStringLiteral("|") +
+                      QRegularExpression::escape(TaskEngine::kTagTaskFinished);
+    static QRegularExpression re(pattern, QRegularExpression::CaseInsensitiveOption);
     return re.match(response).hasMatch();
 }

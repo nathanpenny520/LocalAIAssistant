@@ -102,6 +102,7 @@ private:
     void clearHighlights();
     void updateCurrentMatchIndex();
     void updateSearchResultLabel();
+    void retryEmptyResponseDuringLoop();
 
     QListWidget* m_historyList;
     QTextBrowser* m_chatDisplay;
@@ -149,6 +150,7 @@ private:
     QAction* m_girlfriendAction;
     int m_currentMatchIndex;
     int m_totalMatches;
+    int m_emptyResponseRetryCount = 0;
 };
 
 #endif

@@ -21,6 +21,12 @@ class TaskEngine : public QObject {
 public:
     static TaskEngine* instance();
 
+    // Task tag constants — single source of truth for all agent loop tags
+    static const QString kTagTaskPlan;
+    static const QString kTagTaskPlanClose;
+    static const QString kTagTaskComplete;
+    static const QString kTagTaskFinished;
+
     // Parse operation plan JSON from AI response
     // Expected AI response format: [TASK_PLAN] {...json...} [/TASK_PLAN]
     OperationPlan parsePlanFromAIResponse(const QString& aiResponse) const;

@@ -212,10 +212,8 @@ void ApiProvider::onStreamFinished() {
         if (!chunk.isEmpty()) m_streamBuffer += chunk;
     }
 
-    if (!m_streamBuffer.isEmpty()) {
-        emit streamFinished(m_streamBuffer);
-        m_streamBuffer.clear();
-    }
+    emit streamFinished(m_streamBuffer);
+    m_streamBuffer.clear();
 
     m_currentReply->deleteLater();
     m_currentReply = nullptr;

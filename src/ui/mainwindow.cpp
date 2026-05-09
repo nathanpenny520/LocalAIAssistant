@@ -760,17 +760,12 @@ void MainWindow::onNetworkFinished(const QString& response) {
 
     // Guard: detect empty/stub response during active agent loop
     if (AgentLoop::instance()->state() == AgentLoop::Running && response.trimmed().isEmpty()) {
-        qWarning() << "AI returned empty response during task loop, retrying...";
-        QString retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] with a summary if all "
-                              "operations succeeded, or [TASK_PLAN] for next steps.");
-        SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
-        QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-        m_networkManager->sendChatRequestWithContext(messages);
+        retryEmptyResponseDuringLoop();
         return;
     }
 
     // Check if response contains a task plan
-    if (response.contains(QStringLiteral("[TASK_PLAN]"))) {
+    if (response.contains(TaskEngine::kTagTaskPlan, Qt::CaseInsensitive)) {
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
             AgentLoop::instance()->continueWithResponse(response);
         } else {
@@ -779,9 +774,16 @@ void MainWindow::onNetworkFinished(const QString& response) {
         return;
     }
 
-    // Check for TASK_COMPLETE without TASK_PLAN
+    // Check for task completion tags
     if (AgentLoop::instance()->state() == AgentLoop::Running &&
-        response.contains(QStringLiteral("[TASK_COMPLETE]"), Qt::CaseInsensitive)) {
+        (response.contains(TaskEngine::kTagTaskComplete, Qt::CaseInsensitive) ||
+         response.contains(TaskEngine::kTagTaskFinished, Qt::CaseInsensitive))) {
+        AgentLoop::instance()->continueWithResponse(response);
+        return;
+    }
+
+    // Catch-all: if AgentLoop is still Running, route response to it
+    if (AgentLoop::instance()->state() == AgentLoop::Running) {
         AgentLoop::instance()->continueWithResponse(response);
         return;
     }
@@ -886,18 +888,13 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
 
     // Guard: detect empty/stub response during active agent loop
     if (AgentLoop::instance()->state() == AgentLoop::Running && fullContent.trimmed().isEmpty()) {
-        qWarning() << "AI returned empty response during task loop, retrying...";
-        QString retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] with a summary if all "
-                              "operations succeeded, or [TASK_PLAN] for next steps.");
-        SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
-        QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-        m_networkManager->sendChatRequestWithContext(messages);
         m_streamingContent.clear();
+        retryEmptyResponseDuringLoop();
         return;
     }
 
     // Check if response contains a task plan
-    if (fullContent.contains(QStringLiteral("[TASK_PLAN]"))) {
+    if (fullContent.contains(TaskEngine::kTagTaskPlan, Qt::CaseInsensitive)) {
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
             // Continuation response within an active loop
             AgentLoop::instance()->continueWithResponse(fullContent);
@@ -909,9 +906,17 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
         return;
     }
 
-    // Check for [TASK_COMPLETE] without TASK_PLAN (loop completion signal)
+    // Check for task completion tags
     if (AgentLoop::instance()->state() == AgentLoop::Running &&
-        fullContent.contains(QStringLiteral("[TASK_COMPLETE]"), Qt::CaseInsensitive)) {
+        (fullContent.contains(TaskEngine::kTagTaskComplete, Qt::CaseInsensitive) ||
+         fullContent.contains(TaskEngine::kTagTaskFinished, Qt::CaseInsensitive))) {
+        AgentLoop::instance()->continueWithResponse(fullContent);
+        m_streamingContent.clear();
+        return;
+    }
+
+    // Catch-all: if AgentLoop is still Running, route response to it
+    if (AgentLoop::instance()->state() == AgentLoop::Running) {
         AgentLoop::instance()->continueWithResponse(fullContent);
         m_streamingContent.clear();
         return;
@@ -1545,19 +1550,39 @@ void MainWindow::appendCommandOutput(const QString& line) {
     scrollBar->setValue(scrollBar->maximum());
 }
 
+void MainWindow::retryEmptyResponseDuringLoop() {
+    if (m_emptyResponseRetryCount >= 3) {
+        qWarning() << "Agent loop: max empty-response retries reached, stopping";
+        AgentLoop::instance()->stop();
+        return;
+    }
+    m_emptyResponseRetryCount++;
+    qWarning() << "Agent loop: empty response, retry" << m_emptyResponseRetryCount << "/3";
+    QString retryMsg = tr("You MUST respond. Output [TASK_COMPLETE] or [TASK_FINISHED] "
+                          "with a summary if all operations succeeded, "
+                          "or [TASK_PLAN] for next steps.");
+    SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
+    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    m_networkManager->sendChatRequestWithContext(messages);
+}
+
 void MainWindow::handleTaskResponse(const QString& response) {
+    m_emptyResponseRetryCount = 0;
     AgentLoop::instance()->start(response, m_requestSessionId);
 }
 
 void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QString& sessionId) {
     Q_UNUSED(feedbackMessage);
-    // Send the full message history (including ITERATION_FEEDBACK) back to AI
-    if (sessionId == SessionManager::instance()->currentSessionId()) {
-        QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-        m_requestSessionId = sessionId;
-        m_isStreaming = true;
-        m_networkManager->sendChatRequestWithContext(messages);
+    if (sessionId != SessionManager::instance()->currentSessionId()) {
+        qWarning() << "Agent loop: session mismatch in onAgentLoopResultReady, stopping loop";
+        AgentLoop::instance()->stop();
+        return;
     }
+    m_emptyResponseRetryCount = 0;
+    QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    m_requestSessionId = sessionId;
+    m_isStreaming = true;
+    m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
