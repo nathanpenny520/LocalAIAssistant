@@ -123,7 +123,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         int docs = kb->totalDocuments();
         int chunks = kb->totalChunks();
 
-        // 检测嵌入模型状态
+        // Check embedding model status
         Embedder* emb = kb->embedder();
         bool hasModel = emb && emb->isLoaded() && !Embedder::findModelPath().isEmpty();
 
@@ -168,7 +168,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         importBtn->setEnabled(false);
         importBtn->setText(tr("导入中..."));
 
-        // 同步导入 — 避免跨线程 SQLite 访问问题
+        // Synchronous import — avoid cross-thread SQLite access issues
         int imported = 0;
         int failed = 0;
         for (const QString& path : files) {

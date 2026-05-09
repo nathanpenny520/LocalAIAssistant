@@ -34,19 +34,19 @@ public:
     explicit CommandExecutor(QObject* parent = nullptr);
     ~CommandExecutor() override;
 
-    // 单条命令执行
+    // Execute a single operation
     CommandResult execute(const ShellOperation& op);
 
-    // 批量执行（遇错即停）
+    // Execute all operations in sequence, stopping on first failure
     QVector<CommandResult> executePlan(const OperationPlan& plan);
 
-    // 取消当前执行
+    // Cancel the currently running operation
     void cancel();
 
-    // 路径展开
+    // Resolve ~ and relative paths to absolute
     static QString expandPath(const QString& path);
 
-    // 检测到的 shell 名称（供 prompt 使用）
+    // Auto-detected shell name (used in prompt construction)
     QString shellName() const;
 
 signals:

@@ -21,7 +21,7 @@ typedef size_t labeltype;
 
 struct SearchResult {
     TextChunk chunk;
-    float similarity;  // 余弦相似度，0~1
+    float similarity;  // cosine similarity, range 0~1
 };
 
 class VectorDB {

@@ -31,20 +31,20 @@ bool KnowledgeBase::init() {
 
     QString dir = storageDir();
 
-    // 初始化 VectorDB
+    // Initialize VectorDB
     if (!m_vectorDB->init(m_embedder->dimension(), dir)) return false;
 
-    // 加载已有数据
+    // Load existing data
     m_vectorDB->load();
 
-    // 初始化 Embedder（尝试加载 ONNX 模型）
+    // Initialize Embedder (attempt to load ONNX model)
     QString modelPath = Embedder::findModelPath();
     if (!modelPath.isEmpty())
         m_embedder->loadModel(modelPath);
     else
-        m_embedder->loadModel({});  // 占位模式
+        m_embedder->loadModel({});  // placeholder mode
 
-    // 初始化 DocImporter
+    // Initialize DocImporter
     m_importer = new DocImporter(m_embedder, m_vectorDB, this);
 
     m_ready = true;
@@ -152,8 +152,7 @@ QString KnowledgeBase::generateContext(const QString& query, int topK) const {
         return context;
     }
 
-    // 构建检索到的文本块
-    QString chunks;
+QString chunks;
     for (int i = 0; i < results.size(); ++i) {
         const auto& sr = results[i];
         chunks += tr("--- 来源: %1 (相关度: %2%) ---\n")
@@ -163,8 +162,7 @@ QString KnowledgeBase::generateContext(const QString& query, int topK) const {
         chunks += QStringLiteral("\n\n");
     }
 
-    // 使用提示词模板包装
-    QString template_ = PromptManager::instance()->knowledgePrompt();
+QString template_ = PromptManager::instance()->knowledgePrompt();
     QString context = template_;
     context.replace(QStringLiteral("<<CHUNKS>>"), chunks.trimmed());
 

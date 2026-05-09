@@ -6,7 +6,7 @@
 GirlfriendSession::GirlfriendSession()
         : m_id(QUuid::createUuid().toString(QUuid::WithoutBraces))
         , m_currentEmotion("default")
-        , m_mood(0.6)  // 默认心情值
+        , m_mood(0.6)  // default mood value
         , m_messages() {
 }
 
@@ -21,13 +21,13 @@ void GirlfriendSession::setCurrentEmotion(const QString& emotion) {
 }
 
 void GirlfriendSession::setMood(double mood) {
-    m_mood = qBound(0.0, mood, 1.0);  // 确保在有效范围内
+    m_mood = qBound(0.0, mood, 1.0);
 }
 
 void GirlfriendSession::clearMessages() {
     m_messages.clear();
     m_currentEmotion = "default";
-    // 注意：清除消息不重置心情值，保留心情状态
+    // clearMessages preserves mood state — only messages and emotion are reset
 }
 
 QString GirlfriendSession::storagePath() {
@@ -80,7 +80,7 @@ QJsonObject GirlfriendSession::toJson() const {
     QJsonObject json;
     json["id"] = m_id;
     json["currentEmotion"] = m_currentEmotion;
-    json["mood"] = m_mood;  // 保存心情值
+    json["mood"] = m_mood;
 
     QJsonArray messagesArray;
     for (const GirlfriendMessage& msg : m_messages) {
@@ -98,7 +98,7 @@ QJsonObject GirlfriendSession::toJson() const {
 void GirlfriendSession::fromJson(const QJsonObject& json) {
     m_id = json["id"].toString();
     m_currentEmotion = json["currentEmotion"].toString("default");
-    m_mood = json["mood"].toDouble(0.6);  // 加载心情值，默认0.6
+    m_mood = json["mood"].toDouble(0.6);
 
     m_messages.clear();
     QJsonArray messagesArray = json["messages"].toArray();

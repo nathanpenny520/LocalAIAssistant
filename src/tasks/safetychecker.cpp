@@ -52,7 +52,7 @@ SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation& op) 
 
     if (cmd.isEmpty()) return Safe;
 
-    // ── 危险命令 (Unix) ──
+    // ── Dangerous commands (Unix) ──
     if (cmd.contains(QRegularExpression("\\bsudo\\b")) ||
         cmd.contains(QRegularExpression("\\bsu\\b\\s+-")) ||
         cmd.contains(QRegularExpression("\\bdoas\\b")) ||
@@ -73,7 +73,7 @@ SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation& op) 
         return Dangerous;
     }
 
-    // ── 危险命令 (Windows) ──
+    // ── Dangerous commands (Windows) ──
     if (cmd.contains(QRegularExpression("\\brunas\\b|\\bpsexec\\b|-Verb\\s+RunAs",
                                         QRegularExpression::CaseInsensitiveOption))) {
         return Dangerous;
@@ -105,7 +105,7 @@ SafetyChecker::DangerLevel SafetyChecker::dangerLevel(const ShellOperation& op) 
         return Dangerous;
     }
 
-    // ── 需要确认的操作 ──
+    // ── Operations requiring confirmation ──
     if (cmd.contains(QRegularExpression("\\brm\\b")) ||
         cmd.contains(QRegularExpression("\\bgit\\s+push\\s+.*--force")) ||
         cmd.contains(QRegularExpression("\\bcurl\\b")) ||
@@ -179,25 +179,22 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation& op)
         return Blocked;
     }
 
-    // 命令注入检测
     if (hasCommandInjection(op.command)) {
         m_lastBlockReason = tr("检测到潜在的命令注入: ") + op.command.left(80);
         return Blocked;
     }
 
-    // 危险命令检测
     if (isDangerousCommand(op.command)) {
-        return Blocked;  // m_lastBlockReason 已在 isDangerousCommand 中设置
+        return Blocked;  // m_lastBlockReason is already set inside isDangerousCommand
     }
 
-    // 危险级别检测
     DangerLevel level = dangerLevel(op);
     if (level == Dangerous) {
         m_lastBlockReason = tr("禁止执行危险命令: ") + op.command.left(80);
         return Blocked;
     }
 
-    // 命令中提取路径进行路径白名单校验
+    // Extract paths from command for whitelist validation
     QStringList paths = extractPathsFromCommand(op.command);
     for (const auto& path : paths) {
         if (isSystemPath(path)) {
@@ -216,15 +213,15 @@ SafetyChecker::Result SafetyChecker::validateOperation(const ShellOperation& op)
 }
 
 bool SafetyChecker::hasCommandInjection(const QString& command) {
-    // Unix: 反引号命令替换: `cmd`
+    // Unix: backtick command substitution: `cmd`
     static QRegularExpression backtick(QStringLiteral("`[^`]+`"));
     if (backtick.match(command).hasMatch()) return true;
 
-    // Unix: $() 命令替换
+    // Unix: $() command substitution
     static QRegularExpression dollarParen(QStringLiteral("\\$\\([^)]+\\)"));
     if (dollarParen.match(command).hasMatch()) return true;
 
-    // Unix: eval / exec / source 命令
+    // Unix: eval / exec / source commands
     static QRegularExpression evalCmd(QStringLiteral("\\beval\\b|\\bexec\\b|\\bsource\\b\\s+/"));
     if (evalCmd.match(command).hasMatch()) return true;
 
@@ -263,7 +260,7 @@ bool SafetyChecker::hasCommandInjection(const QString& command) {
 }
 
 bool SafetyChecker::isDangerousCommand(const QString& command) {
-    // ── 权限提升 (Unix) ──
+    // ── Privilege escalation (Unix) ──
     if (command.contains(QRegularExpression("\\bsudo\\b"))) {
         m_lastBlockReason = tr("禁止使用 sudo 提权");
         return true;
@@ -277,7 +274,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── 权限提升 (Windows) ──
+    // ── Privilege escalation (Windows) ──
     if (command.contains(
                 QRegularExpression("\\brunas\\b", QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止使用 runas 提权");
@@ -294,7 +291,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── 磁盘级破坏操作 (Unix) ──
+    // ── Disk-level destructive operations (Unix) ──
     if (command.contains(QRegularExpression("\\brm\\s+.*-r[^\\w]*f?\\s+/"))) {
         m_lastBlockReason = tr("禁止递归删除根目录或系统目录");
         return true;
@@ -312,7 +309,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── 磁盘级破坏操作 (Windows) ──
+    // ── Disk-level destructive operations (Windows) ──
     if (command.contains(QRegularExpression("\\bformat\\s+[A-Za-z]:\\b",
                                             QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止格式化磁盘");
@@ -329,14 +326,14 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── 系统级权限修改 (Unix) ──
+    // ── System-level permission modification (Unix) ──
     if (command.contains(QRegularExpression("\\bchmod\\s+[0-7]*7[0-7]*\\s+/")) ||
         command.contains(QRegularExpression("\\bchown\\s+-R\\s+/"))) {
         m_lastBlockReason = tr("禁止修改系统目录权限");
         return true;
     }
 
-    // ── Windows 权限接管 ──
+    // ── Windows permission takeover ──
     if (command.contains(QRegularExpression("\\bicacls\\s+.*\\/deny",
                                             QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止修改 ACL 权限");
@@ -348,7 +345,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── Windows 注册表破坏 ──
+    // ── Windows registry destruction ──
     if (command.contains(QRegularExpression("\\breg\\s+delete\\s+(HKLM|HKEY_LOCAL_MACHINE)",
                                             QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止删除系统注册表项");
@@ -360,14 +357,14 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── Windows 关键服务操作 ──
+    // ── Windows critical service operations ──
     if (command.contains(QRegularExpression("\\bsc\\s+(delete|stop)\\b",
                                             QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止操作系统服务");
         return true;
     }
 
-    // ── Windows 关键进程终止 ──
+    // ── Windows critical process termination ──
     if (command.contains(QRegularExpression("\\btaskkill\\s+/f\\s+/"
                                             "im\\s+(lsass|winlogon|csrss|services|svchost|"
                                             "explorer)",
@@ -376,7 +373,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── Windows 系统破坏 ──
+    // ── Windows system destruction ──
     if (command.contains(QRegularExpression("\\bshutdown\\s+/(s|r)\\s+/t\\s+0",
                                             QRegularExpression::CaseInsensitiveOption))) {
         m_lastBlockReason = tr("禁止强制关机/重启");
@@ -393,7 +390,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
         return true;
     }
 
-    // ── Windows 防火墙破坏 ──
+    // ── Windows firewall disruption ──
     if (command.contains(QRegularExpression("netsh\\s+advfirewall\\s+set\\s+allprofiles\\s+"
                                             "state\\s+off",
                                             QRegularExpression::CaseInsensitiveOption))) {
@@ -407,7 +404,7 @@ bool SafetyChecker::isDangerousCommand(const QString& command) {
 QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const {
     QStringList paths;
 
-    // 匹配双引号路径
+    // Match double-quoted paths
     static QRegularExpression quotedPath(QStringLiteral("\"([^\"]+)\""));
     QRegularExpressionMatchIterator it = quotedPath.globalMatch(command);
     while (it.hasNext()) {
@@ -418,7 +415,7 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const
             paths.append(p);
     }
 
-    // 匹配单引号路径
+    // Match single-quoted paths
     static QRegularExpression singleQuoted(QStringLiteral("'([^']+)'"));
     it = singleQuoted.globalMatch(command);
     while (it.hasNext()) {
@@ -429,7 +426,7 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const
             paths.append(p);
     }
 
-    // Unix: 匹配未引号的绝对路径或 ~/ 路径
+    // Unix: match unquoted absolute or ~/ paths
     static QRegularExpression barePath(
             QStringLiteral("(?<![\\w=-])(/~|/[^\\s;|&<>]+|~[^\\s;|&<>]*)"));
     it = barePath.globalMatch(command);
@@ -440,7 +437,7 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const
             paths.append(p);
     }
 
-    // Windows: 匹配驱动器号路径 (C:\..., D:\...)
+    // Windows: match drive letter paths (C:\, D:\)
     static QRegularExpression winPath(QStringLiteral("[A-Za-z]:\\\\[^\\s;|&<>]*"));
     it = winPath.globalMatch(command);
     while (it.hasNext()) {
@@ -448,7 +445,7 @@ QStringList SafetyChecker::extractPathsFromCommand(const QString& command) const
         paths.append(m.captured(0));
     }
 
-    // Windows: 匹配 %VAR% 环境变量路径
+    // Windows: match %VAR% environment variable paths
     static QRegularExpression envPath(QStringLiteral("%[A-Za-z_]+%[^\\s;|&<>]*"));
     it = envPath.globalMatch(command);
     while (it.hasNext()) {

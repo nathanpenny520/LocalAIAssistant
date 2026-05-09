@@ -14,24 +14,24 @@
 #include <stdio.h>
 #include <windows.h>
 
-// 在 Windows 上创建调试控制台窗口
+// Create a debug console window on Windows
 void attachDebugConsole() {
-    // 检查是否已经有控制台（从命令行启动时）
+    // Check if a console already exists (e.g. launched from command line)
     if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-        // 已有控制台，重定向输出
+        // Console exists — redirect output to it
         freopen("CONOUT$", "w", stdout);
         freopen("CONOUT$", "w", stderr);
         setvbuf(stdout, nullptr, _IONBF, 0);
         setvbuf(stderr, nullptr, _IONBF, 0);
     } else {
-        // 没有控制台，创建一个新的
+        // No console — create a new one
         AllocConsole();
         freopen("CONOUT$", "w", stdout);
         freopen("CONOUT$", "w", stderr);
         setvbuf(stdout, nullptr, _IONBF, 0);
         setvbuf(stderr, nullptr, _IONBF, 0);
 
-        // 设置控制台标题
+        // Set console title
         SetConsoleTitleW(L"LocalAIAssistant - Debug Console");
 
         qDebug() << "Debug console created. Close this window to hide logs.";
@@ -41,7 +41,7 @@ void attachDebugConsole() {
 
 int main(int argc, char* argv[]) {
 #ifdef Q_OS_WIN
-    // 检查命令行参数，如果有 --debug 则显示控制台
+    // Check for --debug or -d command-line flags
     bool showDebugConsole = false;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--debug") == 0 || strcmp(argv[i], "-d") == 0) {
@@ -50,7 +50,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // 也可以通过环境变量启用
+    // Can also be enabled via environment variable
     if (qEnvironmentVariableIsSet("LOCALAI_DEBUG")) {
         showDebugConsole = true;
     }

@@ -7,8 +7,8 @@
 #include <QString>
 
 /**
- * AI女友模块翻译辅助类
- * 统一管理所有需要翻译的字符串
+ * AI girlfriend module translation helper class.
+ * Centralized management of all translatable strings.
  */
 class GTr {
 public:

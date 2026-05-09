@@ -38,7 +38,7 @@ OperationPlan TaskEngine::parsePlanFromAIResponse(const QString& aiResponse) con
         if (doc.isObject()) return parsePlanFromJson(doc.object());
     }
 
-    // 如果没有标签，尝试直接解析整个回复为 JSON
+    // Fallback: if no TASK_PLAN tags found, try parsing the entire response as JSON
     QJsonDocument doc = QJsonDocument::fromJson(aiResponse.toUtf8());
     if (doc.isObject()) return parsePlanFromJson(doc.object());
 
@@ -75,7 +75,7 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject& json) const {
             op.type = ShellOperation::DeleteFile;
         else if (typeStr == QStringLiteral("copy_file") || typeStr == QStringLiteral("copyfile"))
             op.type = ShellOperation::CopyFile;
-        // 向后兼容旧类型名（仅单字类型名）
+        // Backward compatibility: legacy single-word type names
         else if (typeStr == QStringLiteral("move"))
             op.type = ShellOperation::MoveFile;
         else if (typeStr == QStringLiteral("rename"))
@@ -98,7 +98,7 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject& json) const {
         op.description = opObj[QStringLiteral("description")].toString();
         op.timeoutSecs = opObj[QStringLiteral("timeout")].toInt(30);
 
-        // 向后兼容旧字段名: content → command 映射
+        // Backward compatibility: map legacy 'content' field to 'command'
         if (op.command.isEmpty()) {
             QString content = opObj[QStringLiteral("content")].toString();
             if (!content.isEmpty()) {
@@ -106,7 +106,7 @@ OperationPlan TaskEngine::parsePlanFromJson(const QJsonObject& json) const {
             }
         }
 
-        // 向后兼容: search 旧格式 target 字段是搜索模式 → 映射到 command
+        // Backward compatibility: legacy search format where target held the pattern → map to command
         if (op.type == ShellOperation::SearchFiles && op.command.isEmpty() &&
             !op.target.isEmpty()) {
             op.command = op.target;

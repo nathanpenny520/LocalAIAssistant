@@ -8,10 +8,10 @@
 
 struct TextChunk {
     QString content;
-    QString documentPath;  // 源文档路径
-    int chunkIndex;        // 在文档中的序号
-    int charOffset;        // 在文档中的字符偏移
-    int estimatedTokens;   // 估算 token 数
+    QString documentPath;  // source document path
+    int chunkIndex;        // sequence number within the document
+    int charOffset;        // character offset within the document
+    int estimatedTokens;   // estimated token count
 };
 
 class TextChunker {
@@ -21,10 +21,10 @@ public:
     void setMaxTokensPerChunk(int maxTokens);
     int maxTokensPerChunk() const;
 
-    // 将文本按段落分块，保证每个chunk不超过 maxTokens
+    // Split text into paragraph-based chunks, each under the maxTokens limit
     QVector<TextChunk> chunkText(const QString& text, const QString& documentPath) const;
 
-    // 估算文本的 token 数（中文字数 + 英文单词数）
+    // Rough token count estimate (Chinese: 1 token/char, English: ~1 token per 4 chars)
     static int estimateTokens(const QString& text);
 
 private:

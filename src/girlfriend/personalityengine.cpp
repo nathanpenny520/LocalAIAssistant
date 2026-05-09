@@ -47,7 +47,7 @@ QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
 
     prompt.replace(QStringLiteral("{{user_nickname}}"), m_userNickname);
 
-    // 心情提示 — 从 personality.md 读取配置, 无配置则用代码内置默认值
+    // Mood hint — read from personality.md config; fall back to code defaults if missing
     QString moodHint = getMoodHint();
     if (moodHint.isEmpty()) {
         prompt.remove(QStringLiteral("\n{{mood_hint}}"));
@@ -57,7 +57,7 @@ QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
                                moodHint + QLatin1Char('\n'));
     }
 
-    // 时间提示
+    // Time-of-day context
     QTime now = QTime::currentTime();
     int hour = now.hour();
     QString timeKey;
@@ -75,7 +75,7 @@ QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
     int displayHour = (hour == 0) ? 12 : (hour > 12 ? hour - 12 : hour);
     QString timeContext =
             templateValue(timeKey,
-                          // 内置默认值 (中文, 仅 personality.md 缺少对应 key 时使用)
+                          // Built-in defaults (Chinese, used only when personality.md lacks the key)
                           (timeKey == QStringLiteral("time_morning"))   ? QStringLiteral("早上%"
                                                                                        "1点，用户刚"
                                                                                        "起床，可以"
@@ -100,7 +100,7 @@ QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
                    templateValue(QStringLiteral("time_prefix"), QStringLiteral("当前时间：")) +
                            timeContext + QLatin1Char('\n'));
 
-    // 用户记忆注入
+    // User memory injection
     if (!memoryContent.isEmpty()) {
         QString memHeader = templateValue(QStringLiteral("memory_header"), QStringLiteral("## "
                                                                                           "关于用户"
@@ -119,7 +119,7 @@ QString PersonalityEngine::detectEmotion(const QString& text, double mood) const
     // Get mood influence level from settings
     MoodInfluenceLevel influenceLevel = GirlfriendSettings::instance()->moodInfluence();
 
-    // Strong emotion keywords → emotion mapping (这些关键词有明确的情绪倾向，不受心情影响)
+    // Strong emotion keywords → emotion mapping (these have clear emotional bias, unaffected by mood)
     static QMap<QString, QString> strongEmotionKeywords = {// Happy
                                                            {"哈哈", "happy"},
                                                            {"太好了", "happy"},
@@ -182,7 +182,7 @@ QString PersonalityEngine::detectEmotion(const QString& text, double mood) const
         }
     }
 
-    // Neutral keywords - affected by mood (受心情影响的中性词)
+    // Neutral keywords — affected by mood
     static QMap<QString, QString> neutralKeywords = {{"还好", "neutral"}, {"没事", "neutral"},
                                                      {"好吧", "neutral"}, {"行吧", "neutral"},
                                                      {"嗯", "neutral"},   {"好的", "neutral"},
@@ -270,10 +270,10 @@ void PersonalityEngine::setUserNickname(const QString& nickname) {
 }
 
 void PersonalityEngine::updateMood(const QString& userInput) {
-    // 负面关键词降低心情
+    // Negative keywords — decrease mood
     static QStringList negativeWords = {"滚", "烦", "别理我", "讨厌你", "不想说话", "闭嘴", "无语"};
 
-    // 正面关键词提升心情
+    // Positive keywords — increase mood
     static QStringList positiveWords = {"爱你", "抱抱", "乖",   "喜欢你",
                                         "想你", "亲亲", "宝贝", "谢谢"};
 
@@ -296,13 +296,12 @@ void PersonalityEngine::updateMood(const QString& userInput) {
         }
     }
 
-    // 只有在没有正面输入时才应用衰减（自然衰减）
-    // 正面输入会提升心情，不应该同时衰减
+    // Apply natural decay only when no positive input was detected.
+    // Positive input boosts mood — should not simultaneously decay.
     if (!hasPositiveInput) {
         m_mood -= m_moodDecay;
     }
 
-    // 限制范围 [0, 1]
     m_mood = qBound(0.0, m_mood, 1.0);
 
     emit moodChanged(m_mood);
@@ -319,11 +318,11 @@ QString PersonalityEngine::getMoodHint() const {
         return templateValue(QStringLiteral("mood_high"), QStringLiteral("开开心心，语气特别甜，会"
                                                                          "说'嘻嘻~'"));
     } else {
-        return QString();  // 正常状态不添加提示
+        return QString();  // normal mood — no hint needed
     }
 }
 
-// 中文情绪词 → 英文情绪ID映射
+// Chinese emotion words → English emotion ID mapping
 static QMap<QString, QString> chineseToEnglishEmotion() {
     static QMap<QString, QString> map = {
             {"开心", "happy"},      {"害羞", "shy"},        {"爱意", "love"},
@@ -340,30 +339,30 @@ PersonalityEngine::EmotionResult PersonalityEngine::parseEmotionFromResponse(
     result.emotion = "default";
     result.cleanText = text;
 
-    // 匹配情绪标记: [情绪:xxx] 或 [emotion:xxx]
+    // Match emotion tag: [情绪:xxx] or [emotion:xxx]
     QRegularExpression emotionRegex(R"(\[(?:情绪|emotion):([^\]]+)\])");
     QRegularExpressionMatch match = emotionRegex.match(text);
 
     if (match.hasMatch()) {
-        QString emotionName = match.captured(1).trimmed();  // 提取情绪词
-        QString fullTag = match.captured(0);                // 完整标记
+        QString emotionName = match.captured(1).trimmed();  // captured emotion word
+        QString fullTag = match.captured(0);                // full tag
 
-        // 如果已经是英文 emotion ID，直接使用
+        // Map to English emotion ID, or use directly if already an English ID
         QMap<QString, QString> emotionMap = chineseToEnglishEmotion();
         if (emotionMap.contains(emotionName)) {
-            // 中文情绪词 → 英文 ID
+            // Chinese emotion word → English ID
             result.emotion = emotionMap[emotionName];
         } else if (emotionMap.values().contains(emotionName)) {
-            // 已经是英文 ID，直接使用
+            // Already an English ID — use directly
             result.emotion = emotionName;
         }
 
-        // 移除情绪标记，返回清理后的文本
+        // Remove emotion tag and return cleaned text
         result.cleanText = text;
         result.cleanText.remove(fullTag);
         result.cleanText = result.cleanText.trimmed();
     } else {
-        // 如果没有情绪标记，fallback到关键词检测，传入当前心情值
+        // No emotion tag found — fall back to keyword detection with current mood
         result.emotion = detectEmotion(text, m_mood);
     }
 

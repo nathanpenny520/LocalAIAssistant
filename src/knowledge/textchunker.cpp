@@ -16,19 +16,19 @@ int TextChunker::estimateTokens(const QString& text) {
     int tokens = 0;
     for (int i = 0; i < text.length(); ++i) {
         QChar ch = text[i];
-        // 中文字符和中文标点算 1 token
+        // Chinese characters and CJK punctuation count as 1 token each
         if (ch.unicode() >= 0x4E00 && ch.unicode() <= 0x9FFF)
             tokens += 1;
         else if (ch.unicode() >= 0x3000 && ch.unicode() <= 0x303F)
-            tokens += 1;  // CJK 标点
+            tokens += 1;  // CJK punctuation
         else if (ch.unicode() >= 0xFF00 && ch.unicode() <= 0xFFEF)
-            tokens += 1;  // 全角字符
+            tokens += 1;  // fullwidth characters
         else if (ch.isLetterOrNumber())
             tokens += 1;
-        // 其他字符（空格、标点等）不额外计数，归入相邻单词
+        // Other characters (spaces, punctuation) not counted individually; absorbed into adjacent words
     }
 
-    // 英文按空格分词修正：粗略估算为字符数/4 + 中文字数
+    // Refine estimate using word-based heuristic: ~chars/4 for English + ~1/char for Chinese
     int chineseChars = 0;
     int otherChars = 0;
     for (int i = 0; i < text.length(); ++i) {
@@ -42,7 +42,7 @@ int TextChunker::estimateTokens(const QString& text) {
         }
     }
 
-    // 中文字符 ~1 token/字，英文 ~1 token/4字符
+    // Chinese ~1 token/char, English ~1 token per 4 characters
     return chineseChars + (otherChars / 4) + 1;
 }
 
@@ -52,7 +52,7 @@ QVector<TextChunk> TextChunker::chunkText(const QString& text, const QString& do
 }
 
 QStringList TextChunker::splitParagraphs(const QString& text) const {
-    // 按双换行分段落
+    // Split on double (or more) newlines into paragraphs
     QStringList paragraphs =
             text.split(QRegularExpression(QStringLiteral("\n\n+")), Qt::SkipEmptyParts);
 
@@ -78,9 +78,8 @@ QVector<TextChunk> TextChunker::mergeParagraphs(const QStringList& paragraphs,
     for (const auto& para : paragraphs) {
         int paraTokens = estimateTokens(para);
 
-        // 如果单个段落超过上限，需要拆分
+        // If a single paragraph exceeds the token limit, split it
         if (paraTokens > m_maxTokensPerChunk) {
-            // 先保存当前累积的 chunk
             if (!currentText.isEmpty()) {
                 TextChunk chunk;
                 chunk.content = currentText.trimmed();
@@ -94,7 +93,7 @@ QVector<TextChunk> TextChunker::mergeParagraphs(const QStringList& paragraphs,
                 currentTokens = 0;
             }
 
-            // 对超长段落按句子拆分
+            // Split the oversized paragraph by sentence boundaries
             QStringList sentences =
                     para.split(QRegularExpression(QStringLiteral("(?<=[。！？.!?])\\s*")));
             for (const auto& sent : sentences) {
@@ -118,7 +117,7 @@ QVector<TextChunk> TextChunker::mergeParagraphs(const QStringList& paragraphs,
                 }
             }
         }
-        // 如果加上当前段落会超出上限，保存当前 chunk
+        // Adding this paragraph would exceed the limit — flush current chunk first
         else if (currentTokens + paraTokens > m_maxTokensPerChunk && !currentText.isEmpty()) {
             TextChunk chunk;
             chunk.content = currentText.trimmed();
@@ -138,7 +137,6 @@ QVector<TextChunk> TextChunker::mergeParagraphs(const QStringList& paragraphs,
         }
     }
 
-    // 保存最后一个 chunk
     if (!currentText.isEmpty()) {
         TextChunk chunk;
         chunk.content = currentText.trimmed();

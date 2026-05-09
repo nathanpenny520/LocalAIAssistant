@@ -82,7 +82,7 @@ QVector<MemoryEntry> MemoryEnhancer::parseFromResponse(const QString& response,
                                                        const QString& conversationId) {
     QVector<MemoryEntry> entries;
 
-    // Match: [更新记忆:category|content] or [memory:category|content]
+    // Match: [memory:category|content] (English) or [更新记忆:category|content] (Chinese)
     static const QRegularExpression regex(
             QStringLiteral(R"(\[(?:更新记忆|memory):([^\|]+)\|([^\]]+)\])"));
 

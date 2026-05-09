@@ -18,29 +18,29 @@ class PromptManager : public QObject {
 public:
     static PromptManager* instance();
 
-    /// 加载指定名称的 prompt 文件（自动应用 OS 模板变量）
+    /// Load a prompt file by name (auto-applies OS template variables)
     QString loadPrompt(const QString& name) const;
 
-    /// ── 便捷访问器 ──────────────────────────────────────
+    /// ── Convenience Accessors ──────────────────────────────
     QString systemPrompt() const;
     QString taskPrompt() const;
     QString girlfriendPrompt() const;
     QString girlfriendConfigValue(const QString& key, const QString& fallback = {}) const;
     QString knowledgePrompt() const;
 
-    /// 解析 girlfriend.md 中的 CONFIG 块
+    /// Parse the CONFIG block embedded in girlfriend.md
     QMap<QString, QString> girlfriendConfig() const;
 
-    /// 提示词目录路径（用于用户自定义）
+    /// Prompt directory path (for user customization)
     static QString promptsDir();
 
-    /// ── 语言切换 ────────────────────────────────────────
+    /// ── Language Switching ──────────────────────────────────
     QString currentLanguage() const;
     void setLanguage(const QString& locale);
 
-    /// ── 操作系统检测 ────────────────────────────────────
+    /// ── OS Detection ──────────────────────────────────────
     static QString detectOS();                         // "macos" / "linux" / "windows"
-    static QMap<QString, QString> osTemplateValues();  // 当前 OS 的模板变量表
+    static QMap<QString, QString> osTemplateValues();  // template variable map for the current OS
 
 signals:
     void promptsReloaded();
@@ -53,11 +53,10 @@ private:
     QString readFileContent(const QString& path) const;
     QString applyTemplateVariables(const QString& content) const;
 
-    // 缓存
     mutable QMap<QString, QString> m_cache;
     mutable QMap<QString, QString> m_girlfriendConfigCache;
     mutable bool m_configParsed = false;
-    mutable QString m_cachedLanguage;  // 用于检测语言切换时清缓存
+    mutable QString m_cachedLanguage;  // track current language to auto-flush cache on switch
 };
 
 #endif  // PROMPTMANAGER_H

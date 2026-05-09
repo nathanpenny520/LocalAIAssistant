@@ -19,7 +19,7 @@ PromptManager* PromptManager::instance() {
 PromptManager::PromptManager(QObject* parent) : QObject(parent) {
 }
 
-// ── 操作系统检测 ────────────────────────────────────────────
+// ── OS Detection ──────────────────────────────────────────────
 
 QString PromptManager::detectOS() {
 #ifdef Q_OS_MACOS
@@ -83,7 +83,7 @@ QMap<QString, QString> PromptManager::osTemplateValues() {
     return vars;
 }
 
-// ── 语言检测 ────────────────────────────────────────────────
+// ── Language Detection ────────────────────────────────────────
 
 QString PromptManager::currentLanguage() const {
     QSettings settings(QStringLiteral("LocalAIAssistant"), QStringLiteral("Settings"));
@@ -106,7 +106,7 @@ void PromptManager::setLanguage(const QString& locale) {
     emit promptsReloaded();
 }
 
-// ── 路径解析 ────────────────────────────────────────────────
+// ── Path Resolution ────────────────────────────────────────────
 
 QString PromptManager::promptsDir() {
     QString appDir = QCoreApplication::applicationDirPath();
@@ -140,7 +140,7 @@ QString PromptManager::findPromptPath(const QString& name) const {
     QString baseDir = promptsDir();
     QString lang = currentLanguage();
 
-    // 候选搜索顺序：<lang>/name.md → zh_CN/name.md（回退）→ 根目录/name.md（兼容旧布局）
+    // Search order: <lang>/name.md → zh_CN/name.md (fallback) → root/name.md (legacy layout compat)
     QStringList candidates;
     if (!lang.isEmpty()) {
         candidates << QDir::cleanPath(baseDir + QStringLiteral("/") + lang + QStringLiteral("/") +
@@ -148,13 +148,13 @@ QString PromptManager::findPromptPath(const QString& name) const {
         candidates << QDir::cleanPath(baseDir + QStringLiteral("/") + lang + QStringLiteral("/") +
                                       name);
     }
-    // 默认回退到中文
+    // Fallback to Chinese if current language isn't zh_CN
     if (lang != QStringLiteral("zh_CN")) {
         candidates << QDir::cleanPath(baseDir + QStringLiteral("/zh_CN/") + name +
                                       QStringLiteral(".md"));
         candidates << QDir::cleanPath(baseDir + QStringLiteral("/zh_CN/") + name);
     }
-    // 兼容旧布局（无子目录）
+    // Legacy flat layout (no language subdirectories)
     candidates << QDir::cleanPath(baseDir + QStringLiteral("/") + name + QStringLiteral(".md"));
     candidates << QDir::cleanPath(baseDir + QStringLiteral("/") + name);
 
@@ -174,7 +174,7 @@ QString PromptManager::readFileContent(const QString& path) const {
     return content.trimmed();
 }
 
-// ── 模板变量替换 ────────────────────────────────────────────
+// ── Template Variable Substitution ──────────────────────────────
 
 QString PromptManager::applyTemplateVariables(const QString& content) const {
     QString result = content;
@@ -184,17 +184,17 @@ QString PromptManager::applyTemplateVariables(const QString& content) const {
         result.replace(QStringLiteral("{{") + it.key() + QStringLiteral("}}"), it.value());
     }
 
-    // 清理未被替换的占位符（如 en 版本不含某些变量）
+    // Remove unreplaced placeholders (e.g. en version has different variables)
     static QRegularExpression leftoverPlaceholder(QStringLiteral("\\{\\{\\w+\\}\\}"));
     result.remove(leftoverPlaceholder);
 
     return result;
 }
 
-// ── 提示词加载 ──────────────────────────────────────────────
+// ── Prompt Loading ──────────────────────────────────────────────
 
 QString PromptManager::loadPrompt(const QString& name) const {
-    // 检测语言是否变化，自动清缓存
+    // Auto-clear cache if the language changed
     QString lang = currentLanguage();
     if (m_cachedLanguage.isEmpty())
         m_cachedLanguage = lang;
@@ -205,7 +205,6 @@ QString PromptManager::loadPrompt(const QString& name) const {
         m_cachedLanguage = lang;
     }
 
-    // 检查缓存
     if (m_cache.contains(name)) return m_cache[name];
 
     QString path = findPromptPath(name);
@@ -220,7 +219,7 @@ QString PromptManager::loadPrompt(const QString& name) const {
     return content;
 }
 
-// ── 便捷访问器 ────────────────────────────────────────────
+// ── Convenience Accessors ────────────────────────────────────────
 
 QString PromptManager::systemPrompt() const {
     QString prompt = loadPrompt(QStringLiteral("system"));

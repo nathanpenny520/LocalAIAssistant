@@ -36,7 +36,7 @@ QString TranslationManager::findQmFile(const QString& locale) {
     searchPaths << QApplication::applicationDirPath() + "/translations";
 #endif
 
-    // 通用备用路径
+    // Generic fallback paths
     searchPaths << QDir::currentPath() + "/translations";
     searchPaths << QDir::currentPath() + "/../translations";
 
@@ -55,16 +55,17 @@ bool TranslationManager::loadTranslation(const QString& locale) {
         return true;
     }
 
-    // 移除旧的翻译器
+    // Remove old translator
     if (m_translator) {
         qApp->removeTranslator(m_translator);
         delete m_translator;
         m_translator = nullptr;
     }
-    // 不加载 Qt 翻译器，让系统对话框（如 QFileDialog）使用系统语言
+    // Do not load Qt's own translations — let system dialogs
+    // (e.g. QFileDialog) use the system language
     m_currentLocale.clear();
 
-    // 加载应用翻译器
+    // Load application translator
     m_translator = new QTranslator(this);
     QString qmFile = QString("localai_%1.qm").arg(locale);
     QString searchPath = findQmFile(locale);

@@ -672,7 +672,7 @@ int CLIApplication::handleConfigCommand(const QCommandLineParser& parser) {
         hasChanges = true;
     }
 
-    // 处理模型参数（新增）
+    // Handle model parameters
     if (parser.isSet("temperature")) {
         double temp = parser.value("temperature").toDouble();
         if (!validateDoubleParam("temperature", temp, 0.0, 2.0)) {
@@ -924,22 +924,20 @@ void CLIApplication::searchMessages(const QString& keyword) {
         messageIndex++;
         QString roleLabel = (msg.role == "user") ? "[User]" : "[AI]";
 
-        // 搜索消息内容
         if (msg.content.contains(keyword, Qt::CaseInsensitive)) {
             matchCount++;
             std::cout << "\nMessage #" << messageIndex << " " << roleLabel.toStdString() << "\n";
 
-            // 显示匹配上下文（截取包含关键词的部分）
+            // Show context around the match (excerpt containing the keyword)
             QString content = msg.content;
             int keywordPos = content.indexOf(keyword, 0, Qt::CaseInsensitive);
 
             if (keywordPos != -1) {
-                // 显示前后各50个字符的上下文
+                // Show up to 50 characters of context on each side
                 int contextStart = qMax(0, keywordPos - 50);
                 int contextEnd = qMin(content.length(), keywordPos + keyword.length() + 50);
                 QString context = content.mid(contextStart, contextEnd - contextStart);
 
-                // 添加省略号指示
                 if (contextStart > 0) {
                     context = "..." + context;
                 }
@@ -951,7 +949,7 @@ void CLIApplication::searchMessages(const QString& keyword) {
             }
         }
 
-        // 搜索附件内容（如果有）
+        // Search attachment content
         for (const FileAttachment& attachment : msg.attachments) {
             if (attachment.type == "text" &&
                 attachment.content.contains(keyword, Qt::CaseInsensitive)) {
@@ -959,7 +957,7 @@ void CLIApplication::searchMessages(const QString& keyword) {
                 std::cout << "\nMessage #" << messageIndex << " " << roleLabel.toStdString()
                           << " [Attachment: " << attachment.path.toStdString() << "]\n";
 
-                // 显示匹配上下文
+                // Show context around the match
                 int keywordPos = attachment.content.indexOf(keyword, 0, Qt::CaseInsensitive);
                 if (keywordPos != -1) {
                     int contextStart = qMax(0, keywordPos - 30);

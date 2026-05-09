@@ -13,27 +13,40 @@ class MemoryManager : public QObject {
 public:
     explicit MemoryManager(QObject* parent = nullptr);
 
-    // 加载记忆文件
+    /**
+     * @brief Load memory file from disk.
+     */
     QString loadMemory();
 
-    // 获取记忆内容（用于注入 system prompt）
+    /**
+     * @brief Get memory content (for injecting into system prompt).
+     */
     QString getMemoryContent();
 
-    // 更新记忆文件
+    /**
+     * @brief Update memory file by appending new info.
+     */
     void updateMemory(const QString& newInfo);
 
-    // 解析 AI 返回的记忆更新请求
-    // 格式: [更新记忆:分类|内容]
+    /**
+     * @brief Parse AI-received memory update requests.
+     *
+     * Format: [更新记忆:category|content] or [memory:category|content]
+     */
     struct MemoryUpdate {
-        QString category;  // 基本信息、喜好偏好、重要事件、对话摘要、特别提醒
-        QString content;   // 要记录的内容
+        QString category;  // category name (basic_info, preferences, events, reminders, etc.)
+        QString content;   // content to record
     };
     QList<MemoryUpdate> parseMemoryUpdates(const QString& response);
 
-    // 应用记忆更新
+    /**
+     * @brief Apply parsed memory updates to the memory file.
+     */
     void applyMemoryUpdates(const QList<MemoryUpdate>& updates);
 
-    // 记忆文件路径
+    /**
+     * @brief Get the memory file path.
+     */
     static QString memoryFilePath();
 
 private:

@@ -25,10 +25,9 @@ class KnowledgeBase : public QObject {
 public:
     static KnowledgeBase* instance();
 
-    // 初始化知识库
     bool init();
 
-    // 文档管理
+    // Document management
     bool importDocument(const QString& filePath);
     QVector<ImportResult> importDocuments(const QStringList& filePaths);
     void importDocumentAsync(const QString& filePath);
@@ -36,21 +35,19 @@ public:
     bool removeDocument(const QString& filePath);
     QStringList allDocuments() const;
 
-    // 语义搜索
+    // Semantic search
     QVector<SearchResult> search(const QString& query, int topK = 5) const;
 
-    // 生成 AI 上下文注入文本
+    // Build AI context injection text
     QString generateContext(const QString& query, int topK = 5) const;
 
-    // 检测是否为知识库查询
+    // Detect whether a message is a knowledge-base query
     static bool isKnowledgeQuery(const QString& message);
 
-    // 状态
     bool isReady() const;
     int totalChunks() const;
     int totalDocuments() const;
 
-    // 获取组件
     Embedder* embedder() const;
     VectorDB* vectorDB() const;
 

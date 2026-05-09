@@ -22,7 +22,7 @@ public:
     QString detectEmotion(const QString& text, double mood = 0.6) const;
     QString emotionToDisplayName(const QString& emotion) const;
 
-    // 解析回复中的情绪标记，返回 (情绪, 清理后的文本)
+    // Parses emotion tag from the response, returns (emotion, cleaned text)
     struct EmotionResult {
         QString emotion;
         QString cleanText;
@@ -34,7 +34,7 @@ public:
         return m_userNickname;
     }
 
-    // 情绪值系统 (0.0 = 很差, 1.0 = 很好)
+    // Mood value (0.0 = worst, 1.0 = best)
     double mood() const {
         return m_mood;
     }
@@ -46,7 +46,7 @@ public:
     void resetMood() {
         m_mood = 0.6;
         emit moodChanged(m_mood);
-    }  // 触发信号更新UI
+    }
 
 signals:
     void emotionDetected(const QString& emotion);
@@ -55,11 +55,11 @@ signals:
 private:
     QString m_personalityPrompt;
     QString m_userNickname;
-    double m_mood = 0.6;        // 当前心情值 (0-1)
-    double m_moodDecay = 0.05;  // 每次对话衰减
+    double m_mood = 0.6;        // current mood (0-1)
+    double m_moodDecay = 0.05;  // decay per message
 
     QString getMoodHint() const;
-    void parseTemplateConfig();  // 从 personality.md 提取提示词配置 QMap
+    void parseTemplateConfig();  // extract prompt config QMap from personality.md
     QString templateValue(const QString& key, const QString& fallback) const;
 
     void loadFromFile();

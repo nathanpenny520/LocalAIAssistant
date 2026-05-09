@@ -24,7 +24,7 @@
 #include "girlfriend_translations.h"
 #include "girlfriendsettings.h"
 
-// 讯飞语音 WebSocket API 默认鉴权参数
+// Xunfei Voice WebSocket API — default auth parameters
 static const QString ASR_DEFAULT_HOST = "iat-api.xfyun.cn";
 static const QString ASR_DEFAULT_PATH = "/v2/iat";
 static const QString TTS_DEFAULT_HOST = "cbm01.cn-huabei-1.xf-yun.com";
@@ -46,7 +46,7 @@ VoiceManager::VoiceManager(QObject* parent)
         , m_audioOutput(nullptr)
         , m_ttsTempFile(nullptr)
         , m_isSpeaking(false)
-        , m_voiceType("x6_lingxiaoxuan_pro")  // 超拟人默认发音人
+        , m_voiceType("x6_lingxiaoxuan_pro")  // super-realistic default voice
         , m_enableVoiceOutput(true)
         , m_asrFrameIndex(0)
         , m_ttsSeq(0)
@@ -57,24 +57,22 @@ VoiceManager::VoiceManager(QObject* parent)
     initAsrWebSocket();
     initTtsWebSocket();
 
-    // 初始化播放器和音频输出
+    // Initialize media player and audio output
     m_mediaPlayer = new QMediaPlayer(this);
     m_audioOutput = new QAudioOutput(this);
 
-    // 连接音频输出到播放器
     m_mediaPlayer->setAudioOutput(m_audioOutput);
 
-    // 设置音量
-    m_audioOutput->setVolume(1.0);  // 最大音量
+    m_audioOutput->setVolume(1.0);
 
-    // 使用系统默认音频输出设备
+    // Use system default audio output device
     QAudioDevice defaultOutput = QMediaDevices::defaultAudioOutput();
     if (!defaultOutput.isNull()) {
         m_audioOutput->setDevice(defaultOutput);
         qDebug() << "VoiceManager: Initial audio output device:" << defaultOutput.description();
     }
 
-    // 监听音频输出设备变化（如 AirPods 连接/断开）
+    // Monitor audio output device changes (e.g. AirPods connect/disconnect)
     QMediaDevices* mediaDevices = new QMediaDevices(this);
     connect(mediaDevices, &QMediaDevices::audioOutputsChanged, this,
             &VoiceManager::onAudioOutputsChanged);
@@ -101,47 +99,47 @@ VoiceManager::~VoiceManager() {
     }
 }
 
-// ==================== 配置加载 ====================
+// ==================== Config Loading ====================
 
 QString VoiceManager::findConfigFilePath() const {
     QStringList paths;
 
-    // 1. 项目根目录 .env 文件（优先，推荐）
+    // 1. Project root .env file (preferred)
     QString appDir = QCoreApplication::applicationDirPath();
 
 #ifdef Q_OS_MACOS
-    // macOS app bundle 结构: LocalAIAssistant.app/Contents/MacOS/
-    // 需要向上多级查找 .env
+    // macOS app bundle: LocalAIAssistant.app/Contents/MacOS/
+    // Need to traverse up several levels to find .env
     paths << QDir::cleanPath(
             appDir + "/../../../.env");  // build/LocalAIAssistant.app/Contents/MacOS/../../../.env
-    paths << QDir::cleanPath(appDir + "/../../.env");         // Contents/.env 或 build/.env
+    paths << QDir::cleanPath(appDir + "/../../.env");         // Contents/.env or build/.env
     paths << QDir::cleanPath(appDir + "/../.env");            // LocalAIAssistant.app/.env
     paths << QDir::cleanPath(appDir + "/../Resources/.env");  // macOS app bundle Resources
     paths << QDir::cleanPath(appDir + "/../Resources/girlfriend/.env");
 #elif defined(Q_OS_WIN)
-    // Windows: 可执行文件在 build 目录，资源在同级目录
-    paths << QDir::cleanPath(appDir + "/.env");     // 可执行文件同级
-    paths << QDir::cleanPath(appDir + "/../.env");  // build 目录上级
+    // Windows: executable in build directory, resources at same level
+    paths << QDir::cleanPath(appDir + "/.env");
+    paths << QDir::cleanPath(appDir + "/../.env");
     paths << QDir::cleanPath(appDir + "/../sourcecode-ai-assistant/.env");
 #else
-    // Linux: 可执行文件在 build 目录
+    // Linux: executable in build directory
     paths << QDir::cleanPath(appDir + "/../sourcecode-ai-assistant/.env");
     paths << QDir::cleanPath(appDir + "/.env");
 #endif
 
-    // 当前工作目录（开发时常用）
+    // Current working directory (common during development)
     paths << ".env";
     paths << "../.env";
     paths << "../../.env";
     paths << "../sourcecode-ai-assistant/.env";
     paths << "../../sourcecode-ai-assistant/.env";
 
-    // 2. 用户数据目录 .env 文件
+    // 2. User data directory .env file
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     paths << QDir::cleanPath(dataDir + "/.env");
     paths << QDir::cleanPath(dataDir + "/girlfriend/.env");
 
-    // 调试输出所有查找路径
+    // Debug: output all search paths
     qDebug() << "VoiceManager: Searching for config in paths:";
     for (const QString& p : paths) {
         qDebug() << "  -" << p << (QFile::exists(p) ? "[EXISTS]" : "");
@@ -214,12 +212,12 @@ bool VoiceManager::loadFromEnvFile(const QString& path) {
     while (!file.atEnd()) {
         QString line = QString::fromUtf8(file.readLine()).trimmed();
 
-        // 跳过空行和注释
+        // Skip empty lines and comments
         if (line.isEmpty() || line.startsWith('#')) {
             continue;
         }
 
-        // 解析 KEY=VALUE 格式
+        // Parse KEY=VALUE format
         int eqPos = line.indexOf('=');
         if (eqPos <= 0) {
             continue;
@@ -228,7 +226,7 @@ bool VoiceManager::loadFromEnvFile(const QString& path) {
         QString key = line.left(eqPos).trimmed();
         QString value = line.mid(eqPos + 1).trimmed();
 
-        // 移除引号（如果有）
+        // Strip quotes if present
         if (value.startsWith('"') && value.endsWith('"')) {
             value = value.mid(1, value.length() - 2);
         }
@@ -236,7 +234,7 @@ bool VoiceManager::loadFromEnvFile(const QString& path) {
             value = value.mid(1, value.length() - 2);
         }
 
-        // 映射到成员变量
+        // Map to member variables
         if (key == "XFYUN_APP_ID") {
             m_appId = value;
         } else if (key == "XFYUN_API_KEY") {
@@ -301,7 +299,7 @@ void VoiceManager::setVoiceType(const QString& voiceType) {
     m_voiceType = voiceType;
 }
 
-// ==================== 讯飞鉴权 URL 生成 ====================
+// ==================== Xunfei Auth URL Generation ====================
 
 QString VoiceManager::generateAsrAuthUrl() {
     // Parse configured URL, fall back to defaults
@@ -317,21 +315,21 @@ QString VoiceManager::generateTtsAuthUrl() {
 }
 
 QString VoiceManager::generateAuthUrl(const QString& host, const QString& path) {
-    // RFC1123 格式时间戳
+    // RFC1123 format timestamp
     QString date = QDateTime::currentDateTimeUtc().toString("ddd, dd MMM yyyy HH:mm:ss") + " GMT";
 
-    // 签名原文: host + date + path
+    // Signature origin: host + date + path
     QString signatureOrigin = "host: " + host + "\ndate: " + date + "\nGET " + path + " HTTP/1.1";
 
-    // HMAC-SHA256 签名
+    // HMAC-SHA256 signature
     QByteArray key = m_apiSecret.toUtf8();
     QByteArray data = signatureOrigin.toUtf8();
     QByteArray signature = QMessageAuthenticationCode::hash(data, key, QCryptographicHash::Sha256);
 
-    // Base64 编码签名
+    // Base64-encode signature
     QString signatureBase64 = signature.toBase64();
 
-    // authorization 原文
+    // authorization origin
     QString authorizationOrigin = QString("api_key=\"%1\", algorithm=\"%2\", headers=\"%3\", "
                                           "signature=\"%4\"")
                                           .arg(m_apiKey)
@@ -339,16 +337,16 @@ QString VoiceManager::generateAuthUrl(const QString& host, const QString& path) 
                                           .arg("host date request-line")
                                           .arg(signatureBase64);
 
-    // Base64 编码 authorization
+    // Base64-encode authorization
     QString authorization = authorizationOrigin.toUtf8().toBase64();
 
-    // 使用 QUrl 正规构建 URL
+    // Build URL using QUrl
     QUrl url;
     url.setScheme("wss");
     url.setHost(host);
     url.setPath(path);
 
-    // 添加查询参数
+    // Add query parameters
     QUrlQuery query;
     query.addQueryItem("authorization", authorization);
     query.addQueryItem("date", date);
@@ -361,18 +359,17 @@ QString VoiceManager::generateAuthUrl(const QString& host, const QString& path) 
     return url.toString(QUrl::FullyEncoded);
 }
 
-// ==================== ASR（语音听写） ====================
+// ==================== ASR (Speech-to-Text) ====================
 
 void VoiceManager::initAsrWebSocket() {
     m_asrWebSocket = new QWebSocket();
 
-    // 配置 SSL 以避免认证问题
+    // Configure SSL to avoid authentication issues
     QSslConfiguration sslConfig = m_asrWebSocket->sslConfiguration();
     sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
     sslConfig.setProtocol(QSsl::TlsV1_2OrLater);
     m_asrWebSocket->setSslConfiguration(sslConfig);
 
-    // 忽略 SSL 错误
     m_asrWebSocket->ignoreSslErrors();
 
     connect(m_asrWebSocket, &QWebSocket::connected, this, &VoiceManager::onAsrConnected);
@@ -401,12 +398,12 @@ void VoiceManager::startRecording() {
     emit recordingStarted();
     emit statusChanged(GTr::connectingVoiceService());
 
-    // 连接 ASR WebSocket
+    // Connect to ASR WebSocket
     QString authUrl = generateAsrAuthUrl();
     qDebug() << "VoiceManager: Connecting to ASR:" << authUrl.left(100) + "...";
     m_asrWebSocket->open(QUrl(authUrl));
 
-    // 使用 QAudioSource 进行音频捕获（跨平台支持，包括 Windows）
+    // Use QAudioSource for audio capture (cross-platform, including Windows)
     QAudioDevice defaultDevice = QMediaDevices::defaultAudioInput();
     if (defaultDevice.isNull()) {
         qDebug() << "VoiceManager: No audio input device available!";
@@ -424,26 +421,26 @@ void VoiceManager::startRecording() {
 
     qDebug() << "VoiceManager: Audio input device:" << defaultDevice.description();
 
-    // 配置目标音频格式：16kHz, 16bit, mono（讯飞要求）
+    // Configure desired audio format: 16kHz, 16bit, mono (Xunfei required)
     QAudioFormat desiredFormat;
     desiredFormat.setSampleRate(16000);
     desiredFormat.setChannelCount(1);
     desiredFormat.setSampleFormat(QAudioFormat::Int16);
 
-    // 检查设备是否支持目标格式
+    // Check if device supports the desired format
     QAudioFormat actualFormat = desiredFormat;
     if (!defaultDevice.isFormatSupported(desiredFormat)) {
-        // 获取设备支持的格式中最接近的
+        // Use the closest supported format
         actualFormat = defaultDevice.preferredFormat();
         qDebug() << "VoiceManager: 16kHz not directly supported, using device preferred format:"
                  << actualFormat.sampleRate() << "Hz," << actualFormat.channelCount() << "channels,"
                  << "will resample later";
 
-        // 确保使用 16-bit 整数格式（便于处理）
+        // Ensure 16-bit integer format (easier to process)
         if (actualFormat.sampleFormat() != QAudioFormat::Int16) {
             actualFormat.setSampleFormat(QAudioFormat::Int16);
             if (!defaultDevice.isFormatSupported(actualFormat)) {
-                // 如果仍然不支持，尝试 Float 格式
+                // Try Float format if still unsupported
                 actualFormat.setSampleFormat(QAudioFormat::Float);
                 qDebug() << "VoiceManager: Using Float format instead of Int16";
             }
@@ -456,13 +453,13 @@ void VoiceManager::startRecording() {
     m_actualSampleRate = actualFormat.sampleRate();
     m_actualChannelCount = actualFormat.channelCount();
 
-    // 创建 QAudioSource
+    // Create QAudioSource
     m_audioSource = new QAudioSource(defaultDevice, actualFormat, this);
 
-    // 设置缓冲区大小（Windows 上需要足够的缓冲区）
+    // Set buffer size (Windows needs enough buffer)
     // 16kHz, 16bit, mono: 16000 * 2 * 1 = 32000 bytes per second
-    // 100ms 缓冲区 = 3200 bytes
-    m_audioSource->setBufferSize(6400);  // 200ms 缓冲区
+    // 100ms buffer = 3200 bytes
+    m_audioSource->setBufferSize(6400);  // 200ms buffer
 
     m_audioIODevice = m_audioSource->start();
 
@@ -483,7 +480,7 @@ void VoiceManager::startRecording() {
         return;
     }
 
-    // 检查音频源状态
+    // Check audio source state
     QAudio::State audioState = m_audioSource->state();
     qDebug() << "VoiceManager: Audio source state:" << audioState
              << "- buffer size:" << m_audioSource->bufferSize()
@@ -504,13 +501,13 @@ void VoiceManager::startRecording() {
         }
     }
 
-    // 使用定时器轮询音频数据（Windows 兼容方案）
-    // Windows 上 readyRead 信号可能不可靠，使用定时器主动轮询
+    // Use timer polling for audio data (Windows compatibility)
+    // On Windows, the readyRead signal may be unreliable — poll proactively
     m_audioPollTimer = new QTimer(this);
     connect(m_audioPollTimer, &QTimer::timeout, this, &VoiceManager::onAudioPollTimeout);
-    m_audioPollTimer->start(50);  // 每 50ms 轮询一次
+    m_audioPollTimer->start(50);  // poll every 50ms
 
-    // 同时连接 readyRead 信号作为备用（某些平台可能工作）
+    // Also connect readyRead as fallback (works on some platforms)
     connect(m_audioIODevice, &QIODevice::readyRead, this, &VoiceManager::onAudioDataReady);
 
     qDebug() << "VoiceManager: Recording started with QAudioSource"
@@ -527,17 +524,17 @@ void VoiceManager::stopRecording() {
 
     m_isRecording = false;
 
-    // 停止轮询定时器
+    // Stop polling timer
     if (m_audioPollTimer) {
         m_audioPollTimer->stop();
         m_audioPollTimer->deleteLater();
         m_audioPollTimer = nullptr;
     }
 
-    // 停止音频源
+    // Stop audio source
     if (m_audioSource) {
         m_audioSource->stop();
-        // 读取剩余数据
+        // Read remaining data
         if (m_audioIODevice && m_audioIODevice->bytesAvailable() > 0) {
             onAudioDataReady();
         }
@@ -548,7 +545,7 @@ void VoiceManager::stopRecording() {
 
     qDebug() << "VoiceManager: Recording stopped, total audio buffer size:" << m_audioBuffer.size();
 
-    // 处理并发送累积的音频数据
+    // Process and send accumulated audio data
     processAndSendAudioData();
 }
 
@@ -556,7 +553,7 @@ void VoiceManager::onAsrConnected() {
     m_asrConnected = true;
     emit statusChanged(GTr::startSpeaking());
 
-    // 发送初始帧（业务参数）
+    // Send initial frame (business parameters)
     QJsonObject frame;
     QJsonObject common;
     common["app_id"] = m_appId;
@@ -566,10 +563,10 @@ void VoiceManager::onAsrConnected() {
     business["language"] = "zh_cn";
     business["domain"] = "iat";
     business["accent"] = "mandarin";
-    business["vad_eos"] = 5000;  // VAD超时从2秒增加到5秒，允许更长的说话停顿
-    business["dwa"] = "wpgs";    // 动态修正
-    business["ptt"] = 1;         // 标点预测
-    // 注意：rhxd 参数已被讯飞API移除，不再支持
+    business["vad_eos"] = 5000;  // VAD timeout: 5 seconds to allow longer pauses
+    business["dwa"] = "wpgs";    // dynamic correction
+    business["ptt"] = 1;         // punctuation prediction
+    // Note: rhxd parameter has been removed from the Xunfei API
     frame["business"] = business;
 
     QJsonObject data;
@@ -649,7 +646,7 @@ void VoiceManager::parseAsrResponse(const QString& jsonResponse) {
 
     QJsonObject response = doc.object();
 
-    // 检查错误
+    // Check for errors
     if (response.contains("code") && response["code"].toInt() != 0) {
         QString error = GTr::asrConnectionError(QString("[%1]: %2")
                                                         .arg(response["code"].toInt())
@@ -658,7 +655,7 @@ void VoiceManager::parseAsrResponse(const QString& jsonResponse) {
         return;
     }
 
-    // 解析识别结果
+    // Parse recognition result
     QJsonObject data = response["data"].toObject();
     if (data.isEmpty()) {
         qDebug() << "VoiceManager: ASR data is empty";
@@ -667,7 +664,7 @@ void VoiceManager::parseAsrResponse(const QString& jsonResponse) {
 
     int status = data["status"].toInt();
 
-    // result 是对象，包含 ws 数组
+    // result is an object containing a ws array
     QJsonObject resultObj = data["result"].toObject();
     QJsonArray wsArray = resultObj["ws"].toArray();
 
@@ -683,22 +680,22 @@ void VoiceManager::parseAsrResponse(const QString& jsonResponse) {
 
     qDebug() << "VoiceManager: ASR parsed text:" << resultText << "status:" << status;
 
-    // 处理结果
+    // Process result
     if (!resultText.isEmpty()) {
-        // 检查 pgs (pgs="apd" 表示追加, pgs="rpl" 表示替换)
+        // Check pgs ("apd" = append, "rpl" = replace)
         QString pgs = resultObj["pgs"].toString();
 
         if (pgs == "rpl") {
-            // 替换之前的结果
+            // Replace previous result
             m_asrPartialText = resultText;
         } else {
-            // 追加结果
+            // Append result
             m_asrPartialText += resultText;
         }
 
         emit asrPartialResult(m_asrPartialText);
 
-        // status=2 表示最终结果
+        // status=2 indicates final result
         if (status == 2) {
             m_asrFinalText = m_asrPartialText;
             emit asrFinalResult(m_asrFinalText);
@@ -710,10 +707,10 @@ void VoiceManager::parseAsrResponse(const QString& jsonResponse) {
 }
 
 void VoiceManager::processAndSendAudioData() {
-    // 检查 WebSocket 是否已连接
+    // Check if WebSocket is connected
     if (!m_asrConnected) {
         qDebug() << "VoiceManager: ASR WebSocket not connected yet, waiting...";
-        // 等待连接建立（最多等待 3 秒）
+        // Wait for connection to establish (up to 3 seconds)
         int waitCount = 0;
         while (!m_asrConnected && waitCount < 30) {
             QCoreApplication::processEvents();
@@ -741,7 +738,7 @@ void VoiceManager::processAndSendAudioData() {
     QByteArray audioData = m_audioBuffer;
     m_audioBuffer.clear();
 
-    // 处理 Float 格式转换（如果需要）
+    // Handle Float format conversion if needed
     if (m_audioFormat.sampleFormat() == QAudioFormat::Float) {
         qDebug() << "VoiceManager: Converting Float to Int16";
         // Float (32-bit) to Int16 (16-bit) conversion
@@ -762,13 +759,13 @@ void VoiceManager::processAndSendAudioData() {
         audioData = int16Data;
     }
 
-    // 声道转换：多声道转单声道（讯飞要求 mono）
-    // 在 Float 转 Int16 之后进行，此时数据已是 16-bit PCM
+    // Channel conversion: multi-channel to mono (Xunfei requires mono)
+    // Performed after Float-to-Int16, when data is already 16-bit PCM
     if (m_actualChannelCount > 1) {
         qDebug() << "VoiceManager: Converting" << m_actualChannelCount << "channels to mono";
 
         int bytesPerSample = 2;                                     // 16-bit = 2 bytes
-        int bytesPerFrame = bytesPerSample * m_actualChannelCount;  // 一帧包含所有声道
+        int bytesPerFrame = bytesPerSample * m_actualChannelCount;  // one frame = all channels
         int frameCount = audioData.size() / bytesPerFrame;
 
         QByteArray monoData;
@@ -777,7 +774,7 @@ void VoiceManager::processAndSendAudioData() {
         for (int i = 0; i < frameCount; i++) {
             int frameOffset = i * bytesPerFrame;
 
-            // 计算所有声道的平均值
+            // Average across all channels
             int sum = 0;
             for (int ch = 0; ch < m_actualChannelCount; ch++) {
                 int sampleOffset = frameOffset + ch * bytesPerSample;
@@ -787,7 +784,7 @@ void VoiceManager::processAndSendAudioData() {
                     sum += sample;
                 }
             }
-            // 平均值
+            // Compute average
             short monoSample = static_cast<short>(sum / m_actualChannelCount);
             monoData.append(reinterpret_cast<char*>(&monoSample), 2);
         }
@@ -796,14 +793,14 @@ void VoiceManager::processAndSendAudioData() {
         qDebug() << "VoiceManager: Converted to mono, data size:" << audioData.size();
     }
 
-    // 如果采样率不是 16kHz，需要重采样
+    // Resample if sample rate is not 16kHz
     if (m_actualSampleRate != 16000 && m_actualSampleRate > 16000) {
         int ratio = m_actualSampleRate / 16000;
         qDebug() << "VoiceManager: Resampling from" << m_actualSampleRate
                  << "Hz to 16000 Hz (ratio:" << ratio << ")";
 
-        // 简单降采样：每隔 ratio 个采样取一个
-        // 16-bit PCM: 每个采样 2 bytes
+        // Simple downsampling: take every Nth sample
+        // 16-bit PCM: 2 bytes per sample
         int bytesPerSample = 2;
         int sampleCount = audioData.size() / bytesPerSample;
 
@@ -819,23 +816,23 @@ void VoiceManager::processAndSendAudioData() {
         qDebug() << "VoiceManager: Resampled data size:" << audioData.size();
     }
 
-    // 音频增益处理 - 提高音量1.5倍（解决录音音量小的问题）
-    // 16-bit PCM: 每个采样是 signed short
+    // Audio gain — amplify by 1.5x (addresses low recording volume)
+    // 16-bit PCM: each sample is a signed short
     int bytesPerSample = 2;  // 16-bit = 2 bytes
     int sampleCount = audioData.size() / bytesPerSample;
-    float gainFactor = 1.5f;  // 增益因子
+    float gainFactor = 1.5f;
 
     for (int i = 0; i < sampleCount; i++) {
         int offset = i * bytesPerSample;
         if (offset + 2 <= audioData.size()) {
-            // 读取16-bit采样值
+            // Read 16-bit sample value
             short sample = *reinterpret_cast<const short*>(audioData.constData() + offset);
-            // 应用增益
+            // Apply gain
             float amplified = sample * gainFactor;
-            // 防止溢出（clip到-32768到32767范围）
+            // Clamp to prevent overflow
             if (amplified > 32767) amplified = 32767;
             if (amplified < -32768) amplified = -32768;
-            // 写回
+            // Write back
             short newSample = static_cast<short>(amplified);
             audioData[offset] = reinterpret_cast<char*>(&newSample)[0];
             audioData[offset + 1] = reinterpret_cast<char*>(&newSample)[1];
@@ -843,17 +840,17 @@ void VoiceManager::processAndSendAudioData() {
     }
     qDebug() << "VoiceManager: Applied audio gain factor:" << gainFactor;
 
-    // 讯飞要求的格式：16kHz, 16bit, mono
+    // Xunfei required format: 16kHz, 16bit, mono
     QString formatStr = "audio/L16;rate=16000";
 
-    // 分帧发送（16kHz: 1280 bytes = 40ms）
+    // Send in frames (16kHz: 1280 bytes = 40ms)
     int frameSize = 1280;
     int offset = 0;
     int framesSent = 0;
     while (offset < audioData.size()) {
         QByteArray frameData = audioData.mid(offset, frameSize);
 
-        // 发送音频帧
+        // Send audio frame
         QJsonObject frame;
         QJsonObject data;
         data["status"] = 1;
@@ -871,10 +868,10 @@ void VoiceManager::processAndSendAudioData() {
 
     qDebug() << "VoiceManager: Sent" << framesSent << "audio frames at 16kHz";
 
-    // 发送结束帧
+    // Send end frame
     sendAsrEndSignal();
 
-    // 清理音频源
+    // Cleanup audio source
     if (m_audioSource) {
         m_audioSource->deleteLater();
         m_audioSource = nullptr;
@@ -887,13 +884,13 @@ void VoiceManager::onAudioDataReady() {
         return;
     }
 
-    // 读取所有可用的音频数据
+    // Read all available audio data
     QByteArray newData = m_audioIODevice->readAll();
     if (newData.isEmpty()) {
         return;
     }
 
-    // 累积到缓冲区
+    // Accumulate in buffer
     m_audioBuffer.append(newData);
 
     qDebug() << "VoiceManager: Read" << newData.size()
@@ -901,13 +898,13 @@ void VoiceManager::onAudioDataReady() {
 }
 
 void VoiceManager::onAudioPollTimeout() {
-    // 定时轮询音频数据（Windows 兼容方案）
-    // 主动检查并读取可用的音频数据
+    // Timer-based polling for audio data (Windows compatibility)
+    // Proactively check and read available audio data
     if (!m_audioIODevice || !m_isRecording || !m_audioSource) {
         return;
     }
 
-    // 检查音频源状态（Windows 上可能意外停止）
+    // Check audio source state (may stop unexpectedly on Windows)
     QAudio::State state = m_audioSource->state();
     if (state == QAudio::StoppedState) {
         QAudio::Error error = m_audioSource->error();
@@ -922,10 +919,10 @@ void VoiceManager::onAudioPollTimeout() {
         }
     }
 
-    // 检查是否有可用数据
+    // Check for available data
     qint64 bytesAvailable = m_audioIODevice->bytesAvailable();
     if (bytesAvailable > 0) {
-        // 每 500ms 输出一次状态，避免日志过多
+        // Log every 500ms to avoid spam
         static int pollCount = 0;
         pollCount++;
         if (pollCount % 10 == 0) {  // 50ms * 10 = 500ms
@@ -936,12 +933,12 @@ void VoiceManager::onAudioPollTimeout() {
     }
 }
 
-// ==================== TTS（语音合成） ====================
+// ==================== TTS (Text-to-Speech) ====================
 
 void VoiceManager::initTtsWebSocket() {
     m_ttsWebSocket = new QWebSocket();
 
-    // 配置 SSL
+    // Configure SSL
     QSslConfiguration sslConfig = m_ttsWebSocket->sslConfiguration();
     sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
     sslConfig.setProtocol(QSsl::TlsV1_2OrLater);
@@ -967,18 +964,18 @@ void VoiceManager::speak(const QString& text) {
         return;
     }
 
-    // 如果正在播放，先停止
+    // Stop any active playback first
     if (m_isSpeaking) {
         stopSpeaking();
     }
 
-    // 不在这里设置 m_isSpeaking，等实际播放时再设置
+    // Don't set m_isSpeaking here — set it when playback actually starts
     m_ttsAudioBuffer.clear();
-    m_ttsText = text;  // 保存要合成的文本
+    m_ttsText = text;  // save text to synthesize
 
     emit statusChanged(GTr::synthesizingVoice());
 
-    // 连接 TTS WebSocket
+    // Connect to TTS WebSocket
     QString authUrl = generateTtsAuthUrl();
     qDebug() << "VoiceManager: Connecting to TTS:" << authUrl.left(100) + "...";
     m_ttsWebSocket->open(QUrl(authUrl));
@@ -986,49 +983,49 @@ void VoiceManager::speak(const QString& text) {
 
 void VoiceManager::stopSpeaking() {
     if (!m_isSpeaking) {
-        // 即使不在 speaking 状态，也要清理可能的残留资源
+        // Clean up residual resources even if not in speaking state
         if (m_mediaPlayer) {
             m_mediaPlayer->stop();
-            m_mediaPlayer->setSource(QUrl());  // 清空源，释放缓冲区
+            m_mediaPlayer->setSource(QUrl());  // clear source and free buffer
         }
-        // 清理临时文件
+        // Clean up temp file
         if (m_ttsTempFile) {
             m_ttsTempFile->remove();
             m_ttsTempFile->deleteLater();
             m_ttsTempFile = nullptr;
         }
-        // 清空音频缓冲区
+        // Clear audio buffer
         m_ttsAudioBuffer.clear();
         return;
     }
 
     m_isSpeaking = false;
 
-    // 立刻停止播放器
+    // Immediately stop media player
     if (m_mediaPlayer) {
         m_mediaPlayer->stop();
-        // 等待播放器停止完成（阻塞主线程一小段时间）
+        // Wait for player to fully stop (briefly block main thread)
         QCoreApplication::processEvents();
-        // 清空源，释放缓冲区
+        // Clear source and free buffer
         m_mediaPlayer->setSource(QUrl());
     }
 
-    // 关闭 WebSocket
+    // Close WebSocket
     if (m_ttsWebSocket && m_ttsConnected) {
         m_ttsWebSocket->close();
     }
 
-    // 清理临时文件
+    // Clean up temp file
     if (m_ttsTempFile) {
         m_ttsTempFile->remove();
         m_ttsTempFile->deleteLater();
         m_ttsTempFile = nullptr;
     }
 
-    // 清空音频缓冲区
+    // Clear audio buffer
     m_ttsAudioBuffer.clear();
 
-    // 处理事件队列，确保清理完成
+    // Process event queue to ensure cleanup completes
     QCoreApplication::processEvents();
 
     emit speakingFinished();
@@ -1042,14 +1039,13 @@ void VoiceManager::onTtsConnected() {
     emit statusChanged(GTr::voiceServiceConnected());
     qDebug() << "VoiceManager: TTS WebSocket connected";
 
-    // 流式模式下不自动发送，等待调用者通过 sendStreamingText 发送
+    // In streaming mode, wait for caller to send text — only send the first frame
     if (m_ttsStreaming) {
-        // 发送流式第一帧（status=0）
         sendStreamingFirstFrame();
         return;
     }
 
-    // 非流式模式：连接后立即发送请求
+    // Non-streaming mode: send request immediately after connecting
     if (!m_ttsText.isEmpty()) {
         sendTtsRequest(m_ttsText);
     }
@@ -1060,19 +1056,19 @@ void VoiceManager::onTtsDisconnected() {
     qDebug() << "VoiceManager: TTS WebSocket disconnected, audio buffer size:"
              << m_ttsAudioBuffer.size();
 
-    // 不在这里播放，已在 onTtsTextMessageReceived 中处理
-    // 清空缓冲区，准备下一次合成
+    // Playback is handled separately in onTtsTextMessageReceived
+    // Clear buffer for next synthesis
     m_ttsAudioBuffer.clear();
 }
 
 void VoiceManager::onTtsBinaryMessageReceived(const QByteArray& message) {
-    // 讯飞 TTS 返回二进制音频数据
+    // Xunfei TTS returns binary audio data
     qDebug() << "VoiceManager: TTS received binary data:" << message.size() << "bytes";
     m_ttsAudioBuffer.append(message);
 }
 
 void VoiceManager::onTtsTextMessageReceived(const QString& message) {
-    // 解析超拟人 TTS JSON 响应
+    // Parse super-realistic TTS JSON response
     qDebug() << "VoiceManager: TTS received text message:" << message.left(100);
 
     QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
@@ -1083,7 +1079,7 @@ void VoiceManager::onTtsTextMessageReceived(const QString& message) {
 
     QJsonObject response = doc.object();
 
-    // 解析 header
+    // Parse header
     QJsonObject header = response["header"].toObject();
     int code = header["code"].toInt();
     if (code != 0) {
@@ -1092,29 +1088,29 @@ void VoiceManager::onTtsTextMessageReceived(const QString& message) {
         return;
     }
 
-    // 解析 payload
+    // Parse payload
     QJsonObject payload = response["payload"].toObject();
     if (payload.isEmpty()) {
-        // 空数据帧，忽略（文档说明：data 为空且 code=0 可直接忽略）
+        // Empty data frame — ignore per API docs (data empty + code=0 → skip)
         return;
     }
 
-    // 解析 audio
+    // Parse audio
     QJsonObject audioObj = payload["audio"].toObject();
     QString audioBase64 = audioObj["audio"].toString();
 
     if (!audioBase64.isEmpty()) {
-        // 解码 base64 并追加到音频缓冲区
+        // Decode base64 and append to audio buffer
         QByteArray audioData = QByteArray::fromBase64(audioBase64.toUtf8());
         m_ttsAudioBuffer.append(audioData);
         qDebug() << "VoiceManager: TTS decoded audio:" << audioData.size()
                  << "bytes, total buffer:" << m_ttsAudioBuffer.size();
     }
 
-    // 检查合成状态
+    // Check synthesis status
     int status = audioObj["status"].toInt();
     if (status == 2) {
-        // 合成完成，播放音频
+        // Synthesis complete, play audio
         qDebug() << "VoiceManager: TTS synthesis complete, total audio:" << m_ttsAudioBuffer.size()
                  << "bytes";
         emit statusChanged(GTr::voiceSynthesisComplete());
@@ -1139,57 +1135,57 @@ void VoiceManager::sendTtsRequest(const QString& text) {
         return;
     }
 
-    // 超拟人 TTS 协议结构
+    // Super-realistic TTS protocol structure
     QJsonObject frame;
 
-    // header 协议头
+    // header
     QJsonObject header;
     header["app_id"] = m_appId;
-    header["status"] = 2;  // 一次性合成传 2，流式传 0/1/2
+    header["status"] = 2;  // one-shot synthesis = 2, streaming = 0/1/2
     frame["header"] = header;
 
-    // parameter 能力参数
+    // parameter — capability parameters
     QJsonObject parameter;
 
-    // oral 口语化配置（仅 x4 系列发音人支持）
+    // oral — colloquialization config (only supported for x4 series voices)
     QJsonObject oral;
-    oral["oral_level"] = "mid";  // 口语化等级：high/mid/low
-    oral["spark_assist"] = 1;    // 大模型辅助口语化
-    oral["stop_split"] = 0;      // 不关闭服务端拆句
-    oral["remain"] = 0;          // 不保留原书面语
+    oral["oral_level"] = "mid";  // high/mid/low
+    oral["spark_assist"] = 1;    // LLM-assisted colloquialization
+    oral["stop_split"] = 0;      // keep server-side sentence splitting on
+    oral["remain"] = 0;          // don't preserve original formal text
     parameter["oral"] = oral;
 
-    // tts 合成参数
+    // tts — synthesis parameters
     QJsonObject tts;
-    tts["vcn"] = m_voiceType;  // 发音人：x6_lingxiaoxuan_pro
-    tts["speed"] = 50;         // 语速 0-100
-    tts["volume"] = 50;        // 音量 0-100
-    tts["pitch"] = 50;         // 语调 0-100
-    tts["bgs"] = 0;            // 无背景音
-    tts["reg"] = 0;            // 英文发音方式：自动判断
-    tts["rdn"] = 0;            // 数字发音方式：自动判断
-    tts["rhy"] = 0;            // 不返回拼音标注
+    tts["vcn"] = m_voiceType;  // voice name
+    tts["speed"] = 50;         // speed 0-100
+    tts["volume"] = 50;        // volume 0-100
+    tts["pitch"] = 50;         // pitch 0-100
+    tts["bgs"] = 0;            // no background sound
+    tts["reg"] = 0;            // English pronunciation: auto-detect
+    tts["rdn"] = 0;            // digit pronunciation: auto-detect
+    tts["rhy"] = 0;            // don't return pinyin annotations
 
-    // audio 音频格式参数
+    // audio — audio format parameters
     QJsonObject audio;
-    audio["encoding"] = "lame";    // MP3 格式
-    audio["sample_rate"] = 24000;  // 24k 采样率（超拟人支持更高音质）
-    audio["channels"] = 1;         // 单声道
+    audio["encoding"] = "lame";    // MP3 format
+    audio["sample_rate"] = 24000;  // 24k sample rate (higher quality for super-realistic)
+    audio["channels"] = 1;         // mono
     audio["bit_depth"] = 16;       // 16 bit
-    audio["frame_size"] = 0;       // 默认帧大小
+    audio["frame_size"] = 0;       // default frame size
     tts["audio"] = audio;
 
     parameter["tts"] = tts;
     frame["parameter"] = parameter;
 
-    // payload 输入数据
+    // payload — input data
     QJsonObject payload;
     QJsonObject textObj;
     textObj["encoding"] = "utf8";
     textObj["compress"] = "raw";
     textObj["format"] = "plain";
-    textObj["status"] = 2;  // 数据状态：2=结束
-    textObj["seq"] = 0;     // 序号
+    textObj["status"] = 2;  // data status: 2 = end
+    textObj["seq"] = 0;     // sequence number
     textObj["text"] = QString(text.toUtf8().toBase64());
     payload["text"] = textObj;
     frame["payload"] = payload;
@@ -1214,7 +1210,7 @@ void VoiceManager::startStreamingTts() {
 
     emit statusChanged(GTr::synthesizingVoice());
 
-    // 连接 TTS WebSocket
+    // Connect to TTS WebSocket
     QString authUrl = generateTtsAuthUrl();
     qDebug() << "VoiceManager: Connecting to streaming TTS:" << authUrl.left(100) + "...";
     m_ttsWebSocket->open(QUrl(authUrl));
@@ -1229,13 +1225,12 @@ void VoiceManager::sendStreamingText(const QString& text) {
 
     QJsonObject frame;
 
-    // header
     QJsonObject header;
     header["app_id"] = m_appId;
-    header["status"] = 1;  // 流式中间帧
+    header["status"] = 1;  // streaming intermediate frame
     frame["header"] = header;
 
-    // parameter (首次发送后后续帧可省略，但为安全每次发送)
+    // parameter (may be omitted after the first frame, but sent each time for safety)
     QJsonObject parameter;
     QJsonObject oral;
     oral["oral_level"] = "mid";
@@ -1260,7 +1255,7 @@ void VoiceManager::sendStreamingText(const QString& text) {
     textObj["encoding"] = "utf8";
     textObj["compress"] = "raw";
     textObj["format"] = "plain";
-    textObj["status"] = 1;  // 中间数据
+    textObj["status"] = 1;  // intermediate data
     textObj["seq"] = m_ttsSeq;
     textObj["text"] = QString(text.toUtf8().toBase64());
     payload["text"] = textObj;
@@ -1280,12 +1275,12 @@ void VoiceManager::finishStreamingTts() {
 
     m_ttsStreaming = false;
 
-    // 发送结束帧
+    // Send end frame
     QJsonObject frame;
 
     QJsonObject header;
     header["app_id"] = m_appId;
-    header["status"] = 2;  // 结束
+    header["status"] = 2;  // end
     frame["header"] = header;
 
     QJsonObject payload;
@@ -1293,7 +1288,7 @@ void VoiceManager::finishStreamingTts() {
     textObj["encoding"] = "utf8";
     textObj["compress"] = "raw";
     textObj["format"] = "plain";
-    textObj["status"] = 2;  // 结束数据
+    textObj["status"] = 2;  // end data
     textObj["seq"] = m_ttsSeq + 1;
     textObj["text"] = "";
     payload["text"] = textObj;
@@ -1310,16 +1305,15 @@ void VoiceManager::sendStreamingFirstFrame() {
         return;
     }
 
-    // 发送流式第一帧，status=0 表示开始
+    // Send initial streaming frame, status=0 indicates start
     QJsonObject frame;
 
-    // header
     QJsonObject header;
     header["app_id"] = m_appId;
-    header["status"] = 0;  // 第一帧，开始
+    header["status"] = 0;  // first frame, start
     frame["header"] = header;
 
-    // parameter - 首帧需要发送完整参数
+    // parameter — full parameters required in first frame
     QJsonObject parameter;
     QJsonObject oral;
     oral["oral_level"] = "mid";
@@ -1348,13 +1342,13 @@ void VoiceManager::sendStreamingFirstFrame() {
     parameter["tts"] = tts;
     frame["parameter"] = parameter;
 
-    // payload - 第一帧通常不包含文本，仅建立会话
+    // payload — first frame typically has no text, just establishes the session
     QJsonObject payload;
     QJsonObject textObj;
     textObj["encoding"] = "utf8";
     textObj["compress"] = "raw";
     textObj["format"] = "plain";
-    textObj["status"] = 0;  // 第一帧
+    textObj["status"] = 0;  // first frame
     textObj["seq"] = 0;
     textObj["text"] = "";
     payload["text"] = textObj;
@@ -1367,12 +1361,12 @@ void VoiceManager::sendStreamingFirstFrame() {
 }
 
 void VoiceManager::parseTtsResponse(const QByteArray& binaryData, const QString& jsonMeta) {
-    // 累积音频数据
+    // Accumulate audio data
     if (!binaryData.isEmpty()) {
         m_ttsAudioBuffer.append(binaryData);
     }
 
-    // 解析元数据（如果返回了文本消息）
+    // Parse metadata (if any text message was received)
     if (!jsonMeta.isEmpty()) {
         QJsonDocument doc = QJsonDocument::fromJson(jsonMeta.toUtf8());
         if (doc.isObject()) {
@@ -1386,7 +1380,7 @@ void VoiceManager::parseTtsResponse(const QByteArray& binaryData, const QString&
 
             int status = response["data"].toObject()["status"].toInt();
             if (status == 2) {
-                // 合成完成
+                // Synthesis complete
                 emit statusChanged(GTr::voiceSynthesisComplete());
             }
         }
@@ -1400,7 +1394,7 @@ void VoiceManager::playTtsAudio(const QByteArray& audioData) {
         return;
     }
 
-    // 超拟人 TTS 返回的是 MP3 格式音频（encoding=lame），24k 采样率
+    // Super-realistic TTS returns MP3 audio (encoding=lame), 24kHz sample rate
     QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString tempFile = tempPath + "/tts_output_" +
                        QDateTime::currentDateTime().toString("yyyyMMddHHmmss") + ".mp3";
@@ -1411,12 +1405,12 @@ void VoiceManager::playTtsAudio(const QByteArray& audioData) {
         return;
     }
 
-    // 直接写入 MP3 数据
+    // Write MP3 data directly
     file.write(audioData);
     file.flush();
     file.close();
 
-    // 验证文件存在
+    // Verify file exists
     if (!QFile::exists(tempFile)) {
         qDebug() << "VoiceManager: MP3 file not found after write:" << tempFile;
         emit ttsError(GTr::audioFileCreateFailed());
@@ -1425,18 +1419,18 @@ void VoiceManager::playTtsAudio(const QByteArray& audioData) {
 
     qDebug() << "VoiceManager: MP3 file created:" << tempFile << "size:" << audioData.size();
 
-    // 清理旧的临时文件
+    // Clean up old temp file
     if (m_ttsTempFile) {
         m_ttsTempFile->remove();
         m_ttsTempFile->deleteLater();
         m_ttsTempFile = nullptr;
     }
 
-    // 设置播放状态
+    // Set playback state
     m_isSpeaking = true;
     emit speakingStarted();
 
-    // 播放前确保使用当前默认输出设备（双重保障）
+    // Before playback, ensure we use the current default output device (double safeguard)
     QAudioDevice currentDefault = QMediaDevices::defaultAudioOutput();
     if (!currentDefault.isNull() && m_audioOutput->device() != currentDefault) {
         qDebug() << "VoiceManager: Switching to current default output:"
@@ -1444,7 +1438,7 @@ void VoiceManager::playTtsAudio(const QByteArray& audioData) {
         m_audioOutput->setDevice(currentDefault);
     }
 
-    // 使用 QMediaPlayer 播放
+    // Play using QMediaPlayer
     m_ttsTempFile = new QFile(tempFile, this);
     QUrl audioUrl = QUrl::fromLocalFile(tempFile);
 
@@ -1462,7 +1456,7 @@ void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
         emit speakingFinished();
         emit statusChanged(GTr::playbackComplete());
 
-        // 清理临时文件
+        // Clean up temp file
         if (m_ttsTempFile) {
             m_ttsTempFile->remove();
             m_ttsTempFile->deleteLater();
@@ -1472,7 +1466,7 @@ void VoiceManager::onPlaybackStateChanged(QMediaPlayer::PlaybackState state) {
 }
 
 void VoiceManager::onAudioOutputsChanged() {
-    // 音频输出设备变化（如 AirPods 连接/断开），切换到新的默认输出设备
+    // Audio output device changed (e.g., AirPods connect/disconnect) — switch to new default
     QAudioDevice newDefault = QMediaDevices::defaultAudioOutput();
     if (!newDefault.isNull()) {
         qDebug() << "VoiceManager: Audio output device changed, switching to:"

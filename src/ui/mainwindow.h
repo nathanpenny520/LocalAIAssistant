@@ -20,7 +20,7 @@
 
 #include "../knowledge/knowledgebase.h"
 #include "../tasks/taskengine.h"
-#include "filemanager.h"  // 新增
+#include "filemanager.h"
 #include "girlfriendwindow.h"
 #include "networkmanager.h"
 #include "sessionmanager.h"
@@ -54,22 +54,22 @@ private slots:
     void onCustomContextMenuRequested(const QPoint& pos);
     void onThemeChanged(int theme);
     void onLanguageChanged();
-    void onToggleHistoryPanel();                       // 显示/隐藏历史面板
-    void onGirlfriendClicked();                        // AI女友入口
-    void handleTaskResponse(const QString& response);  // 处理AI返回的任务计划
+    void onToggleHistoryPanel();
+    void onGirlfriendClicked();                        // AI girlfriend entry point
+    void handleTaskResponse(const QString& response);  // Handle task plan in AI response
 
-    // 文件相关
-    void onFileButtonClicked();  // 新增
-    void onRemoveFileClicked();  // 新增
+    // File operations
+    void onFileButtonClicked();
+    void onRemoveFileClicked();
 
-    // 搜索相关
-    void onSearchTriggered();    // 显示搜索栏
-    void onSearchTextChanged();  // 搜索文本变化
-    void onSearchNext();         // 查找下一个
-    void onSearchPrevious();     // 查找上一个
-    void onSearchClose();        // 关闭搜索栏
+    // Search operations
+    void onSearchTriggered();
+    void onSearchTextChanged();
+    void onSearchNext();
+    void onSearchPrevious();
+    void onSearchClose();
 
-    // 命令执行实时输出
+    // Command execution live output
     void appendCommandOutput(const QString& line);
 
 private:
@@ -83,27 +83,27 @@ private:
     void setInputEnabled(bool enabled);
     QMap<QString, QString> parseThinkingContent(const QString& content);
     QString formatMessageWithThinking(const QString& role, const QString& content);
-    void adjustInputHeight();  // 动态调整输入框高度
+    void adjustInputHeight();
     void resizeEvent(QResizeEvent* event) override;
     void stopCurrentStreamingSession();  // abort in-flight request, save partial content
-    void updateFileListDisplay();        // 新增
-    void clearFileListDisplay();         // 新增
-    void setupSearchBar();               // 新增：设置搜索栏
-    void updateSearchBarStyle();         // 新增：更新搜索栏样式
-    void highlightAllMatches();          // 新增：高亮所有匹配
-    void clearHighlights();              // 新增：清除高亮
-    void updateCurrentMatchIndex();      // 新增：更新当前匹配索引
-    void updateSearchResultLabel();      // 新增：更新搜索结果标签
+    void updateFileListDisplay();
+    void clearFileListDisplay();
+    void setupSearchBar();
+    void updateSearchBarStyle();
+    void highlightAllMatches();
+    void clearHighlights();
+    void updateCurrentMatchIndex();
+    void updateSearchResultLabel();
 
     QListWidget* m_historyList;
     QTextBrowser* m_chatDisplay;
     QPlainTextEdit* m_inputLine;
-    int m_maxInputHeight = 300;  // 输入框最大高度
-    QString m_inputPlaceholder;  // 保存占位符文本用于恢复
+    int m_maxInputHeight = 300;
+    QString m_inputPlaceholder;  // Saved placeholder text for restoration after IME input
     QPushButton* m_sendButton;
     QPushButton* m_newChatButton;
     QAction* m_settingsAction;
-    QAction* m_toggleHistoryAction;  // 显示/隐藏历史面板
+    QAction* m_toggleHistoryAction;
     QMenu* m_contextMenu;
     QAction* m_deleteAction;
     QAction* m_renameAction;
@@ -111,36 +111,36 @@ private:
     NetworkManager* m_networkManager;
     QMap<QString, QListWidgetItem*> m_sessionItemMap;
     QTextDocument* m_markdownDoc;
-    QSplitter* m_splitter;  // 主分割器
-    QWidget* m_leftPanel;   // 左侧面板（历史列表）
+    QSplitter* m_splitter;
+    QWidget* m_leftPanel;
 
     bool m_isStreaming;
     bool m_firstShow = true;
-    bool m_suppressRender = false;  // 仅阻止 onSendClicked 期间的 renderCurrentSession
+    bool m_suppressRender = false;  // Suppress renderCurrentSession only during onSendClicked
     QString m_streamingContent;
     bool m_streamEndedWithNewline = false;
     bool m_isRendering = false;
-    QString m_requestSessionId;      // 记录发起请求时的会话ID
-    QString m_contextMenuSessionId;  // 右键菜单/⋯按钮对应的会话ID
+    QString m_requestSessionId;
+    QString m_contextMenuSessionId;  // Session ID for right-click context menu
 
-    // 文件相关成员
-    FileManager* m_fileManager;     // 新增
-    QPushButton* m_fileButton;      // 新增
-    QWidget* m_fileListArea;        // 新增
-    QHBoxLayout* m_fileListLayout;  // 新增
+    // File-related members
+    FileManager* m_fileManager;
+    QPushButton* m_fileButton;
+    QWidget* m_fileListArea;
+    QHBoxLayout* m_fileListLayout;
 
-    // 搜索相关成员
-    QFrame* m_searchBar;            // 新增：搜索栏容器
-    QLineEdit* m_searchInput;       // 新增：搜索输入框
-    QPushButton* m_searchPrevBtn;   // 新增：上一个按钮
-    QPushButton* m_searchNextBtn;   // 新增：下一个按钮
-    QPushButton* m_searchCloseBtn;  // 新增：关闭按钮
-    QLabel* m_searchResultLabel;    // 新增：搜索结果计数
-    QAction* m_searchAction;        // 新增：搜索快捷键动作
-    // AI女友入口
+    // Search-related members
+    QFrame* m_searchBar;
+    QLineEdit* m_searchInput;
+    QPushButton* m_searchPrevBtn;
+    QPushButton* m_searchNextBtn;
+    QPushButton* m_searchCloseBtn;
+    QLabel* m_searchResultLabel;
+    QAction* m_searchAction;
+    // AI girlfriend entry point
     QAction* m_girlfriendAction;
-    int m_currentMatchIndex;  // 新增：当前匹配索引
-    int m_totalMatches;       // 新增：总匹配数
+    int m_currentMatchIndex;
+    int m_totalMatches;
 };
 
 #endif

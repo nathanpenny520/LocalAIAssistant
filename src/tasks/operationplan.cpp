@@ -33,14 +33,14 @@ QString ShellOperation::dangerLabel() const {
 
     const QString cmd = command.trimmed();
 
-    // 危险操作
+    // Dangerous operations
     if (cmd.contains(QRegularExpression("\\brm\\b.*(-r|-rf|--recursive)")) ||
         cmd.contains(QRegularExpression("\\bgit\\s+push\\s+--force\\b")) ||
         cmd.contains(QRegularExpression("\\bcurl\\b.*\\b(?!localhost\\b|127\\.0\\.0\\.1\\b)")) ||
         cmd.contains(QRegularExpression("\\bwget\\b.*\\b(?!localhost\\b|127\\.0\\.0\\.1\\b)")))
         return tr("危险");
 
-    // 需要注意的操作
+    // Operations requiring caution
     if (cmd.contains(QRegularExpression("\\brm\\b")) ||
         cmd.contains(QRegularExpression("\\bmv\\b")) ||
         cmd.contains(QRegularExpression("\\bchmod\\b")) ||

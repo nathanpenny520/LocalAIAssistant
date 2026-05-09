@@ -19,10 +19,10 @@
 #endif
 
 // ============================================================
-// VectorDB — 向量数据库
-// hnswlib: 近似最近邻索引 (HNSW 算法)
-// Fallback: flat index + brute-force search
-// Chunk metadata: SQLite (documents + chunks 表)
+// VectorDB — vector database for semantic search
+// hnswlib: approximate nearest neighbor index (HNSW algorithm)
+// Fallback: flat index with brute-force search
+// Chunk metadata: SQLite (documents + chunks tables)
 // ============================================================
 
 VectorDB::VectorDB() = default;

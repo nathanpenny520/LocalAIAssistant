@@ -12,11 +12,11 @@
 #include <QVector>
 
 struct FileAttachment {
-    QString path;      // 文件路径
-    QString type;      // 类型标识: "text", "image", "binary"
-    QString mimeType;  // MIME 类型: "text/plain", "image/png" 等
-    QString content;   // 文本内容或 base64 编码数据
-    qint64 size;       // 文件大小（字节）
+    QString path;      // file path
+    QString type;      // type identifier: "text", "image", "binary"
+    QString mimeType;  // MIME type, e.g. "text/plain", "image/png"
+    QString content;   // text content or base64-encoded data
+    qint64 size;       // file size in bytes
 
     FileAttachment() : size(0) {
     }

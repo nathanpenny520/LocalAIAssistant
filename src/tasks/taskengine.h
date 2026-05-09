@@ -21,25 +21,25 @@ class TaskEngine : public QObject {
 public:
     static TaskEngine* instance();
 
-    // 从 AI 回复中解析操作计划 JSON
-    // 期望 AI 返回格式: [TASK_PLAN] {...json...} [/TASK_PLAN]
+    // Parse operation plan JSON from AI response
+    // Expected AI response format: [TASK_PLAN] {...json...} [/TASK_PLAN]
     OperationPlan parsePlanFromAIResponse(const QString& aiResponse) const;
     OperationPlan parsePlanFromJson(const QJsonObject& json) const;
 
-    // 获取用于让 AI 生成任务计划的 prompt 模板
+    // Get the prompt template for AI task plan generation
     QString taskPromptTemplate() const;
 
-    // 安全校验
+    // Run safety validation on the plan
     SafetyChecker::Result validatePlan(const OperationPlan& plan);
 
-    // 执行（确认后调用）
+    // Execute (call after user confirmation)
     QVector<CommandResult> executePlan(const OperationPlan& plan);
 
-    // 撤销
+    // Undo last plan
     bool canUndo() const;
     QVector<CommandResult> undoLast();
 
-    // 获取执行器和安全检查器
+    // Access the executor and safety checker
     CommandExecutor* executor();
     SafetyChecker& safetyChecker();
 

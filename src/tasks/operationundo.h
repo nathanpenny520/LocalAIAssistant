@@ -14,9 +14,9 @@ struct UndoEntry {
     enum Strategy { AutoReverse, ScriptReverse, NotUndoable };
 
     Strategy strategy = NotUndoable;
-    QString reverseCommand;  // 逆向命令（AutoReverse 时）
-    QString undoHint;        // 撤销提示（ScriptReverse 时）
-    QString description;     // 原始操作描述
+    QString reverseCommand;  // Reverse command (for AutoReverse strategy)
+    QString undoHint;        // Undo hint (for ScriptReverse strategy)
+    QString description;     // Original operation description
 };
 
 class OperationUndo {

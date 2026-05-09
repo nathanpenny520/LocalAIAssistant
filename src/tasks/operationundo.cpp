@@ -37,14 +37,14 @@ QString OperationUndo::generateReverse(const ShellOperation& op) {
     // ── Shell commands: parse command string ──
     const QString cmd = op.command.trimmed();
 
-    // 检测 mkdir -p PATH → rmdir PATH
+    // Detect mkdir -p PATH → rmdir PATH
     static QRegularExpression mkdirRe(QStringLiteral("^mkdir\\s+(-p\\s+)?\"?([^\"]+)\"?$"));
     QRegularExpressionMatch m = mkdirRe.match(cmd);
     if (m.hasMatch()) {
         return QStringLiteral("rmdir \"%1\"").arg(m.captured(2));
     }
 
-    // 检测 mv SRC DEST → mv DEST SRC
+    // Detect mv SRC DEST → mv DEST SRC
     static QRegularExpression mvRe(QStringLiteral("^mv\\s+\"?(.+?)\"?\\s+\"?(.+?)\"?$"));
     m = mvRe.match(cmd);
     if (m.hasMatch()) {
@@ -53,7 +53,7 @@ QString OperationUndo::generateReverse(const ShellOperation& op) {
         return QStringLiteral("mv \"%1\" \"%2\"").arg(dest, src);
     }
 
-    // 检测 cp -r SRC DEST → rm -rf DEST
+    // Detect cp -r SRC DEST → rm -rf DEST
     static QRegularExpression cpRe(
             QStringLiteral("^cp\\s+(-[a-zA-Z]*r[a-zA-Z]*\\s+)?\"?(.+?)\"?\\s+\"?(.+?)\"?$"));
     m = cpRe.match(cmd);
@@ -62,25 +62,25 @@ QString OperationUndo::generateReverse(const ShellOperation& op) {
         return QStringLiteral("rm -rf \"%1\"").arg(dest);
     }
 
-    // 检测 rm 操作 → ScriptReverse（无法自动恢复文件内容）
+    // Detect rm operation → ScriptReverse (cannot auto-restore file contents)
     static QRegularExpression rmRe(QStringLiteral("^rm\\b"));
     if (rmRe.match(cmd).hasMatch()) {
         return QStringLiteral("__script_reverse__");
     }
 
-    // 复杂操作（含管道、条件判断、循环）→ ScriptReverse
+    // Complex operations (pipes, conditionals, loops) → ScriptReverse
     if (cmd.contains(QLatin1Char('|')) || cmd.contains(QStringLiteral("&&")) ||
         cmd.contains(QStringLiteral("||")) ||
         cmd.contains(QRegularExpression("\\b(for|while|if|case)\\b"))) {
         return QStringLiteral("__script_reverse__");
     }
 
-    // 网络操作 → NotUndoable
+    // Network operations → NotUndoable
     if (cmd.contains(QRegularExpression("\\b(curl|wget|git\\s+push|rsync|scp)\\b"))) {
         return QStringLiteral("__not_undoable__");
     }
 
-    // 其他命令不可自动撤销 → ScriptReverse
+    // Other commands cannot be auto-undone → ScriptReverse
     return QStringLiteral("__script_reverse__");
 }
 
@@ -144,10 +144,8 @@ QVector<CommandResult> OperationUndo::undoLastPlan() {
         return results;
     }
 
-    // 临时创建执行器来执行逆向命令
     CommandExecutor executor;
 
-    // 反向遍历撤销
     for (int i = m_undoStack.size() - 1; i >= 0; --i) {
         const auto& entry = m_undoStack[i];
         CommandResult r;

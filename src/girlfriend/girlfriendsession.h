@@ -13,9 +13,9 @@
 #include <QVector>
 
 struct GirlfriendMessage {
-    QString role;  // "user" 或 "girlfriend"
+    QString role;     // "user" or "girlfriend"
     QString content;
-    QString emotion;  // 当前情绪状态：happy, shy, love, hate, sad, angry, afraid, awaiting,
+    QString emotion;  // current emotion: happy, shy, love, hate, sad, angry, afraid, awaiting,
                       // studying, default
 
     GirlfriendMessage() : emotion("default") {
@@ -37,7 +37,7 @@ public:
     }
     double mood() const {
         return m_mood;
-    }  // 获取心情值
+    }
     QVector<GirlfriendMessage> messages() const {
         return m_messages;
     }
@@ -45,7 +45,7 @@ public:
     void addMessage(const QString& role, const QString& content,
                     const QString& emotion = "default");
     void setCurrentEmotion(const QString& emotion);
-    void setMood(double mood);  // 设置心情值
+    void setMood(double mood);
     void clearMessages();
 
     // 持久化
@@ -58,7 +58,7 @@ public:
 private:
     QString m_id;
     QString m_currentEmotion;
-    double m_mood = 0.6;  // 心情值 (0.0-1.0)，默认0.6
+    double m_mood = 0.6;  // mood value (0.0-1.0), default 0.6
     QVector<GirlfriendMessage> m_messages;
 
     QJsonObject toJson() const;

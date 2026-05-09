@@ -217,14 +217,13 @@ MainWindow::MainWindow(QWidget* parent)
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this,
             &MainWindow::onLanguageChanged);
 
-    // 搜索功能连接
+    // Search feature connections
     m_searchAction->setShortcut(QKeySequence::Find);  // Ctrl+F / Cmd+F
     connect(m_searchAction, &QAction::triggered, this, &MainWindow::onSearchTriggered);
 
-    // 初始化知识库
     KnowledgeBase::instance()->init();
 
-    // 从 QSettings 加载用户自定义路径白名单到 SafetyChecker
+    // Load user-defined path allowlist from QSettings into SafetyChecker
     {
         QSettings settings("LocalAIAssistant", "Settings");
         QStringList savedWhitelist = settings.value("pathWhitelist").toStringList();
@@ -286,35 +285,33 @@ void MainWindow::setupUI() {
     m_historyList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_historyList->setToolTip(tr("Right-click a session for more options"));
 
-    // 设置左侧面板最小宽度，防止完全关闭
+    // Prevent left panel from being fully collapsed
     m_leftPanel->setMinimumWidth(140);
 
     QWidget* rightPanel = new QWidget(m_splitter);
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(5, 5, 5, 5);
 
-    // 搜索栏（默认隐藏，Ctrl+F时显示）
+    // Search bar (hidden by default, shown via Ctrl+F)
     setupSearchBar();
     rightLayout->addWidget(m_searchBar);
 
     rightLayout->addWidget(m_chatDisplay, 1);
 
-    // 文件列表区域（输入框上方）
+    // File attachment tags (above input)
     m_fileListArea = new QWidget(rightPanel);
     m_fileListLayout = new QHBoxLayout(m_fileListArea);
     m_fileListLayout->setContentsMargins(0, 0, 0, 5);
-    m_fileListLayout->addStretch();     // 左侧留空，文件标签靠左排列
-    m_fileListArea->setVisible(false);  // 默认隐藏，有文件时显示
+    m_fileListLayout->addStretch();     // keep tags left-aligned
+    m_fileListArea->setVisible(false);
     rightLayout->addWidget(m_fileListArea);
 
-    // 输入区域（输入框 + 文件按钮 + 发送按钮）
     QHBoxLayout* inputLayout = new QHBoxLayout();
-    inputLayout->addWidget(m_inputLine, 1);  // 输入框占主要空间
-    inputLayout->addWidget(m_fileButton);    // 新增：文件按钮
+    inputLayout->addWidget(m_inputLine, 1);
+    inputLayout->addWidget(m_fileButton);
     inputLayout->addWidget(m_sendButton);
     rightLayout->addLayout(inputLayout);
 
-    // 设置文件按钮样式 - 使用 Qt 标准图标
     QIcon fileIcon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
     m_fileButton->setIcon(fileIcon);
     m_fileButton->setIconSize(QSize(20, 20));
@@ -416,7 +413,6 @@ void MainWindow::retranslateUi() {
     m_deleteAction->setText(tr("删除该对话"));
     setWindowTitle(tr("本地AI助手"));
 
-    // 文件按钮 tooltip
     m_fileButton->setToolTip(tr("添加文件"));
 
     m_toggleHistoryAction->setText(tr("显示历史面板"));
@@ -686,22 +682,20 @@ void MainWindow::onSendClicked() {
 
     QString userInput = m_inputLine->toPlainText().trimmed();
     if (userInput.isEmpty() && m_fileManager->pendingFileCount() == 0) {
-        return;  // 无输入且无文件时不发送
+        return;  // nothing to send
     }
 
-    // 如果有文件，显示提示
     if (m_fileManager->pendingFileCount() > 0) {
         qDebug() << tr("发送消息时携带 %1 个文件").arg(m_fileManager->pendingFileCount());
     }
 
-    // 创建消息并添加附件
-    ChatMessage userMsg("user", userInput);
     QVector<FileAttachment> attachments;
     if (m_fileManager->pendingFileCount() > 0) {
         attachments = m_fileManager->pendingFiles();
     }
 
-    // 检索知识库，将结果注入系统提示（而非用户消息），避免污染对话上下文
+    // Inject knowledge base results into system prompt (not user message)
+    // to avoid polluting the conversation context
     KnowledgeBase* kb = KnowledgeBase::instance();
     if (kb->isReady()) {
         QString context = kb->generateContext(userInput);
@@ -740,7 +734,7 @@ void MainWindow::onSendClicked() {
 }
 
 void MainWindow::onNetworkFinished(const QString& response) {
-    // 验证响应是否属于发起请求时的会话
+    // Verify response belongs to the session that initiated the request
     if (m_requestSessionId.isEmpty()) {
         return;
     }
@@ -748,7 +742,7 @@ void MainWindow::onNetworkFinished(const QString& response) {
     m_isStreaming = false;
     m_streamingContent.clear();
 
-    // 检查是否为任务计划响应
+    // Check if response contains a task plan
     if (response.contains(QStringLiteral("[TASK_PLAN]"))) {
         handleTaskResponse(response);
         m_requestSessionId.clear();
@@ -756,7 +750,6 @@ void MainWindow::onNetworkFinished(const QString& response) {
         return;
     }
 
-    // 直接添加消息到原会话
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
 
     // renderCurrentSession() is triggered via sessionChanged signal
@@ -766,7 +759,7 @@ void MainWindow::onNetworkFinished(const QString& response) {
 }
 
 void MainWindow::onNetworkError(const QString& error) {
-    // 验证响应是否属于发起请求时的会话
+    // Verify response belongs to the session that initiated the request
     if (m_requestSessionId.isEmpty()) {
         return;
     }
@@ -774,7 +767,6 @@ void MainWindow::onNetworkError(const QString& error) {
     m_isStreaming = false;
     m_streamingContent.clear();
 
-    // 直接添加错误消息到原会话
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant",
                                                     tr("错误: ") + error);
 
@@ -834,14 +826,14 @@ void MainWindow::onStreamChunkReceived(const QString& chunk) {
 }
 
 void MainWindow::onStreamFinished(const QString& fullContent) {
-    // 验证响应是否属于发起请求时的会话
+    // Verify response belongs to the session that initiated the request
     if (!m_isStreaming || m_requestSessionId.isEmpty()) {
         return;
     }
 
     m_isStreaming = false;
 
-    // 检查是否为任务计划响应
+    // Check if response contains a task plan
     if (fullContent.contains(QStringLiteral("[TASK_PLAN]"))) {
         handleTaskResponse(fullContent);
         m_streamingContent.clear();
@@ -850,10 +842,9 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
         return;
     }
 
-    // 直接添加消息到原会话，不需要切换
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullContent);
 
-    // 自动命名：如果对话尚未自动命名，根据用户第一条消息生成标题
+    // Auto-name: generate title from first user message if session has not yet been auto-named
     const auto& sessions = SessionManager::instance()->allSessions();
     if (sessions.contains(m_requestSessionId)) {
         const auto& session = sessions[m_requestSessionId];
@@ -893,7 +884,7 @@ void MainWindow::onSettingsClicked() {
                                          dialog.getModelName(), dialog.getApiType());
         m_networkManager->setStreamingEnabled(dialog.isStreamingEnabled());
 
-        // 同步路径白名单到 SafetyChecker
+        // Sync path allowlist to SafetyChecker
         SafetyChecker& checker = TaskEngine::instance()->safetyChecker();
         QStringList customWhitelist = dialog.pathWhitelist();
         if (!customWhitelist.isEmpty()) {
@@ -925,13 +916,13 @@ void MainWindow::onToggleHistoryPanel() {
         return;
     }
 
-    // 如果面板当前隐藏（宽度为最小宽度），则恢复到正常宽度
+    // If panel is hidden (at minimum width), restore to normal width
     if (m_leftPanel->width() <= m_leftPanel->minimumWidth()) {
         m_splitter->setSizes({kSidebarWidth, m_splitter->width() - kSidebarWidth});
         m_toggleHistoryAction->setChecked(true);
         updateSessionList();
     } else {
-        // 隐藏面板（设置为最小宽度）
+        // Collapse panel to minimum width
         m_splitter->setSizes({0, m_splitter->width()});
         m_toggleHistoryAction->setChecked(false);
     }
@@ -1084,9 +1075,10 @@ void MainWindow::onLanguageChanged() {
 }
 
 void MainWindow::onFileButtonClicked() {
-    // macOS 原生文件对话框的语言由系统语言偏好顺序决定
-    // 无法通过 Qt 应用代码直接控制
-    // 如需英文对话框，请在 macOS 系统设置中将英文设为首选语言
+    // The language of the macOS native file dialog is determined by the
+    // system language preference order and cannot be controlled via Qt.
+    // To use an English dialog, set English as the preferred language in
+    // macOS System Settings.
 
     QStringList filePaths = QFileDialog::getOpenFileNames(this, QString(), QString(), QString());
 
@@ -1117,7 +1109,6 @@ void MainWindow::onFileButtonClicked() {
 }
 
 void MainWindow::updateFileListDisplay() {
-    // 清除现有文件标签
     clearFileListDisplay();
 
     QVector<FileAttachment> files = m_fileManager->pendingFiles();
@@ -1129,23 +1120,20 @@ void MainWindow::updateFileListDisplay() {
     m_fileListArea->setVisible(true);
 
     for (const FileAttachment& file : files) {
-        // 创建文件标签 widget
         QWidget* fileTag = new QWidget(m_fileListArea);
         QHBoxLayout* tagLayout = new QHBoxLayout(fileTag);
         tagLayout->setContentsMargins(4, 2, 4, 2);
         tagLayout->setSpacing(4);
 
-        // 文件类型颜色
         QString borderColor;
         if (file.type == "text") {
-            borderColor = "#007aff";  // 蓝色
+            borderColor = "#007aff";
         } else if (file.type == "image") {
-            borderColor = "#34c759";  // 绿色
+            borderColor = "#34c759";
         } else {
-            borderColor = "#8e8e93";  // 灰色
+            borderColor = "#8e8e93";
         }
 
-        // 文件名标签
         QString displayName = QFileInfo(file.path).fileName();
         if (displayName.length() > 20) {
             displayName = displayName.left(17) + "...";
@@ -1161,7 +1149,7 @@ void MainWindow::updateFileListDisplay() {
                         .arg(t.textPrimary.name(), borderColor, t.surfaceBg.name()));
         tagLayout->addWidget(nameLabel);
 
-        // 删除按钮 - 使用主题适配的关闭图标
+        // Remove button with theme-adaptive close icon
         QPushButton* removeBtn = new QPushButton(fileTag);
         QIcon closeIcon = QApplication::style()->standardIcon(QStyle::SP_TitleBarCloseButton);
         removeBtn->setIcon(closeIcon);
@@ -1181,20 +1169,19 @@ void MainWindow::updateFileListDisplay() {
                     "QPushButton:hover { background: #ffebeb; border-radius: 12px; }";
         }
         removeBtn->setStyleSheet(removeBtnStyle);
-        removeBtn->setProperty("filePath", file.path);  // 存储文件路径用于删除
+        removeBtn->setProperty("filePath", file.path);
         connect(removeBtn, &QPushButton::clicked, this, &MainWindow::onRemoveFileClicked);
         tagLayout->addWidget(removeBtn);
 
-        // 添加到文件列表布局（在 stretch 之前插入）
+        // Insert before the stretch spacer
         m_fileListLayout->insertWidget(m_fileListLayout->count() - 1, fileTag);
     }
 
-    // 更新文件按钮 tooltip 显示文件数量
     m_fileButton->setToolTip(tr("添加文件 (%1 个待发送)").arg(files.size()));
 }
 
 void MainWindow::clearFileListDisplay() {
-    // 删除所有文件标签 widget（保留 stretch）
+    // Remove all file tag widgets, preserving the stretch spacer
     while (m_fileListLayout->count() > 1) {
         QLayoutItem* item = m_fileListLayout->takeAt(0);
         if (item->widget()) {
@@ -1212,7 +1199,6 @@ void MainWindow::onRemoveFileClicked() {
 
     QString filePath = btn->property("filePath").toString();
 
-    // 从 FileManager 中移除文件
     QVector<FileAttachment> files = m_fileManager->pendingFiles();
     QVector<FileAttachment> newFiles;
     for (const FileAttachment& file : files) {
@@ -1221,7 +1207,7 @@ void MainWindow::onRemoveFileClicked() {
         }
     }
 
-    // 重建 pendingFiles（FileManager 没有 removeSingleFile 方法，需要清空再添加）
+    // Rebuild pendingFiles — FileManager lacks removeSingleFile, so clear and re-add
     m_fileManager->clearPendingFiles();
     for (const FileAttachment& file : newFiles) {
         m_fileManager->addFile(file.path);
@@ -1230,18 +1216,17 @@ void MainWindow::onRemoveFileClicked() {
     updateFileListDisplay();
 }
 
-// ==================== 搜索功能实现 ====================
+// ==================== Search feature implementation ====================
 
 void MainWindow::setupSearchBar() {
     m_searchBar = new QFrame(this);
     m_searchBar->setObjectName("searchBar");
-    m_searchBar->setVisible(false);  // 默认隐藏
+    m_searchBar->setVisible(false);
 
     QHBoxLayout* searchLayout = new QHBoxLayout(m_searchBar);
     searchLayout->setContentsMargins(10, 6, 10, 6);
     searchLayout->setSpacing(8);
 
-    // 搜索输入框
     m_searchInput = new QLineEdit(m_searchBar);
     m_searchInput->setObjectName("searchInput");
     m_searchInput->setPlaceholderText(tr("搜索历史消息..."));
@@ -1249,35 +1234,31 @@ void MainWindow::setupSearchBar() {
     m_searchInput->setMinimumHeight(32);
     searchLayout->addWidget(m_searchInput, 1);
 
-    // 搜索结果计数
     m_searchResultLabel = new QLabel(m_searchBar);
     m_searchResultLabel->setObjectName("searchResultLabel");
     m_searchResultLabel->setText("");
     m_searchResultLabel->setMinimumWidth(70);
     searchLayout->addWidget(m_searchResultLabel);
 
-    // 上一个按钮
     m_searchPrevBtn = new QPushButton(m_searchBar);
     m_searchPrevBtn->setObjectName("searchPrevBtn");
     m_searchPrevBtn->setText("◀");
     m_searchPrevBtn->setToolTip(tr("上一个"));
     searchLayout->addWidget(m_searchPrevBtn);
 
-    // 下一个按钮
     m_searchNextBtn = new QPushButton(m_searchBar);
     m_searchNextBtn->setObjectName("searchNextBtn");
     m_searchNextBtn->setText("▶");
     m_searchNextBtn->setToolTip(tr("下一个"));
     searchLayout->addWidget(m_searchNextBtn);
 
-    // 关闭按钮
     m_searchCloseBtn = new QPushButton(m_searchBar);
     m_searchCloseBtn->setObjectName("searchCloseBtn");
     m_searchCloseBtn->setText("✖");
     m_searchCloseBtn->setToolTip(tr("关闭"));
     searchLayout->addWidget(m_searchCloseBtn);
 
-    // 连接信号
+    // Connect search signals
     connect(m_searchInput, &QLineEdit::textChanged, this, &MainWindow::onSearchTextChanged);
     connect(m_searchPrevBtn, &QPushButton::clicked, this, &MainWindow::onSearchPrevious);
     connect(m_searchNextBtn, &QPushButton::clicked, this, &MainWindow::onSearchNext);
@@ -1285,8 +1266,8 @@ void MainWindow::setupSearchBar() {
 }
 
 void MainWindow::updateSearchBarStyle() {
-    // 样式由全局样式表管理，主题切换时自动更新
-    // 此方法保留以备将来需要额外样式调整时使用
+    // Style is managed by the global stylesheet; auto-updates on theme change.
+    // Method reserved for future custom style adjustments.
 }
 
 void MainWindow::onSearchTriggered() {
@@ -1313,7 +1294,6 @@ void MainWindow::onSearchTextChanged() {
         return;
     }
 
-    // 计算匹配数量
     QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor(doc);
     m_totalMatches = 0;
@@ -1327,7 +1307,6 @@ void MainWindow::onSearchTextChanged() {
 
     m_currentMatchIndex = 0;
 
-    // 高亮第一个匹配
     highlightAllMatches();
     if (m_totalMatches > 0) {
         onSearchNext();
@@ -1345,11 +1324,11 @@ void MainWindow::onSearchNext() {
     QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor = m_chatDisplay->textCursor();
 
-    // 从当前位置向后搜索
+    // Search forward from current position
     QTextCursor found = doc->find(keyword, cursor);
 
     if (found.isNull()) {
-        // 没找到，从头开始搜索
+        // Not found; wrap around from start
         cursor.movePosition(QTextCursor::Start);
         found = doc->find(keyword, cursor);
     }
@@ -1357,9 +1336,8 @@ void MainWindow::onSearchNext() {
     if (!found.isNull()) {
         m_chatDisplay->setTextCursor(found);
         m_chatDisplay->ensureCursorVisible();
-        // 更新当前索引和高亮
         updateCurrentMatchIndex();
-        highlightAllMatches();  // 更新高亮显示
+        highlightAllMatches();
     }
 }
 
@@ -1372,11 +1350,11 @@ void MainWindow::onSearchPrevious() {
     QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor = m_chatDisplay->textCursor();
 
-    // 从当前位置向前搜索
+    // Search backward from current position
     QTextCursor found = doc->find(keyword, cursor, QTextDocument::FindBackward);
 
     if (found.isNull()) {
-        // 没找到，从末尾开始搜索
+        // Not found; wrap around from end
         cursor.movePosition(QTextCursor::End);
         found = doc->find(keyword, cursor, QTextDocument::FindBackward);
     }
@@ -1385,7 +1363,7 @@ void MainWindow::onSearchPrevious() {
         m_chatDisplay->setTextCursor(found);
         m_chatDisplay->ensureCursorVisible();
         updateCurrentMatchIndex();
-        highlightAllMatches();  // 更新高亮显示
+        highlightAllMatches();
     }
 }
 
@@ -1401,22 +1379,21 @@ void MainWindow::highlightAllMatches() {
         return;
     }
 
-    // 使用 extraSelection 实现高亮效果
+    // Use extraSelections for highlight effect
     QList<QTextEdit::ExtraSelection> extraSelections;
 
     const AppTheme& t = AppTheme::current();
     bool isDark = t.windowBg.lightness() < 128;
 
-    // 匹配项高亮颜色（黄色背景）
+    // Match highlight (yellow background)
     QColor matchColor = isDark ? QColor(255, 200, 50, 150) : QColor(255, 235, 130);
-    // 当前匹配高亮颜色（橙色背景，更醒目）
+    // Current match highlight (orange, more prominent)
     QColor currentMatchColor = isDark ? QColor(255, 165, 0, 200) : QColor(255, 180, 60);
 
     QTextDocument* doc = m_chatDisplay->document();
     QTextCursor cursor(doc);
     int matchIndex = 0;
 
-    // 找到所有匹配并添加高亮
     while (!cursor.isNull()) {
         cursor = doc->find(keyword, cursor);
         if (!cursor.isNull()) {
@@ -1424,7 +1401,7 @@ void MainWindow::highlightAllMatches() {
             selection.cursor = cursor;
             selection.format.setBackground(matchIndex == m_currentMatchIndex - 1 ? currentMatchColor
                                                                                  : matchColor);
-            // 不使用 FullWidthSelection，只高亮匹配的文字
+            // Don't use FullWidthSelection — highlight only matched text
             extraSelections.append(selection);
             matchIndex++;
         }
@@ -1434,9 +1411,7 @@ void MainWindow::highlightAllMatches() {
 }
 
 void MainWindow::clearHighlights() {
-    // 清除所有高亮
     m_chatDisplay->setExtraSelections(QList<QTextEdit::ExtraSelection>());
-    // 清除选中状态
     QTextCursor cursor = m_chatDisplay->textCursor();
     cursor.clearSelection();
     m_chatDisplay->setTextCursor(cursor);
@@ -1487,7 +1462,6 @@ void MainWindow::appendCommandOutput(const QString& line) {
     if (AppTheme::current().windowBg.lightness() < 128)
         monoFormat.setForeground(QColor(QStringLiteral("#a0a0a0")));
 
-    // 空格缩进
     cursor.insertText(QStringLiteral("  "), monoFormat);
     cursor.insertText(line, monoFormat);
     cursor.insertBlock();
@@ -1501,7 +1475,7 @@ void MainWindow::handleTaskResponse(const QString& response) {
     OperationPlan plan = engine->parsePlanFromAIResponse(response);
 
     if (plan.isEmpty()) {
-        // 无法解析操作计划，按普通消息显示
+        // Cannot parse operation plan; display as normal message
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
         if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
             renderCurrentSession();
@@ -1509,7 +1483,6 @@ void MainWindow::handleTaskResponse(const QString& response) {
         return;
     }
 
-    // 安全检查
     SafetyChecker::Result safetyResult = engine->validatePlan(plan);
     if (safetyResult == SafetyChecker::Blocked) {
         QString errMsg = tr("⚠️ 操作被安全拦截：%1").arg(engine->safetyChecker().lastBlockReason());
@@ -1520,12 +1493,11 @@ void MainWindow::handleTaskResponse(const QString& response) {
         return;
     }
 
-    // 显示确认对话框
     OperationConfirmDialog dialog(plan, this);
     dialog.exec();
 
     if (dialog.isConfirmed()) {
-        // 用户确认，连接 CommandExecutor 信号以展示实时输出
+        // User confirmed — connect CommandExecutor signals for live output
         CommandExecutor* executor = engine->executor();
         QString accumulatedOutput;
 
@@ -1548,15 +1520,12 @@ void MainWindow::handleTaskResponse(const QString& response) {
                                                          appendCommandOutput(line);
                                                      });
 
-        // 执行命令
         QVector<CommandResult> results = engine->executePlan(plan);
 
-        // 断开信号
         disconnect(connStart);
         disconnect(connStdout);
         disconnect(connStderr);
 
-        // 格式化执行结果
         QString resultMsg;
         int successCount = 0;
         int failCount = 0;
@@ -1576,13 +1545,13 @@ void MainWindow::handleTaskResponse(const QString& response) {
         if (engine->canUndo())
             resultMsg += QLatin1String("\n\n") + tr("💡 提示：可以输入「撤销刚才的操作」来恢复");
 
-        // 将计划摘要和结果添加到聊天
+        // Append plan summary and results to chat
         QString fullMsg = plan.generateSummary() + QStringLiteral("\n\n") + resultMsg +
                           QStringLiteral("\n\n") + response;
 
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullMsg);
     } else if (dialog.isModifyRequested()) {
-        // 用户请求修改计划
+        // User requested modification of the plan
         QString modifyMsg =
                 tr("📝 请补充说明需要如何调整计划，例如：\n"
                    "  • 修改目标路径\n"
@@ -1591,7 +1560,7 @@ void MainWindow::handleTaskResponse(const QString& response) {
                    "我会根据你的反馈重新生成计划。");
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", modifyMsg);
     } else {
-        // 用户取消
+        // User cancelled
         QString cancelMsg = tr("❌ 操作已取消。");
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", cancelMsg);
     }
@@ -1604,13 +1573,13 @@ void MainWindow::handleTaskResponse(const QString& response) {
 void MainWindow::onGirlfriendClicked() {
     static GirlfriendWindow* girlfriendWindow = nullptr;
 
-    // 如果窗口已存在且可见，则关闭它
+    // If window exists and is visible, close it
     if (girlfriendWindow && girlfriendWindow->isVisible()) {
         girlfriendWindow->close();
         return;
     }
 
-    // 否则创建或显示窗口
+    // Otherwise create or show the window
     if (!girlfriendWindow) {
         girlfriendWindow = new GirlfriendWindow(this);
     }

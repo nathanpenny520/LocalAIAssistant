@@ -165,7 +165,7 @@ void SessionManager::saveSessionsToFile() {
             msgObj["role"] = msg.role;
             msgObj["content"] = msg.content;
 
-            // 序列化附件
+            // Serialize attachments
             if (!msg.attachments.isEmpty()) {
                 QJsonArray attachmentsArray;
                 for (const auto& attachment : msg.attachments) {
@@ -236,7 +236,7 @@ void SessionManager::loadSessionsFromFile() {
             QJsonObject msgObj = msgVal.toObject();
             ChatMessage msg(msgObj["role"].toString(), msgObj["content"].toString());
 
-            // 反序列化附件
+            // Deserialize attachments
             if (msgObj.contains("attachments")) {
                 QJsonArray attachmentsArray = msgObj["attachments"].toArray();
                 for (const auto& attachVal : attachmentsArray) {
