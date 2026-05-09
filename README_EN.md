@@ -169,7 +169,9 @@ sourcecode-ai-assistant/
 │   └── level-3-hotter/ # Level 3 MP4 videos
 ├── scripts/            # Build scripts
 │   ├── build.sh        # Unified cross-platform build script
+│   ├── package.sh      # Cross-platform packaging script (CI-friendly)
 │   ├── setup.sh        # First-time clone initialization script
+│   ├── version.sh      # Shared version extraction utility
 │   └── cli-wrapper.sh  # macOS CLI launcher (detects iTerm2)
 ├── translations/       # Internationalization translation files
 ├── resources/          # Resource files
@@ -364,6 +366,36 @@ Use the `package` command to generate user-installable release packages:
 > Release packages do **NOT** include the developer's `.env` credentials. Users can configure
 > iFlytek voice credentials directly via the AI Girlfriend window's settings menu, or copy
 > `.env.example` to create their own `.env` file.
+
+### Automated Release Publishing (GitHub Actions CI)
+
+Push a version tag to trigger automatic CI build, test, packaging, and GitHub Release creation with
+all three platform installers attached.
+
+**Trigger condition**: Push a tag starting with `v` (e.g., `v1.0.0`) to GitHub.
+
+```bash
+# Create and push a tag — triggers automatic release workflow
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+**Release pipeline**:
+
+```
+git push v1.0.0
+  → GitHub Actions starts
+    → Linux:   Build → Test → Package tar.gz
+    → macOS:   Build → Test → Package DMG
+    → Windows: Build → Test → Package ZIP
+  → All three pass → Release automatically created
+  → Installers uploaded to Release download area
+```
+
+**Requirements**:
+- Must push a **tag** (`v*`); regular pushes do not trigger a release
+- All three platforms must **build and test successfully**; any failure blocks the release
+- Releases appear at: `https://github.com/nathanpenny520/LocalAIAssistant/releases`
 
 ---
 

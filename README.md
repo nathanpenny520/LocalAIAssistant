@@ -156,7 +156,9 @@ sourcecode-ai-assistant/
 │   └── level-3-hotter/ # Level 3 MP4 视频
 ├── scripts/            # 构建脚本
 │   ├── build.sh        # 统一跨平台构建脚本
+│   ├── package.sh      # 跨平台打包脚本（CI 友好）
 │   ├── setup.sh        # 首次克隆初始化脚本
+│   ├── version.sh      # 共享版本号提取工具
 │   └── cli-wrapper.sh  # macOS CLI 启动脚本（检测 iTerm2）
 ├── translations/       # 国际化翻译文件
 ├── resources/          # 资源文件
@@ -347,6 +349,35 @@ cd scripts
 > Release 包**不包含**开发者的 `.env`
 > 凭证文件，用户可通过 AI 女友窗口的设置菜单直接配置讯飞语音凭证，或参考 `.env.example`
 > 模板创建自己的 `.env` 文件。
+
+### 自动发布 Release（GitHub Actions CI）
+
+推送版本 tag 即可触发 CI 自动编译、测试、打包，并将三平台安装包发布到 GitHub Release。
+
+**触发条件**：推送 `v` 开头的 tag（如 `v1.0.0`）到 GitHub。
+
+```bash
+# 打 tag 并推送，自动触发发布流程
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+**发布流程**：
+
+```
+git push v1.0.0
+  → GitHub Actions 启动
+    → Linux:   编译 → 测试 → 打包 tar.gz
+    → macOS:   编译 → 测试 → 打包 DMG
+    → Windows: 编译 → 测试 → 打包 ZIP
+  → 三个平台全部通过后，自动创建 Release
+  → 安装包自动上传到 Release 下载区
+```
+
+**条件**：
+- 必须推送 **tag**（`v*`），普通 push 不会触发发布
+- 三个平台的编译和测试**必须全部通过**，任一失败则不会发布
+- 发布在 GitHub Releases 页面查看：`https://github.com/nathanpenny520/LocalAIAssistant/releases`
 
 ---
 
