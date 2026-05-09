@@ -323,48 +323,128 @@ AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `
 ./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
 ```
 
-### 任务执行
+### 任务执行与 Agent 迭代循环
 
-当 AI 生成任务计划（文件操作、Shell 命令等）时，CLI 始终先展示计划并等待确认后才执行：
+AI 可以自主执行多步骤任务，通过反馈循环持续工作：
+
+```
+用户提问 → AI 生成 [TASK_PLAN] → 计划执行 → [ITERATION_FEEDBACK] 反馈给 AI
+    → AI 检查结果 → 如果还有工作要做：生成新的 [TASK_PLAN]
+                  → 如果任务完成：[TASK_COMPLETE]
+```
+
+此循环重复执行，直到 AI 声明 `[TASK_COMPLETE]` 或达到最大迭代次数（默认 10 次）。
+
+**AI 使用的标签：**
+
+| 标签 | 用途 |
+|------|------|
+| `[TASK_PLAN]...[/TASK_PLAN]` | 发出命令计划（文件操作、Shell 命令） |
+| `[TASK_COMPLETE]` | 表示任务完全完成 |
+| `[TASK_FINISHED]` | `[TASK_COMPLETE]` 的别名 |
+| `[ITERATION_FEEDBACK]` | 由程序注入——展示上一轮执行结果 |
+
+**交互模式示例（多轮迭代）：**
 
 ```bash
-# 交互模式：展示计划，输入 /confirm 执行
-> 帮我在 /tmp/test 创建 hello.txt
+> 帮我创建 ~/myproject，包含 src、tests、docs 子目录和 README
 *** Command plan requires confirmation ***
-Commands (2):
-  1. create_dir → /tmp/test
-  2. write_file → /tmp/test/hello.txt
+Commands (3):
+  1. create_dir → ~/myproject/src
+  2. create_dir → ~/myproject/tests
+  3. create_dir → ~/myproject/docs
 Type /confirm to execute, /cancel to abort.
 > /confirm
-Executing...
---- Command plan finished: 2/2 succeeded ---
+Executing... 3/3 succeeded
 
-# ask 模式：内联确认提示
-$ ./build/LocalAIAssistant-CLI ask "在 /tmp/test 创建 hello.txt"
+# AI 检查反馈后，在第二轮创建 README
+*** Command plan requires confirmation ***
+Commands (1):
+  1. write_file → ~/myproject/README.md
+> /confirm
+Executing... 1/1 succeeded
+
+# AI 发出完成信号
+[TASK_COMPLETE] 项目脚手架已创建完毕。
+--- Agent loop finished ---
+```
+
+**ask 模式多轮迭代：**
+
+```bash
+$ ./build/LocalAIAssistant-CLI ask "在 ~/test 创建 hello.txt"
 *** Command plan requires confirmation ***
 ...
 Execute? [Y/n]: y
 Executing...
+# AI 可能继续执行更多步骤，然后发出 [TASK_COMPLETE]
+```
 
-# ask 模式 + --yes 自动确认（适合脚本）
-$ ./build/LocalAIAssistant-CLI ask --yes "在 /tmp/test 创建 hello.txt"
+**ask 模式 + --yes（自动确认所有计划）：**
+
+```bash
+$ ./build/LocalAIAssistant-CLI ask --yes "在 ~/test 创建 hello.txt"
 Auto-confirming (--yes)...
 Executing...
 ```
+
+> **注意**：`--yes` 仅跳过 Tier 2（路径确认）。Tier 1（危险命令如 `sudo`、`rm -rf /`、
+> `eval`）始终被拦截，即使用 `--yes` 也不会放行。
 
 ---
 
 ## 安全设置
 
-### 路径白名单
+### 三级安全架构
 
-在设置 → **安全** 中配置路径白名单。AI 执行文件操作时仅限于这些目录。
+SafetyChecker 在执行前对每个文件操作和 Shell 命令进行校验：
+
+| 等级 | 名称 | 行为 | 示例 |
+|------|------|------|------|
+| **Tier 1** | 永久拦截 | 立即拒绝，无用户覆盖选项 | `sudo`、`rm -rf /`、`eval`、反引号注入、`cmd /c` |
+| **Tier 2** | 需用户确认 | 用户必须明确批准。选项：允许本次 / 永久允许 / 拒绝 | 系统路径（`/etc`、`C:\Windows`）、白名单外路径 |
+| **Tier 3** | 自动批准 | 自动执行，无需提示 | `~/`、`/tmp`、桌面、文档、当前目录 |
+
+### 路径违规提示
+
+当 AI 尝试访问白名单外的路径时：
+
+**读取操作**（如 `ls`、`cat`、`grep`）显示黄色/信息警告。
+**写入操作**（如 `touch`、`mkdir`、`rm`）显示红色/危险警告，尤其是系统路径。
+
+**CLI ask 模式 — 路径违规响应：**
+
+```
+*** Path access warnings ***
+  1. [READ] [SYSTEM PATH] /etc/
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
+Execute? [Y/n]: y   # y = 本次会话全部允许，n = 全部拒绝
+```
+
+**CLI 交互模式 — 路径违规响应：**
+
+```
+*** Path access warnings ***
+  1. [READ] [SYSTEM PATH] /etc/
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
+Type /confirm to execute, /cancel to abort.
+> /confirm   # 自动临时允许所有违规路径（会话范围）
+```
+
+**GUI 确认对话框** 为每个路径违规提供独立的 `[允许本次]` / `[永久允许]` / `[拒绝]` 按钮。
+
+### 路径允许模式
+
+| 模式 | 范围 | 是否持久化？ |
+|------|------|-------------|
+| **允许本次** | 当前应用会话 | 否——重启后重置 |
+| **永久允许** | 保存到 QSettings | 是——重启后仍有效 |
 
 ### 操作确认
 
 **所有任务计划均需用户确认后才执行。** CLI 交互模式输入 `/confirm` 或 `/cancel`，CLI
 ask 模式响应内联 `[Y/n]` 提示，GUI 弹出确认对话框。CLI ask 模式可用 `--yes`
-标志跳过确认（适合脚本）。
+标志跳过 Tier 2 警告（适合脚本）。Tier 1（危险命令）不会被 `--yes` 绕过。
 
 ---
 

@@ -72,14 +72,18 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
 ### 任务执行模块 🔧
 
+- **Agent 迭代循环** — AI 观察执行结果并自主继续工作，通过 `[ITERATION_FEEDBACK]` → 新
+  `[TASK_PLAN]` → 执行 → ... → `[TASK_COMPLETE]` 循环
 - **原生文件操作** — 通过 Qt API 直接执行创建/移动/删除/复制/搜索文件，无需依赖 shell
 - **跨平台 Shell 支持** — 自动检测可用 Shell（Windows: pwsh→powershell→cmd，Unix:
   $SHELL→zsh→bash→sh）
-- **安全检查** — 操作前自动校验危险路径（系统目录保护），覆盖 Unix + Windows 危险命令
+- **三级安全架构** — Tier 1: 永久拦截（危险命令如 `sudo`、`eval`——不可绕过）。Tier
+  2: 需用户确认（系统路径、白名单外路径——用户可选择允许本次/永久允许/拒绝）。Tier
+  3: 自动批准（白名单路径——直接执行）
 - **命令注入防护** — 检测 PowerShell 注入、Unix 命令替换、Living-off-the-Land 攻击等
 - **操作撤销** — 支持撤销已执行的文件操作
 - **用户确认** — 所有任务计划执行前均需用户审查确认（CLI 交互模式 `/confirm`，ask 模式内联 `[Y/n]`
-  提示，GUI 确认对话框），`--yes` 标志可跳过确认
+  提示，GUI 确认对话框含逐路径控制），`--yes` 标志可跳过 Tier 2 警告（适合脚本）
 
 > ⚠️ **平台兼容性说明**：
 >
@@ -109,8 +113,9 @@ sourcecode-ai-assistant/
 │   │   └── datamodels.h    # 数据模型定义
 │   ├── ui/             # GUI 界面（主窗口、设置对话框）
 │   ├── cli/            # CLI 命令行界面
-│   ├── tasks/          # 任务执行模块（文件操作、安全检查、撤销）
+│   ├── tasks/          # 任务执行模块（文件操作、安全检查、撤销、Agent 循环）
 │   │   ├── taskengine.cpp/h       # 任务执行引擎（AI响应解析、计划调度）
+│   │   ├── agentloop.cpp/h        # Agent 迭代循环（计划→执行→反馈→继续 循环）
 │   │   ├── commandexecutor.cpp/h  # 命令执行器（原生文件操作 + Shell 命令执行）
 │   │   ├── safetychecker.cpp/h    # 安全检查器（跨平台危险命令/路径检测）
 │   │   ├── operationplan.cpp/h    # 操作计划定义（ShellOperation 类型）

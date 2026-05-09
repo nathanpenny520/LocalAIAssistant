@@ -335,50 +335,129 @@ Run the command-line interface:
 ./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
 ```
 
-### Task Execution
+### Task Execution & Agent Iteration Loop
 
-When the AI generates a task plan (file operations, shell commands), the CLI always shows the plan
-and waits for confirmation before executing:
+The AI can autonomously execute multi-step tasks using a feedback loop:
+
+```
+User asks → AI generates [TASK_PLAN] → plan executed → [ITERATION_FEEDBACK] sent back
+    → AI inspects results → if more work needed: new [TASK_PLAN]
+                        → if done: [TASK_COMPLETE]
+```
+
+This repeats until the AI declares `[TASK_COMPLETE]` or the iteration limit is reached (default: 10).
+
+**Tags the AI uses:**
+
+| Tag | Purpose |
+|-----|---------|
+| `[TASK_PLAN]...[/TASK_PLAN]` | Issue a command plan (file ops, shell commands) |
+| `[TASK_COMPLETE]` | Signal that the task is fully done |
+| `[TASK_FINISHED]` | Alias for `[TASK_COMPLETE]` |
+| `[ITERATION_FEEDBACK]` | Injected by the app — shows previous execution results |
+
+**Interactive mode example (multi-iteration):**
 
 ```bash
-# Interactive mode: plan is shown, type /confirm to execute
-> Create a hello.txt in /tmp/test
+> Create ~/myproject with subdirs src, tests, docs and a README
 *** Command plan requires confirmation ***
-Commands (2):
-  1. create_dir → /tmp/test
-  2. write_file → /tmp/test/hello.txt
+Commands (3):
+  1. create_dir → ~/myproject/src
+  2. create_dir → ~/myproject/tests
+  3. create_dir → ~/myproject/docs
 Type /confirm to execute, /cancel to abort.
 > /confirm
-Executing...
---- Command plan finished: 2/2 succeeded ---
+Executing... 3/3 succeeded
 
-# Ask mode: inline confirmation prompt
-$ ./build/LocalAIAssistant-CLI ask "Create /tmp/test/hello.txt"
+# AI inspects the feedback and creates README in a second iteration
+*** Command plan requires confirmation ***
+Commands (1):
+  1. write_file → ~/myproject/README.md
+> /confirm
+Executing... 1/1 succeeded
+
+# AI signals completion
+[TASK_COMPLETE] Project scaffold created.
+--- Agent loop finished ---
+```
+
+**Ask mode with multi-iteration:**
+
+```bash
+$ ./build/LocalAIAssistant-CLI ask "Create ~/test/hello.txt"
 *** Command plan requires confirmation ***
 ...
 Execute? [Y/n]: y
 Executing...
+# AI may continue with more steps, then emit [TASK_COMPLETE]
+```
 
-# Ask mode with --yes for scripting (auto-confirm)
-$ ./build/LocalAIAssistant-CLI ask --yes "Create /tmp/test/hello.txt"
+**Ask mode with `--yes` (auto-confirm all plans):**
+
+```bash
+$ ./build/LocalAIAssistant-CLI ask --yes "Create ~/test/hello.txt"
 Auto-confirming (--yes)...
 Executing...
 ```
+
+> **Note**: `--yes` only bypasses Tier 2 (path confirmation). Tier 1 (dangerous commands like
+> `sudo`, `rm -rf /`, `eval`) is always blocked, even with `--yes`.
 
 ---
 
 ## Security
 
-### Path Whitelist
+### Three-Tier Safety Architecture
 
-In Settings → **Security**, you can configure a path whitelist. When the AI performs file
-operations, it is restricted to these directories.
+The SafetyChecker validates every file operation and shell command before execution:
+
+| Tier | Name | Behavior | Examples |
+|------|------|----------|----------|
+| **Tier 1** | Blocked | Immediately rejected. No user override. | `sudo`, `rm -rf /`, `eval`, backtick injection, `cmd /c` |
+| **Tier 2** | Needs Confirmation | User must explicitly approve. Options: Allow Once / Always Allow / Deny | System paths (`/etc`, `C:\Windows`), paths outside whitelist |
+| **Tier 3** | Approved | Auto-executes. No prompt needed. | `~/`, `/tmp`, Desktop, Documents, current directory |
+
+### Path Violations
+
+When the AI tries to access a path outside the whitelist:
+
+**Read operations** (like `ls`, `cat`, `grep`) show a yellow/info warning.
+**Write operations** (like `touch`, `mkdir`, `rm`) show a red/danger warning, especially on system paths.
+
+**CLI ask mode — path violation response:**
+
+```
+*** Path access warnings ***
+  1. [READ] [SYSTEM PATH] /etc/
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
+Execute? [Y/n]: y   # y = allow all this session, n = deny all
+```
+
+**CLI interactive mode — path violation response:**
+
+```
+*** Path access warnings ***
+  1. [READ] [SYSTEM PATH] /etc/
+  2. [WRITE] [OUTSIDE WHITELIST] /opt/config.ini
+Type /confirm to execute, /cancel to abort.
+> /confirm   # auto-allows all violations temporarily (session-scoped)
+```
+
+**GUI confirmation dialog** shows each path violation with individual `[Allow Once]` / `[Always Allow]` / `[Deny]` buttons.
+
+### Path Allow Modes
+
+| Mode | Scope | Persists? |
+|------|-------|-----------|
+| **Allow Once** | Current app session | No — resets on restart |
+| **Always Allow** | Saved to QSettings | Yes — survives restarts |
 
 ### Operation Confirmation
 
 **All task plans require user confirmation before execution.** In CLI interactive mode, type
 `/confirm` or `/cancel`. In CLI ask mode, respond to the inline `[Y/n]` prompt. In GUI, a
-confirmation dialog is shown. Use the `--yes` flag to auto-confirm in CLI ask mode for scripting.
+confirmation dialog is shown. Use the `--yes` flag to auto-confirm Tier 2 warnings in CLI ask mode
+for scripting. Tier 1 (dangerous commands) is never bypassed by `--yes`.
 
 ---
 

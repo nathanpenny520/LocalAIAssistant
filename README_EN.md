@@ -78,18 +78,21 @@ and other prose-heavy PDF/TXT/MD/DOCX files.
 
 ### Task Execution Module 🔧
 
+- **Agent Iteration Loop** — AI observes execution results and autonomously continues working via
+  `[ITERATION_FEEDBACK]` → new `[TASK_PLAN]` → execute → ... → `[TASK_COMPLETE]` cycle
 - **Native File Operations** — Execute create/move/delete/copy/search files via Qt APIs, no shell
   dependency
 - **Cross-platform Shell Support** — Auto-detect available shell (Windows: pwsh→powershell→cmd,
   Unix: $SHELL→zsh→bash→sh)
-- **Safety Checker** — Pre-execution validation of dangerous paths (system directory protection),
-  covering Unix + Windows
+- **Three-Tier Safety** — Tier 1: Blocked (dangerous commands like `sudo`, `eval` — permanent).
+  Tier 2: Needs Confirmation (system paths, outside-whitelist paths — user chooses Allow
+  Once/Always/Deny). Tier 3: Approved (whitelist paths — auto-execute)
 - **Command Injection Prevention** — Detect PowerShell injection, Unix command substitution,
   Living-off-the-Land attacks
 - **Operation Undo** — Supports undoing executed file operations
 - **User Confirmation** — All task plans require user review before execution (CLI interactive
-  `/confirm`, ask mode inline `[Y/n]` prompt, GUI confirmation dialog), `--yes` flag to skip
-  confirmation
+  `/confirm`, ask mode inline `[Y/n]` prompt, GUI confirmation dialog with per-path controls),
+  `--yes` flag to auto-confirm Tier 2 warnings for scripting
 
 > ⚠️ **Platform Compatibility**:
 >
@@ -120,8 +123,9 @@ sourcecode-ai-assistant/
 │   │   └── datamodels.h    # Data model definitions
 │   ├── ui/             # GUI interface (main window, settings dialog)
 │   ├── cli/            # CLI command line interface
-│   ├── tasks/          # Task execution module (file ops, safety checks, undo)
+│   ├── tasks/          # Task execution module (file ops, safety checks, undo, agent loop)
 │   │   ├── taskengine.cpp/h       # Task execution engine (AI response parsing, plan dispatch)
+│   │   ├── agentloop.cpp/h        # Agent iteration loop (plan→execute→feedback→continue cycle)
 │   │   ├── commandexecutor.cpp/h  # Command executor (native file ops + shell command execution)
 │   │   ├── safetychecker.cpp/h    # Safety checker (cross-platform dangerous command/path detection)
 │   │   ├── operationplan.cpp/h    # Operation plan definition (ShellOperation types)

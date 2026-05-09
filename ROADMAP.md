@@ -27,6 +27,38 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
       confirmation before execution. Ask mode uses inline `[Y/n]` prompt. Added `--yes` flag for
       scripting. Fixed ask mode hang after TASK_PLAN handling.
 
+### What was completed (2026-05-09)
+
+- [x] **Feature 2: Three-tier Safety Architecture** — SafetyChecker now uses three tiers instead
+      of a hard whitelist wall. Tier 1 (Blocked): command injection + dangerous commands — permanent,
+      no override. Tier 2 (NeedsConfirmation): system paths + outside-whitelist paths — user can
+      Allow Once/Always/Deny. Tier 3 (Approved): whitelist paths auto-execute. Added `PathViolation`
+      struct with `isWriteOp` flag for read/write distinction. `isReadOnlyCommand()` detects
+      read vs write commands cross-platform (Unix + Windows). `persistentlyAllowPath()` via
+      QSettings with deduplication. `temporarilyAllowPath()` session-scoped. 14 files, +496/-12
+      lines. 82 tests pass (52 existing + 30 new).
+- [x] **Feature 1: Agent Iteration Loop** — New `AgentLoop` QObject singleton state machine
+      managing plan→execute→feedback→continue cycle. AI observes `[ITERATION_FEEDBACK]` and
+      autonomously decides whether to issue a new `[TASK_PLAN]` or declare `[TASK_COMPLETE]`.
+      Decoupled from NetworkManager via signals. Max iteration guard (default 10). Both GUI and
+      CLI fully integrated. 4 new files, ~170 lines AgentLoop core. 12 new unit tests.
+- [x] **GUI Confirmation Dialog Update** — `OperationConfirmDialog` now shows per-violation path
+      warnings with `[Allow Once]` / `[Always Allow]` / `[Deny]` buttons. Yellow icon for read
+      operations, red for write operations on system paths.
+- [x] **Prompt Updates** — Added "Iteration Loop" + "Tags Reference" sections to both `en/task.md`
+      and `zh_CN/task.md` prompts.
+- [x] **CLI Test Plan** — Created `docs/design/cli-test-plan.md` with 31 test cases across 10
+      phases covering all three tiers, Agent Loop multi-iteration, path violation responses, and
+      interactive mode routing.
+
+### Known Issues (2026-05-09)
+
+- [ ] **CLI Interactive Mode: Per-Violation Toggle Gap** — The interactive mode prints
+      `a=allow all once, p=permanently allow all, d=deny all, or enter number to toggle` but
+      these single-key inputs are not parsed by the `readInput` loop. Only `/confirm` (auto-allows
+      all temporarily) and `/cancel` work. Per-violation toggling and persistent-allow require
+      the GUI dialog. Fix plan: `docs/design/cli-interactive-path-fix-plan.md`.
+
 ### What to do next (优先级排序)
 
 **按照风险（低→高）和重要性（高→低）重新规划**
@@ -370,13 +402,14 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
 | `src/ui/mainwindow.cpp`               | 1,678       | ⚠️ **DEFERRED** - Phase 4.2                                  |
 | `src/girlfriend/voicemanager.cpp`     | 1,505       | ⚠️ **DEFERRED** - Phase 4.3                                  |
 | `scripts/build.sh`                    | 1,278       | 🟡 Phase 3.3 (fix prompt) → Phase 7.2 (split)                |
-| `src/cli/cli_application.cpp`         | 1,165       | ⚠️ **DEFERRED** - Phase 4.4                                  |
+| `src/cli/cli_application.cpp`         | ~~1,165~~ 1,179 | ⚠️ **DEFERRED** - Phase 4.4 + AgentLoop integration        |
 | `src/ui/markdownrenderer.cpp`         | 855         | 🟡 Phase 3.2 (if needed)                                     |
 | `CMakeLists.txt`                      | 788         | 🟢 Phase 7.1 (optional)                                      |
 | `src/knowledge/embedder.cpp`          | 591         | 🟢 Phase 3.1                                                 |
 | `src/core/networkmanager.cpp`         | ~~581~~ 240 | ✅ **Phase 1.2 done** — split into ApiProvider + 3 providers |
 | `src/ui/stylesheetmanager.cpp`        | 361         | 🟡 Phase 3.2                                                 |
-| `src/tasks/safetychecker.cpp`         | 562         | 🟡 Phase 2.1 added Windows safety patterns                   |
+| `src/tasks/safetychecker.cpp`         | ~~562~~ 726 | ✅ Feature 2: three-tier safety, path violations, read-only detection |
+| `src/tasks/agentloop.cpp`             | 175         | ✅ **NEW** — Feature 1: Agent iteration loop                  |
 | `src/knowledge/vectordb.cpp`          | 555         | 🟢 Phase 3.1                                                 |
 | `src/tasks/commandexecutor.cpp`       | 551         | 🟡 Phase 2.1 added native file ops + shell detection         |
 | `scripts/setup.sh`                    | 519         | 🟢 Phase 7.3                                                 |
