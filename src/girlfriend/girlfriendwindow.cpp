@@ -1784,8 +1784,8 @@ void GirlfriendWindow::updateOverlayLabels() {
     QString barColor = "#e91e63";
     QString bgColor = m_isDarkTheme ? QStringLiteral("#444444") : QStringLiteral("#ffffff");
 
-    // 使用固定px值，避免百分比渲染问题
-    // 使用table结构确保渲染正确
+    // Use fixed px values to avoid percentage rendering bugs.
+    // Table structure ensures correct rendering.
     QString barHtml = QString("<table border='0' cellpadding='0' cellspacing='0' width='50'>"
                               "<tr><td width='%1' bgcolor='%2' "
                               "style='border-radius:3px;height:6px;'></td>"
@@ -1799,8 +1799,8 @@ void GirlfriendWindow::updateOverlayLabels() {
 
     m_overlayMoodBarLabel->setText(barHtml);
     m_overlayMoodBarLabel->setTextFormat(Qt::RichText);
-    m_overlayMoodBarLabel->setFixedWidth(50);  // 固定宽度50px
-    m_overlayMoodBarLabel->setFixedHeight(8);  // 设置固定高度确保可见
+    m_overlayMoodBarLabel->setFixedWidth(50);  // fixed 50px width
+    m_overlayMoodBarLabel->setFixedHeight(8);  // fixed height for visibility
 
     m_overlayMoodPercentLabel->setText(QString("%1%").arg(percent));
     m_overlayMoodPercentLabel->adjustSize();
@@ -1808,7 +1808,7 @@ void GirlfriendWindow::updateOverlayLabels() {
     qDebug() << "updateOverlayLabels: mood=" << m_currentOverlayMood << "percent=" << percent
              << "barWidth=" << barWidth;
 
-    // 重新定位mood bar - 在情绪标签下方
+    // Reposition mood bar below emotion label
     int emotionLabelHeight = m_overlayEmotionLabel->sizeHint().height();
     m_overlayMoodBarLabel->move(12, 12 + emotionLabelHeight + 4);
     m_overlayMoodBarLabel->raise();
