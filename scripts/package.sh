@@ -315,6 +315,12 @@ package_windows() {
     if [ -f "$gui_exe" ]; then
         cp "$BUILD_DIR"/*.exe "$staging/" 2>/dev/null || true
         cp "$BUILD_DIR"/*.dll "$staging/" 2>/dev/null || true
+        # Copy Qt plugin directories deployed by windeployqt
+        for dir in platforms styles sqldrivers tls networkinformation multimedia iconengines imageformats generic; do
+            if [ -d "$BUILD_DIR/$dir" ]; then
+                cp -R "$BUILD_DIR/$dir" "$staging/"
+            fi
+        done
         echo "  Executables and DLLs copied"
     fi
 
@@ -408,6 +414,12 @@ create_nsis_installer() {
     # Collect all files into the NSIS staging dir (from build dir, re-collect)
     cp "$BUILD_DIR"/*.exe "$nsis_staging/" 2>/dev/null || true
     cp "$BUILD_DIR"/*.dll "$nsis_staging/" 2>/dev/null || true
+    # Copy Qt plugin directories deployed by windeployqt
+    for dir in platforms styles sqldrivers tls networkinformation multimedia iconengines imageformats generic; do
+        if [ -d "$BUILD_DIR/$dir" ]; then
+            cp -R "$BUILD_DIR/$dir" "$nsis_staging/"
+        fi
+    done
     for dir in core AIGirlfriend girlfriend translations models prompts; do
         if [ -d "$BUILD_DIR/$dir" ]; then
             cp -R "$BUILD_DIR/$dir" "$nsis_staging/"
