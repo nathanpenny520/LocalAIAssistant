@@ -83,6 +83,7 @@ private:
     QMap<QString, QString> parseThinkingContent(const QString &content);
     QString formatMessageWithThinking(const QString &role, const QString &content);
     void adjustInputHeight();             // 动态调整输入框高度
+    void resizeEvent(QResizeEvent *event) override;
     void updateFileListDisplay();         // 新增
     void clearFileListDisplay();          // 新增
     void setupSearchBar();               // 新增：设置搜索栏

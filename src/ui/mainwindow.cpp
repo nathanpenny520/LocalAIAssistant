@@ -232,9 +232,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     StyleSheetManager::instance()->applyTheme(this);
 
-    // Initial height: single line; grows with content up to m_maxInputHeight
-    adjustInputHeight();
-
     // Install global event filter to catch IME composition events (e.g. pinyin)
     qApp->installEventFilter(this);
 }
@@ -242,6 +239,8 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::showEvent(QShowEvent *event)
 {
     QMainWindow::showEvent(event);
+    // Widget geometry is now valid — set correct initial input height
+    adjustInputHeight();
     if (m_firstShow) {
         m_firstShow = false;
         updateSessionList();
@@ -634,20 +633,38 @@ void MainWindow::updateSessionList()
 
 void MainWindow::setInputEnabled(bool enabled)
 {
-    m_sendButton->setEnabled(enabled);
     m_inputLine->setReadOnly(!enabled);
 
     if (enabled) {
         m_inputLine->setPlaceholderText(m_inputPlaceholder);
         m_sendButton->setText(tr("发送"));
+        m_sendButton->setEnabled(true);
     } else {
         m_inputLine->setPlaceholderText(tr("正在思考..."));
-        m_sendButton->setText(tr("思考中..."));
+        m_sendButton->setText(tr("停止"));
+        m_sendButton->setEnabled(true);  // keep enabled so user can click to abort
     }
 }
 
 void MainWindow::onSendClicked()
 {
+    // If currently streaming, treat click as stop request
+    if (m_isStreaming) {
+        m_networkManager->abortCurrentRequest();
+
+        // Save partial streaming content as assistant message
+        if (!m_streamingContent.isEmpty()) {
+            SessionManager::instance()->addMessageToSession(
+                m_requestSessionId, "assistant", m_streamingContent);
+        }
+
+        m_isStreaming = false;
+        m_streamingContent.clear();
+        m_requestSessionId.clear();
+        setInputEnabled(true);
+        return;
+    }
+
     QString userInput = m_inputLine->toPlainText().trimmed();
     if (userInput.isEmpty() && m_fileManager->pendingFileCount() == 0) {
         return;  // 无输入且无文件时不发送
@@ -921,6 +938,11 @@ void MainWindow::onSessionItemClicked(QListWidgetItem *item)
     QString sessionId = item->data(Qt::UserRole).toString();
     SessionManager::instance()->switchToSession(sessionId);
     updateSessionList();
+
+    // Re-enable input when switching to a non-streaming session
+    if (m_isStreaming && sessionId != m_requestSessionId) {
+        setInputEnabled(true);
+    }
 }
 
 void MainWindow::onDeleteSession()
@@ -1629,6 +1651,12 @@ void MainWindow::adjustInputHeight()
     if (m_inputLine->height() != newHeight) {
         m_inputLine->setFixedHeight(newHeight);
     }
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    adjustInputHeight();
 }
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)

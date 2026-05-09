@@ -239,6 +239,14 @@ Three parallel explore agents audited the entire 17,500-line codebase. This docu
 - [x] Add session size limits and auto-truncation: default 500 msg, min 10 enforced, oldest truncated, system message notification, configurable via QSettings `sessionMaxMessages` (files: `sessionmanager.h/cpp`)
 - [x] Fix help docs search path: use `#ifdef Q_OS_MACOS` platform-conditional path, matching `translationmanager.cpp` pattern (file: `settingsdialog.cpp:355-362`)
 
+#### 6.1 Post-release fixes ✅ **DONE**
+**风险**: 低  
+**重要性**: 高（UX bug fixes）
+
+- [x] Add stop button: repurpose send button as `tr("停止")` during streaming, keeps button enabled so user can abort. Partial content saved as assistant message with full markdown rendering (file: `mainwindow.cpp:635-665`)
+- [x] Fix cross-session blocking: re-enable input when switching to a non-streaming session during active stream. Previously switching sessions left input locked (file: `mainwindow.cpp:910-930`)
+- [x] Fix input height dynamics: add `resizeEvent` handler to call `adjustInputHeight()` on window resize; move initial height call from constructor to `showEvent()` so viewport geometry is valid (files: `mainwindow.h`, `mainwindow.cpp:242-246, 1656-1660`)
+
 ---
 
 ### **Tier 7: 构建系统拆分（可选）**
