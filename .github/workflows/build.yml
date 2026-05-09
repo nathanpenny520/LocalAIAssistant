@@ -110,9 +110,9 @@ jobs:
         run: cmake --build build --parallel $env:NUMBER_OF_PROCESSORS --config Release
 
       - name: Test
-        run: cd build && ctest --output-on-failure
+        run: cd build && ctest --output-on-failure -C Release
         env:
-          QT_QPA_PLATFORM: offscreen -C Release
+          QT_QPA_PLATFORM: offscreen
 
       - name: Package
         if: success()
