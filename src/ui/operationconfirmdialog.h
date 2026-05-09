@@ -49,6 +49,7 @@ private:
     QPushButton* m_cancelBtn;
     QPushButton* m_modifyBtn;
     QWidget* m_pathWarningArea = nullptr;
+    QLabel* m_errorLabel = nullptr;
 };
 
 #endif  // OPERATIONCONFIRMDIALOG_H

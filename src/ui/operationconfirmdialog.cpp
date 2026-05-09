@@ -1,5 +1,6 @@
 #include "operationconfirmdialog.h"
 
+#include <QButtonGroup>
 #include <QFont>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -60,6 +61,7 @@ void OperationConfirmDialog::setupUI(const OperationPlan& plan) {
     m_shellPreview = new QTextBrowser(this);
     m_shellPreview->setPlainText(plan.generateShellPreview());
     m_shellPreview->setReadOnly(true);
+    m_shellPreview->setMaximumHeight(120);
     QFont monoFont(QStringLiteral("Menlo"), 11);
     monoFont.setStyleHint(QFont::Monospace);
     m_shellPreview->setFont(monoFont);
@@ -78,6 +80,15 @@ void OperationConfirmDialog::setupUI(const OperationPlan& plan) {
     warningLabel->setFont(warnFont);
     warningLabel->setObjectName(QStringLiteral("warningLabel"));
     mainLayout->addWidget(warningLabel);
+
+    // Error label (hidden, shown when confirming with denied paths)
+    m_errorLabel = new QLabel(this);
+    m_errorLabel->setVisible(false);
+    m_errorLabel->setObjectName(QStringLiteral("errorLabel"));
+    m_errorLabel->setStyleSheet(QStringLiteral(
+            "QLabel#errorLabel { color: #e53935; font-weight: bold; padding: 8px; "
+            "background: #ffebee; border: 1px solid #e53935; border-radius: 4px; }"));
+    mainLayout->addWidget(m_errorLabel);
 
     // Button row
     auto* btnLayout = new QHBoxLayout();
@@ -106,17 +117,24 @@ void OperationConfirmDialog::setupUI(const OperationPlan& plan) {
 }
 
 void OperationConfirmDialog::onConfirm() {
-    // If there are path violations, check none are denied
+    // If there are path violations, check none are still Deny (0)
     if (!m_pathViolations.isEmpty()) {
+        QStringList denied;
         for (int i = 0; i < m_pathViolationResponses.size(); ++i) {
             if (m_pathViolationResponses[i] == 0) {
-                // At least one path is still denied — reject confirmation
-                m_confirmed = false;
-                reject();
-                return;
+                denied << m_pathViolations[i].path;
             }
         }
+        if (!denied.isEmpty()) {
+            m_errorLabel->setText(
+                    tr("⚠ The following paths are still denied. "
+                       "Click \"Allow Once\" or \"Always Allow\" for each, then confirm:\n%1")
+                            .arg(denied.join(QStringLiteral(", "))));
+            m_errorLabel->setVisible(true);
+            return;
+        }
     }
+    m_errorLabel->setVisible(false);
     m_confirmed = true;
     accept();
 }
@@ -160,6 +178,15 @@ void OperationConfirmDialog::setPathViolations(const QVector<PathViolation>& vio
     headerLabel->setObjectName(QStringLiteral("warningLabel"));
     areaLayout->addWidget(headerLabel);
 
+    // Stylesheet for checked state on per-path buttons
+    static const char* kRowBtnStyle =
+            "QPushButton:checked {"
+            "  background-color: #1976D2;"
+            "  color: white;"
+            "  font-weight: bold;"
+            "  border: 2px solid #0D47A1;"
+            "}";
+
     for (int i = 0; i < violations.size(); ++i) {
         const auto& v = violations[i];
 
@@ -167,40 +194,60 @@ void OperationConfirmDialog::setPathViolations(const QVector<PathViolation>& vio
         auto* rowLayout = new QHBoxLayout(row);
         rowLayout->setContentsMargins(4, 4, 4, 4);
 
-        // Icon and path label
-        QString icon = v.isWriteOp ? QStringLiteral("🔴") : QStringLiteral("🟡");
+        // Color-coded label: red for write ops, orange for read ops
+        QString color = v.isWriteOp ? QStringLiteral("red") : QStringLiteral("orange");
+        QString opType = v.isWriteOp ? tr("Write") : tr("Read");
         QString labelText = v.isWriteOp && v.violationType == PathViolation::SystemPath
-                                    ? tr("%1 %2 — This is a protected system directory")
-                                              .arg(icon, v.path)
-                                    : QStringLiteral("%1 %2").arg(icon, v.path);
+                                    ? tr("<font color='%1'>[%2]</font> %3 — This is a protected "
+                                         "system directory")
+                                              .arg(color, opType, v.path)
+                                    : tr("<font color='%1'>[%2]</font> %3")
+                                              .arg(color, opType, v.path);
         auto* label = new QLabel(labelText, row);
         label->setWordWrap(true);
         rowLayout->addWidget(label, 1);
 
-        // Allow Once button
-        auto* allowOnceBtn = new QPushButton(tr("Allow Once"), row);
-        allowOnceBtn->setToolTip(tr("Allow this session only"));
+        // Per-row button group for mutual exclusion
+        auto* btnGroup = new QButtonGroup(row);
+        btnGroup->setExclusive(true);
         int idx = i;
-        connect(allowOnceBtn, &QPushButton::clicked, this, [this, idx]() {
-            m_pathViolationResponses[idx] = 1;
-            // Update button states for this row
+
+        auto makeBtn = [&](const QString& text, const QString& tooltip, int responseValue,
+                           bool isDefault) -> QPushButton* {
+            auto* btn = new QPushButton(text, row);
+            btn->setToolTip(tooltip);
+            btn->setCheckable(true);
+            btn->setStyleSheet(QString::fromLatin1(kRowBtnStyle));
+            if (isDefault) btn->setChecked(true);
+            return btn;
+        };
+
+        auto* allowOnceBtn = makeBtn(tr("Allow Once"), tr("Allow this session only"), 1, false);
+        auto* alwaysAllowBtn =
+                makeBtn(tr("Always Allow"), tr("Permanently add to allowed paths"), 2, false);
+        auto* denyBtn = makeBtn(tr("Deny"), tr("Block this path"), 0, true);
+
+        btnGroup->addButton(allowOnceBtn, 1);
+        btnGroup->addButton(alwaysAllowBtn, 2);
+        btnGroup->addButton(denyBtn, 0);
+
+        connect(btnGroup, &QButtonGroup::idClicked, this, [this, idx](int id) {
+            m_pathViolationResponses[idx] = id;
+            // Auto-hide error when all paths have been decided
+            if (m_errorLabel && m_errorLabel->isVisible()) {
+                bool allDecided = true;
+                for (int resp : m_pathViolationResponses) {
+                    if (resp == 0) {
+                        allDecided = false;
+                        break;
+                    }
+                }
+                if (allDecided) m_errorLabel->setVisible(false);
+            }
         });
+
         rowLayout->addWidget(allowOnceBtn);
-
-        // Always Allow button
-        auto* alwaysAllowBtn = new QPushButton(tr("Always Allow"), row);
-        alwaysAllowBtn->setToolTip(tr("Permanently add to allowed paths"));
-        connect(alwaysAllowBtn, &QPushButton::clicked, this, [this, idx]() {
-            m_pathViolationResponses[idx] = 2;
-        });
         rowLayout->addWidget(alwaysAllowBtn);
-
-        // Deny button
-        auto* denyBtn = new QPushButton(tr("Deny"), row);
-        denyBtn->setDefault(true);
-        connect(denyBtn, &QPushButton::clicked, this, [this, idx]() {
-            m_pathViolationResponses[idx] = 0;
-        });
         rowLayout->addWidget(denyBtn);
 
         areaLayout->addWidget(row);
