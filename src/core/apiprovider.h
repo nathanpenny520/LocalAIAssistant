@@ -5,7 +5,6 @@
 
 #include <optional>
 
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -13,7 +12,6 @@
 #include <QNetworkReply>
 #include <QObject>
 #include <QSettings>
-#include <QStandardPaths>
 
 #include "datamodels.h"
 

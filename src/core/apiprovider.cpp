@@ -110,24 +110,6 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
 
     QJsonObject jsonPayload = buildBasePayload();
 
-    // Inject user memory into system prompt if available
-    {
-        QString memoryPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
-                             QStringLiteral("/girlfriend/memory.md");
-        QFile memoryFile(memoryPath);
-        QString memoryContent;
-        if (memoryFile.exists() && memoryFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            memoryContent = QString::fromUtf8(memoryFile.readAll());
-            memoryFile.close();
-        }
-        if (!memoryContent.isEmpty() && !memoryContent.contains(QStringLiteral("待记录"))) {
-            m_systemPrompt =
-                    loadSystemPrompt() + QStringLiteral("\n\n## 用户记忆档案\n\n") + memoryContent;
-        } else {
-            m_systemPrompt = loadSystemPrompt();
-        }
-    }
-
     // Inject knowledge base context into system prompt with a descriptive preamble
     if (!m_knowledgeContext.isEmpty()) {
         m_systemPrompt += QStringLiteral("\n\n## 知识库参考内容\n\n") +
