@@ -249,25 +249,30 @@ findings and the refactoring-first plan. **Phase 1.1 deferred** due to high risk
 
 ---
 
-### **Tier 5: 代码质量标准（渐进式）**
+### **Tier 5: 代码质量标准（渐进式）** ✅ **DONE**
 
-#### 5.1 Code formatting
+#### 5.1 Code formatting ✅ **DONE**
 
 **风险**: 无（只影响格式）  
 **重要性**: 中（长期维护）
 
-- [ ] Add `.clang-format` (Google style base, adapted for Qt SIGNAL/SLOT macros)
-- [ ] Add `.cmake-format.json` for CMake style
-- [ ] Run clang-format on all files progressively
+- [x] Add `.clang-format` (Google style base, adapted for Qt SIGNAL/SLOT macros)
+- [x] Add `.cmake-format.json` for CMake style
+- [x] Add `.prettierrc` + `.prettierignore` for markdown, YAML, JSON
+- [x] Add `.shfmtrc` for shell scripts
+- [x] Run clang-format on all C++ files (39 headers + 46 source files)
+- [x] Run cmake-format on CMakeLists.txt
+- [x] Run shfmt on shell scripts (build.sh, setup.sh, cli-wrapper.sh)
+- [x] Run prettier on all markdown files + CI YAML
 
-#### 5.2 Comment cleanup
+#### 5.2 Comment cleanup ✅ **DONE**
 
 **风险**: 无（不影响功能）  
 **重要性**: 低（代码清晰度）
 
-- [ ] Convert all Chinese comments to professional English
-- [ ] Remove redundant/obvious comments (keep WHY, delete WHAT)
-- [ ] Add Doxygen headers (`@file`, `@brief`) to all public API headers
+- [x] Convert all Chinese developer comments to professional English (~44 files)
+- [x] Remove redundant/obvious comments (keep WHY, delete WHAT)
+- [x] Add Doxygen headers (`@file`, `@brief`) to all 14 public API headers
 
 ---
 
