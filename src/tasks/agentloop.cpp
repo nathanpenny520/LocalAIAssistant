@@ -103,7 +103,6 @@ void AgentLoop::processNextIteration(const QString& response) {
 void AgentLoop::confirmPlan() {
     if (m_state != AwaitingUserConfirm) return;
     m_state = Running;
-    m_iterationCount++;
     emit stateChanged(m_state);
     executeAndContinue(m_pendingPlan);
 }
@@ -124,8 +123,10 @@ void AgentLoop::stop() {
 }
 
 void AgentLoop::executeAndContinue(const OperationPlan& plan) {
+    m_iterationCount++;
+
     // Check iteration limit
-    if (m_iterationCount >= m_maxIterations) {
+    if (m_iterationCount > m_maxIterations) {
         m_state = MaxIterations;
         emit stateChanged(m_state);
         emit loopFinished(tr("Maximum iterations reached (%1)").arg(m_maxIterations), m_sessionId);

@@ -813,7 +813,15 @@ void MainWindow::onNetworkError(const QString& error) {
 }
 
 void MainWindow::onStreamChunkReceived(const QString& chunk) {
-    if (!m_isStreaming || m_requestSessionId != SessionManager::instance()->currentSessionId()) {
+    // Defensive recovery: if streaming flag wasn't set by caller, fix it on first chunk
+    if (!m_isStreaming) {
+        if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
+            m_isStreaming = true;
+        } else {
+            return;
+        }
+    }
+    if (m_requestSessionId != SessionManager::instance()->currentSessionId()) {
         return;
     }
 
@@ -862,8 +870,15 @@ void MainWindow::onStreamChunkReceived(const QString& chunk) {
 }
 
 void MainWindow::onStreamFinished(const QString& fullContent) {
-    // Verify response belongs to the session that initiated the request
-    if (!m_isStreaming || m_requestSessionId.isEmpty()) {
+    // Defensive recovery: if we got content but flag was wrong, fix and continue
+    if (!m_isStreaming) {
+        if (!m_requestSessionId.isEmpty() && !fullContent.isEmpty()) {
+            m_isStreaming = true;
+        } else {
+            return;
+        }
+    }
+    if (m_requestSessionId.isEmpty()) {
         return;
     }
 
@@ -1540,6 +1555,7 @@ void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QS
     if (sessionId == SessionManager::instance()->currentSessionId()) {
         QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
         m_requestSessionId = sessionId;
+        m_isStreaming = true;
         m_networkManager->sendChatRequestWithContext(messages);
     }
 }
