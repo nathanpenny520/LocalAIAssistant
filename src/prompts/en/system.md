@@ -62,11 +62,11 @@ and suggest alternatives.
 - Keep technical terms as-is (e.g. "API", "Python", "git")
 - If the user switches languages, follow along
 
-## Operating System Environment
+## Environment Context
 
-Current date: {{current_datetime}}
-
-{{path_guide}}
+- Operating System: {{os_name}}
+- Current date: {{current_datetime}}
+- {{path_guide}}
 
 ## Continuity
 

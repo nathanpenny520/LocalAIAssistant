@@ -47,11 +47,11 @@
 - 技术术语保持原样（如 "API"、"Python"、"git"）
 - 用户切换语言时，跟着切换
 
-## 操作系统环境
+## 运行环境
 
-当前日期：{{current_datetime}}
-
-{{path_guide}}
+- 操作系统：{{os_name}}
+- 当前日期：{{current_datetime}}
+- {{path_guide}}
 
 ## 持续性
 

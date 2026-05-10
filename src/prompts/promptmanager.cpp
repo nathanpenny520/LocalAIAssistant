@@ -64,29 +64,36 @@ QMap<QString, QString> PromptManager::osTemplateValues() {
     } else if (os == QStringLiteral("windows")) {
         vars[QStringLiteral("path_guide")] = isEnglish
                 ? QStringLiteral(
-                    "Currently running on **Windows**. Paths use backslashes `\\`, forward slashes "
-                    "`/` also work, case-insensitive.\n"
-                    "User home directory shorthand is `%USERPROFILE%`, actual path is "
-                    "`C:\\Users\\username\\`.\n"
-                    "App data directory is `%APPDATA%\\LocalAIAssistant\\`.\n"
-                    "Program files are usually in `C:\\Program Files\\` or "
-                    "`C:\\Program Files (x86)\\`.\n"
-                    "Paths containing spaces must be wrapped in double quotes (e.g. "
-                    "`\"C:\\Program Files\\...\"`).\n"
-                    "Available package managers: winget (`winget install`) or chocolatey "
-                    "(`choco install`).")
+                    "**Windows** environment:\n"
+                    "- Path separator: forward slashes `/` (preferred for all operations) or backslashes `\\` (both work)\n"
+                    "- Case-insensitive paths\n"
+                    "- Home directory: use `~/` (resolved automatically), resolves to `C:\\Users\\username\\`\n"
+                    "- App data: prefer `~/AppData/Roaming/LocalAIAssistant/`\n"
+                    "- Program files: `C:\\Program Files\\` or `C:\\Program Files (x86)\\`\n"
+                    "- Shell: PowerShell (preferred) or CMD. Use **PowerShell syntax** for shell commands.\n"
+                    "  (e.g. `Get-ChildItem` not `ls`, `Select-String` not `grep`)\n"
+                    "- Package managers: winget or chocolatey\n"
+                    "- **CRITICAL: For native operations, ALWAYS use `~/` paths.** Never use `%VAR%` in native operations —\n"
+                    "  `~/` replaces `%USERPROFILE%`, `~/AppData/Roaming/` replaces `%APPDATA%`.\n"
+                    "  For shell commands, use `/` slashes (not `\\`).")
                 : QStringLiteral(
-                    "当前运行在 **Windows**。路径使用反斜杠 `\\`，也可以用正斜杠 `/`，不区分大小写。\n"
-                    "用户主目录简写为 `%USERPROFILE%`，实际路径为 `C:\\Users\\用户名\\`。\n"
-                    "应用数据目录在 `%APPDATA%\\LocalAIAssistant\\`。\n"
-                    "程序文件通常在 `C:\\Program Files\\` 或 `C:\\Program Files (x86)\\`。\n"
-                    "包含空格的路径必须用双引号包裹（如 `\"C:\\Program Files\\...\"`）。\n"
-                    "可用的包管理器有 winget (`winget install`) 或 chocolatey (`choco install`)。");
+                    "**Windows** 运行环境：\n"
+                    "- 路径分隔符：推荐使用正斜杠 `/`（所有操作首选），反斜杠 `\\` 同样可用\n"
+                    "- 路径不区分大小写\n"
+                    "- 主目录：使用 `~/`（自动解析为 `C:\\Users\\用户名\\`）\n"
+                    "- 应用数据：推荐使用 `~/AppData/Roaming/LocalAIAssistant/`\n"
+                    "- 程序文件：`C:\\Program Files\\` 或 `C:\\Program Files (x86)\\`\n"
+                    "- Shell：优先使用 PowerShell（也可用 CMD），shell 命令请使用 **PowerShell 语法**\n"
+                    "  （例如用 `Get-ChildItem` 而非 `ls`，用 `Select-String` 而非 `grep`）\n"
+                    "- 包管理器：winget 或 chocolatey\n"
+                    "- **关键规则：原生操作必须使用 `~/` 路径。** 绝对不要在原生操作中使用 `%VAR%` 环境变量 ——\n"
+                    "  `~/` 替代 `%USERPROFILE%`，`~/AppData/Roaming/` 替代 `%APPDATA%`。\n"
+                    "  shell 命令中请使用 `/` 斜杠（不要用 `\\`）。");
     } else {
         vars[QStringLiteral("path_guide")] = isEnglish
                 ? QStringLiteral(
-                    "Currently running on **Linux**. Paths use forward slashes `/`, case-"
-                    "sensitive.\n"
+                    "Currently running on **Linux**. Paths use forward slashes `/`, **case-"
+                    "sensitive** (unlike Windows).\n"
                     "User home directory shorthand is `~/`, actual path is `/home/username/`.\n"
                     "App data directory is `~/.local/share/LocalAIAssistant/`.\n"
                     "System config files are in `/etc/`, user config is usually in `~/.config/` "
@@ -96,7 +103,7 @@ QMap<QString, QString> PromptManager::osTemplateValues() {
                     "Package manager depends on the distro (apt, dnf, pacman, zypper, etc.). "
                     "When unsure, detect first.")
                 : QStringLiteral(
-                    "当前运行在 **Linux**。路径使用正斜杠 `/`，区分大小写。\n"
+                    "当前运行在 **Linux**。路径使用正斜杠 `/`，**区分大小写**（与 Windows 不同）。\n"
                     "用户主目录简写为 `~/`，实际路径为 `/home/用户名/`。\n"
                     "应用数据目录在 `~/.local/share/LocalAIAssistant/`。\n"
                     "系统配置文件在 `/etc/`，用户配置通常在 `~/.config/` 或 `~/.` 开头的隐藏文件。\n"

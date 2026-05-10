@@ -67,6 +67,9 @@ execution, system configuration, git, etc.), you must generate a command plan JS
 
 {{path_guide}}
 
+> **Note:** `~/` is the home directory shorthand on ALL platforms (Windows, macOS, Linux).
+> Always use `~/` for home-relative paths in native operations.
+
 ## Iteration Loop
 
 **CRITICAL: When you receive an `[ITERATION_FEEDBACK]` block, you MUST always respond. Never remain silent. This is not optional — the conversation will stall if you do not reply.**
