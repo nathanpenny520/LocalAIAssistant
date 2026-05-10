@@ -10,13 +10,7 @@
 
 #include <optional>
 
-#include <QCoreApplication>
-#include <QDir>
-#include <QFile>
-#include <QMap>
 #include <QObject>
-#include <QStandardPaths>
-#include <QTextStream>
 
 #include "datamodels.h"
 
@@ -59,7 +53,6 @@ public slots:
 
 private:
     void loadEnvConfig();
-    void parseEnvFile(const QString& path, QMap<QString, QString>& outVars);
     void loadSettings();
     void saveSettings();
     void applySettingsToProvider();

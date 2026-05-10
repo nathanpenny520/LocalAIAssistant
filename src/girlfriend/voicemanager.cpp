@@ -3,6 +3,8 @@
 #include <QAudioDevice>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+
+#include "envconfig.h"
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -99,149 +101,38 @@ VoiceManager::~VoiceManager() {
 
 // ==================== Config Loading ====================
 
-QString VoiceManager::findConfigFilePath() const {
-    QStringList paths;
-
-    // 1. Project root .env file (preferred)
-    QString appDir = QCoreApplication::applicationDirPath();
-
-#ifdef Q_OS_MACOS
-    // macOS app bundle: LocalAIAssistant.app/Contents/MacOS/
-    // Need to traverse up several levels to find .env
-    paths << QDir::cleanPath(
-            appDir + "/../../../.env");  // build/LocalAIAssistant.app/Contents/MacOS/../../../.env
-    paths << QDir::cleanPath(appDir + "/../../.env");         // Contents/.env or build/.env
-    paths << QDir::cleanPath(appDir + "/../.env");            // LocalAIAssistant.app/.env
-    paths << QDir::cleanPath(appDir + "/../Resources/.env");  // macOS app bundle Resources
-    paths << QDir::cleanPath(appDir + "/../Resources/girlfriend/.env");
-#elif defined(Q_OS_WIN)
-    // Windows: executable in build directory, resources at same level
-    paths << QDir::cleanPath(appDir + "/.env");
-    paths << QDir::cleanPath(appDir + "/../.env");
-    paths << QDir::cleanPath(appDir + "/../sourcecode-ai-assistant/.env");
-#else
-    // Linux: executable in build directory
-    paths << QDir::cleanPath(appDir + "/../sourcecode-ai-assistant/.env");
-    paths << QDir::cleanPath(appDir + "/.env");
-#endif
-
-    // Current working directory (common during development)
-    paths << ".env";
-    paths << "../.env";
-    paths << "../../.env";
-    paths << "../sourcecode-ai-assistant/.env";
-    paths << "../../sourcecode-ai-assistant/.env";
-
-    // 2. User data directory .env file
-    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    paths << QDir::cleanPath(dataDir + "/.env");
-    paths << QDir::cleanPath(dataDir + "/girlfriend/.env");
-
-    // Debug: output all search paths
-    for (const QString& p : paths) {
-    }
-
-    for (const QString& path : paths) {
-        if (QFile::exists(path)) {
-            return path;
-        }
-    }
-
-    return QString();
+void VoiceManager::applyEnvVars(const QMap<QString, QString>& vars) {
+    if (vars.contains("XFYUN_APP_ID")) m_appId = vars["XFYUN_APP_ID"];
+    if (vars.contains("XFYUN_API_KEY")) m_apiKey = vars["XFYUN_API_KEY"];
+    if (vars.contains("XFYUN_API_SECRET")) m_apiSecret = vars["XFYUN_API_SECRET"];
+    if (vars.contains("XFYUN_ASR_URL")) m_asrUrl = vars["XFYUN_ASR_URL"];
+    if (vars.contains("XFYUN_TTS_URL")) m_ttsUrl = vars["XFYUN_TTS_URL"];
+    if (vars.contains("XFYUN_VOICE_TYPE")) m_voiceType = vars["XFYUN_VOICE_TYPE"];
 }
 
 bool VoiceManager::loadConfig() {
-    // Priority 1: GirlfriendSettings (user-editable via UI — most user-friendly)
+    // Priority 1: .env file via EnvConfig (baseline)
+    QString envPath = EnvConfig::findEnvFile();
+    if (!envPath.isEmpty()) {
+        applyEnvVars(EnvConfig::parseEnvFile(envPath));
+    }
+
+    // Priority 2: GirlfriendSettings JSON non-empty fields overwrite
     GirlfriendSettings* gs = GirlfriendSettings::instance();
-    if (gs->isXfyunConfigured()) {
-        m_appId = gs->xfyunAppId();
-        m_apiKey = gs->xfyunApiKey();
-        m_apiSecret = gs->xfyunApiSecret();
-        m_asrUrl = gs->xfyunAsrUrl().isEmpty() ? QStringLiteral("wss://iat-api.xfyun.cn/v2/iat")
-                                               : gs->xfyunAsrUrl();
-        m_ttsUrl =
-                gs->xfyunTtsUrl().isEmpty()
-                        ? QStringLiteral("wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6")
-                        : gs->xfyunTtsUrl();
-        if (!gs->xfyunVoiceType().isEmpty()) m_voiceType = gs->xfyunVoiceType();
-        return true;
+    if (!gs->xfyunAppId().isEmpty()) m_appId = gs->xfyunAppId();
+    if (!gs->xfyunApiKey().isEmpty()) m_apiKey = gs->xfyunApiKey();
+    if (!gs->xfyunApiSecret().isEmpty()) m_apiSecret = gs->xfyunApiSecret();
+    if (!gs->xfyunAsrUrl().isEmpty()) m_asrUrl = gs->xfyunAsrUrl();
+    if (!gs->xfyunTtsUrl().isEmpty()) m_ttsUrl = gs->xfyunTtsUrl();
+    if (!gs->xfyunVoiceType().isEmpty()) m_voiceType = gs->xfyunVoiceType();
+
+    // Default fallbacks for URLs
+    if (m_asrUrl.isEmpty()) {
+        m_asrUrl = QStringLiteral("wss://iat-api.xfyun.cn/v2/iat");
     }
-
-    // Priority 2: System environment variables
-    m_appId = qEnvironmentVariable("XFYUN_APP_ID");
-    m_apiKey = qEnvironmentVariable("XFYUN_API_KEY");
-    m_apiSecret = qEnvironmentVariable("XFYUN_API_SECRET");
-
-    if (!m_appId.isEmpty() && !m_apiKey.isEmpty() && !m_apiSecret.isEmpty()) {
-        m_asrUrl = qEnvironmentVariable("XFYUN_ASR_URL", "wss://iat-api.xfyun.cn/v2/iat");
-        m_ttsUrl = qEnvironmentVariable("XFYUN_TTS_URL",
-                                        "wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6");
-        return true;
+    if (m_ttsUrl.isEmpty()) {
+        m_ttsUrl = QStringLiteral("wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6");
     }
-
-    // Priority 3: Config files (.env or voice_config.json)
-    QString configPath = findConfigFilePath();
-    if (configPath.isEmpty()) {
-        return false;
-    }
-
-    if (configPath.endsWith(".env")) {
-        return loadFromEnvFile(configPath);
-    } else {
-        return loadFromJsonFile(configPath);
-    }
-}
-
-bool VoiceManager::loadFromEnvFile(const QString& path) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        return false;
-    }
-
-
-    while (!file.atEnd()) {
-        QString line = QString::fromUtf8(file.readLine()).trimmed();
-
-        // Skip empty lines and comments
-        if (line.isEmpty() || line.startsWith('#')) {
-            continue;
-        }
-
-        // Parse KEY=VALUE format
-        int eqPos = line.indexOf('=');
-        if (eqPos <= 0) {
-            continue;
-        }
-
-        QString key = line.left(eqPos).trimmed();
-        QString value = line.mid(eqPos + 1).trimmed();
-
-        // Strip quotes if present
-        if (value.startsWith('"') && value.endsWith('"')) {
-            value = value.mid(1, value.length() - 2);
-        }
-        if (value.startsWith("'") && value.endsWith("'")) {
-            value = value.mid(1, value.length() - 2);
-        }
-
-        // Map to member variables
-        if (key == "XFYUN_APP_ID") {
-            m_appId = value;
-        } else if (key == "XFYUN_API_KEY") {
-            m_apiKey = value;
-        } else if (key == "XFYUN_API_SECRET") {
-            m_apiSecret = value;
-        } else if (key == "XFYUN_ASR_URL") {
-            m_asrUrl = value;
-        } else if (key == "XFYUN_TTS_URL") {
-            m_ttsUrl = value;
-        } else if (key == "XFYUN_VOICE_TYPE") {
-            m_voiceType = value;
-        }
-    }
-
-    file.close();
-
 
     return isConfigured();
 }

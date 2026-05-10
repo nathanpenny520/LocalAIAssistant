@@ -1,13 +1,9 @@
 #include "networkmanager.h"
 
-#include <QCoreApplication>
 #include <QDebug>
-#include <QDir>
-#include <QFile>
-#include <QMap>
 #include <QSettings>
-#include <QStandardPaths>
-#include <QTextStream>
+
+#include "envconfig.h"
 
 #include "anthropic_provider.h"
 #include "apiprovider.h"
@@ -178,54 +174,13 @@ void NetworkManager::saveSettings() {
     }
 }
 
-// --- Env file parsing ---
-
-void NetworkManager::parseEnvFile(const QString& path, QMap<QString, QString>& outVars) {
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
-
-    QTextStream stream(&file);
-    while (!stream.atEnd()) {
-        QString line = stream.readLine().trimmed();
-        if (line.isEmpty() || line.startsWith('#')) continue;
-
-        int eqPos = line.indexOf('=');
-        if (eqPos <= 0) continue;
-
-        QString key = line.left(eqPos).trimmed();
-        QString value = line.mid(eqPos + 1).trimmed();
-
-        if ((value.startsWith('"') && value.endsWith('"'))
-            || (value.startsWith('\'') && value.endsWith('\''))) {
-            value = value.mid(1, value.length() - 2);
-        }
-
-        outVars[key] = value;
-    }
-}
+// --- Env file loading ---
 
 void NetworkManager::loadEnvConfig() {
-    QString appDir = QCoreApplication::applicationDirPath();
-    QStringList searchPaths;
-    searchPaths << QDir::cleanPath(appDir + "/.env");
-    searchPaths << QDir::cleanPath(appDir + "/../Resources/.env");
-    searchPaths << QDir::currentPath() + "/.env";
-    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if (!dataDir.isEmpty()) {
-        searchPaths << QDir::cleanPath(dataDir + "/.env");
-    }
-
-    QString envPath;
-    for (const QString& p : searchPaths) {
-        if (QFile::exists(p)) {
-            envPath = p;
-            break;
-        }
-    }
+    QString envPath = EnvConfig::findEnvFile();
     if (envPath.isEmpty()) return;
 
-    QMap<QString, QString> vars;
-    parseEnvFile(envPath, vars);
+    QMap<QString, QString> vars = EnvConfig::parseEnvFile(envPath);
 
     if (vars.contains("AI_API_KEY")) m_apiKey = vars["AI_API_KEY"];
     if (vars.contains("AI_API_URL")) m_apiBaseUrl = vars["AI_API_URL"];

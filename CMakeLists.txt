@@ -151,6 +151,8 @@ add_library(
     src/core/apiprovider.cpp
     src/core/apiprovider.h
     src/core/datamodels.h
+    src/core/envconfig.cpp
+    src/core/envconfig.h
     src/core/filemanager.cpp
     src/core/filemanager.h
     src/core/llamacpp_provider.cpp

@@ -9,6 +9,7 @@
 #include <QBuffer>
 #include <QFile>
 #include <QIODevice>
+#include <QMap>
 #include <QMediaPlayer>
 #include <QNetworkAccessManager>
 #include <QObject>
@@ -126,9 +127,8 @@ private:
     // Save audio to temp file and play
     void playTtsAudio(const QByteArray& audioData);
 
-    QString findConfigFilePath() const;
+    void applyEnvVars(const QMap<QString, QString>& vars);
 
-    bool loadFromEnvFile(const QString& path);
     bool loadFromJsonFile(const QString& path);
 
 private:
