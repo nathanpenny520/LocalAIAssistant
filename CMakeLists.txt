@@ -427,6 +427,15 @@ if(APPLE)
                 ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/AIGirlfriend
         COMMENT "Copying AIGirlfriend images to app bundle Resources")
 
+    # Copy app icon to app bundle Resources
+    add_custom_command(
+        TARGET ${PROJECT_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
+                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/app.icns
+        COMMENT "Copying app icon to bundle Resources")
+
     # Copy personality.md to app bundle Resources
     add_custom_command(
         TARGET ${PROJECT_NAME}
