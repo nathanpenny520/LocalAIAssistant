@@ -676,30 +676,57 @@ sudo pacman -S qt6-multimedia qt6-websockets
 
 ## 数据存储位置
 
-所有数据文件存储在用户数据目录下：
+所有数据文件存储在用户数据目录下（`QStandardPaths::AppDataLocation`）：
 
-| 平台    | 数据目录路径                                      |
-| ------- | ------------------------------------------------- |
-| macOS   | `~/Library/Application Support/LocalAIAssistant/` |
-| Windows | `%APPDATA%\LocalAIAssistant\`                     |
-| Linux   | `~/.local/share/LocalAIAssistant/`                |
+| 平台    | 数据目录路径                                           |
+| ------- | ------------------------------------------------------ |
+| macOS   | `~/Library/Application Support/LocalAIAssistant/`      |
+| Windows | `C:\Users\<USER>\AppData\Local\LocalAIAssistant\`      |
+| Linux   | `~/.local/share/LocalAIAssistant/`                     |
 
-### AI 女友数据（`girlfriend/` 子目录）
+### 目录结构
 
-| 文件                | 内容                                           |
-| ------------------- | ---------------------------------------------- |
-| `settings.json`     | 全局设置（头像等级、心情影响、语音输出开关等） |
-| `sessions.json`     | 会话元数据列表（ID、名称、创建时间）           |
-| `session_<id>.json` | 单个会话数据（对话历史、情绪状态）             |
-| `memory.md`         | 用户记忆档案（基本信息、喜好、事件）           |
+```
+<AppDataLocation>/
+├── .env                          # 用户 .env 配置（搜索路径 #4）
+├── sessions/                     # 主会话 JSON（SessionManager）
+│   ├── sessions.json             #   会话元数据列表
+│   └── session_<id>.json         #   单个会话（对话历史）
+├── girlfriend/                   # AI 女友模块
+│   ├── settings.json             #   全局设置（头像、心情、语音、XFYUN 凭证）
+│   ├── sessions/                 #   女友会话
+│   ├── session_<id>.json         #   女友单次会话
+│   └── memory.md                 #   用户记忆档案
+├── knowledge/                    # 知识库
+│   ├── chunks.db                 #   SQLite 文本块与元数据
+│   └── vectors.bin               #   向量索引
+├── tasks/                        # 任务撤销栈
+├── prompts/                      # 用户自定义 prompt
+└── memories.json                 # MemoryEnhancer 跨会话记忆
+```
 
-### 知识库数据（`knowledge/` 子目录）
+### QSettings（AI 模型配置、主题、语言等）
 
-| 文件            | 内容                                    |
-| --------------- | --------------------------------------- |
-| `chunks.db`     | SQLite 数据库，存储文档文本块和元数据   |
-| `vectors.bin`   | 二进制向量索引文件                      |
-| `memories.json` | 跨会话记忆条目（MemoryEnhancer 持久化） |
+| 平台    | 存储位置                                                       |
+| ------- | -------------------------------------------------------------- |
+| macOS   | `~/Library/Preferences/com.localaiassistant.LocalAIAssistant.plist` |
+| Windows | 注册表 `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings`  |
+| Linux   | `~/.config/LocalAIAssistant/Settings.conf`                     |
+
+QSettings 中保存的 key：`apiBaseUrl`、`apiKey`、`modelName`、`apiType`、`temperature`、`topP`、`maxTokens`、`maxContext`、`theme`、`language`、`streamingEnabled` 等。
+
+### .env 搜索顺序
+
+应用启动时按以下顺序查找 `.env`，挑第一个存在的加载：
+
+| # | 路径 | 适用场景 |
+|---|------|----------|
+| 1 | `<exe 同目录>/.env` | 解压即用（Windows/Linux portable） |
+| 2 | `<exe>/../Resources/.env` | macOS App Bundle |
+| 3 | `<CWD>/.env` | 开发调试 |
+| 4 | `<AppDataLocation>/.env` | 安装后用户级配置 |
+
+`.env` 优先级：先加载 `.env` 作为基线，再加载 QSettings/JSON 持久化配置，**持久化配置中非空字段覆盖 `.env`**。
 
 ---
 

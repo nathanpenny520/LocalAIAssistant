@@ -705,30 +705,59 @@ Maintenance Tool.
 
 ## Data Storage Location
 
-All data files are stored under the user data directory:
+All data files are stored under the user data directory (`QStandardPaths::AppDataLocation`):
 
-| Platform | Data Directory Path                               |
-| -------- | ------------------------------------------------- |
-| macOS    | `~/Library/Application Support/LocalAIAssistant/` |
-| Windows  | `%APPDATA%\LocalAIAssistant\`                     |
-| Linux    | `~/.local/share/LocalAIAssistant/`                |
+| Platform | Data Directory Path                                    |
+| -------- | ------------------------------------------------------ |
+| macOS    | `~/Library/Application Support/LocalAIAssistant/`      |
+| Windows  | `C:\Users\<USER>\AppData\Local\LocalAIAssistant\`      |
+| Linux    | `~/.local/share/LocalAIAssistant/`                     |
 
-### AI Girlfriend Data (`girlfriend/` subdirectory)
+### Directory Structure
 
-| File                | Content                                                                   |
-| ------------------- | ------------------------------------------------------------------------- |
-| `settings.json`     | Global settings (avatar level, mood influence, voice output toggle, etc.) |
-| `sessions.json`     | Session metadata list (ID, name, creation time)                           |
-| `session_<id>.json` | Single session data (conversation history, emotion state)                 |
-| `memory.md`         | User memory archive (basic info, preferences, events)                     |
+```
+<AppDataLocation>/
+├── .env                          # User .env config (search path #4)
+├── sessions/                     # Main sessions JSON (SessionManager)
+│   ├── sessions.json             #   Session metadata list
+│   └── session_<id>.json         #   Single session (chat history)
+├── girlfriend/                   # AI Girlfriend module
+│   ├── settings.json             #   Global settings (avatar, mood, voice, XFYUN credentials)
+│   ├── sessions/                 #   Girlfriend sessions
+│   ├── session_<id>.json         #   Single girlfriend session
+│   └── memory.md                 #   User memory archive
+├── knowledge/                    # Knowledge base
+│   ├── chunks.db                 #   SQLite text chunks and metadata
+│   └── vectors.bin               #   Vector index
+├── tasks/                        # Task undo stack
+├── prompts/                      # User custom prompts
+└── memories.json                 # MemoryEnhancer cross-session memories
+```
 
-### Knowledge Base Data (`knowledge/` subdirectory)
+### QSettings (AI model config, theme, language, etc.)
 
-| File            | Content                                                   |
-| --------------- | --------------------------------------------------------- |
-| `chunks.db`     | SQLite database storing document text chunks and metadata |
-| `vectors.bin`   | Binary vector index file                                  |
-| `memories.json` | Cross-session memory entries (MemoryEnhancer persistence) |
+| Platform | Storage Location                                                       |
+| -------- | ---------------------------------------------------------------------- |
+| macOS    | `~/Library/Preferences/com.localaiassistant.LocalAIAssistant.plist`   |
+| Windows  | Registry `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings`       |
+| Linux    | `~/.config/LocalAIAssistant/Settings.conf`                            |
+
+Keys stored in QSettings: `apiBaseUrl`, `apiKey`, `modelName`, `apiType`, `temperature`,
+`topP`, `maxTokens`, `maxContext`, `theme`, `language`, `streamingEnabled`, etc.
+
+### .env Search Order
+
+On startup, the app searches for `.env` in the following order (first match wins):
+
+| # | Path | Use Case |
+|---|------|----------|
+| 1 | `<exeDir>/.env` | Extract-and-run (Windows/Linux portable) |
+| 2 | `<exe>/../Resources/.env` | macOS App Bundle |
+| 3 | `<CWD>/.env` | Development |
+| 4 | `<AppDataLocation>/.env` | User-level config after install |
+
+`.env` priority: `.env` is loaded first as a baseline, then QSettings/JSON persistent config
+is loaded. **Non-empty fields in persistent config override `.env`**.
 
 ---
 
