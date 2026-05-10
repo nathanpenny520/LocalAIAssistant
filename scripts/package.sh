@@ -513,6 +513,27 @@ package_linux() {
         echo "  CLI binary copied"
     fi
 
+    # --- Bundle Qt libraries with linuxdeployqt ---
+    local linuxdeployqt
+    linuxdeployqt=$(find_tool "linuxdeployqt" "linuxdeployqt")
+
+    if [ -n "$linuxdeployqt" ] && [ -f "$staging/LocalAIAssistant" ]; then
+        echo ""
+        echo "  Bundling Qt libraries with linuxdeployqt..."
+        # linuxdeployqt works best with a .desktop file; create a minimal one if needed
+        if [ -f "$PROJECT_ROOT/resources/localaiassistant.desktop" ]; then
+            cp "$PROJECT_ROOT/resources/localaiassistant.desktop" "$staging/"
+        fi
+        "$linuxdeployqt" "$staging/LocalAIAssistant" -verbose=1 -no-strip \
+            -bundle-non-qt-libs 2>&1 | sed 's/^/  /' || \
+            echo "  Warning: linuxdeployqt reported issues, continuing anyway..."
+        echo "  Qt libraries bundled"
+    elif [ -f "$staging/LocalAIAssistant" ]; then
+        echo ""
+        echo "  linuxdeployqt not found — Qt libraries will NOT be bundled."
+        echo "  The GUI requires Qt6 to be installed on the target system."
+    fi
+
     # Copy resource directories
     for dir in core AIGirlfriend girlfriend translations models prompts; do
         if [ -d "$BUILD_DIR/$dir" ]; then
