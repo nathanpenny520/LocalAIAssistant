@@ -1,7 +1,6 @@
 #include "girlfriendsessionmanager.h"
 
 #include <QDateTime>
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -115,7 +114,6 @@ QString GirlfriendSessionManager::createNewSession(const QString& name) {
 
     emit sessionCreated(sessionId, sessionName);
 
-    qDebug() << "Created new session:" << sessionId << "named:" << sessionName;
     return sessionId;
 }
 
@@ -130,7 +128,6 @@ bool GirlfriendSessionManager::switchSession(const QString& sessionId) {
     }
 
     if (!found) {
-        qDebug() << "Cannot switch to non-existent session:" << sessionId;
         return false;
     }
 
@@ -152,14 +149,12 @@ bool GirlfriendSessionManager::switchSession(const QString& sessionId) {
 
     emit sessionSwitched(sessionId);
 
-    qDebug() << "Switched to session:" << sessionId;
     return true;
 }
 
 bool GirlfriendSessionManager::deleteSession(const QString& sessionId) {
     // Cannot delete current session
     if (sessionId == currentSessionId()) {
-        qDebug() << "Cannot delete current session:" << sessionId;
         return false;
     }
 
@@ -173,7 +168,6 @@ bool GirlfriendSessionManager::deleteSession(const QString& sessionId) {
     }
 
     if (index < 0) {
-        qDebug() << "Cannot find session to delete:" << sessionId;
         return false;
     }
 
@@ -189,7 +183,6 @@ bool GirlfriendSessionManager::deleteSession(const QString& sessionId) {
 
     emit sessionDeleted(sessionId);
 
-    qDebug() << "Deleted session:" << sessionId;
     return true;
 }
 
@@ -199,12 +192,10 @@ bool GirlfriendSessionManager::renameSession(const QString& sessionId, const QSt
             m_sessions[i].name = newName;
             saveSessionsList();
             emit sessionRenamed(sessionId, newName);
-            qDebug() << "Renamed session:" << sessionId << "to:" << newName;
             return true;
         }
     }
 
-    qDebug() << "Cannot find session to rename:" << sessionId;
     return false;
 }
 
@@ -285,8 +276,6 @@ void GirlfriendSessionManager::loadAll() {
     m_currentSession = new GirlfriendSession();
     m_currentSession->loadFromFile(sessionDataPath(currentId));
 
-    qDebug() << "Loaded session manager with" << m_sessions.size()
-             << "sessions, current:" << currentId;
 }
 
 void GirlfriendSessionManager::saveSessionsList() {
@@ -317,9 +306,7 @@ void GirlfriendSessionManager::saveSessionsList() {
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
         file.close();
-        qDebug() << "Saved sessions list to:" << sessionsListPath();
     } else {
-        qDebug() << "Failed to save sessions list:" << file.errorString();
     }
 }
 
@@ -328,12 +315,10 @@ void GirlfriendSessionManager::loadSessionsList() {
 
     QFile file(sessionsListPath());
     if (!file.exists()) {
-        qDebug() << "Sessions list file does not exist, will create on save";
         return;
     }
 
     if (!file.open(QIODevice::ReadOnly)) {
-        qDebug() << "Failed to open sessions list:" << file.errorString();
         return;
     }
 
@@ -342,7 +327,6 @@ void GirlfriendSessionManager::loadSessionsList() {
 
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (doc.isNull() || !doc.isObject()) {
-        qDebug() << "Invalid sessions list JSON";
         return;
     }
 
@@ -361,7 +345,6 @@ void GirlfriendSessionManager::loadSessionsList() {
         m_sessions.append(meta);
     }
 
-    qDebug() << "Loaded" << m_sessions.size() << "sessions from list";
 }
 
 void GirlfriendSessionManager::updateLastUsed(const QString& sessionId) {

@@ -1,7 +1,6 @@
 #include "girlfriendsettings.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QJsonDocument>
 
 GirlfriendSettings* GirlfriendSettings::instance() {
@@ -153,7 +152,6 @@ void GirlfriendSettings::save() {
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
         file.close();
-        qDebug() << "GirlfriendSettings saved to:" << path;
     } else {
         qWarning() << "GirlfriendSettings failed to open file for writing:" << path
                    << file.errorString();
@@ -170,7 +168,6 @@ void GirlfriendSettings::load() {
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
             fromJson(doc.object());
-            qDebug() << "GirlfriendSettings loaded from:" << path;
         }
     }
 }

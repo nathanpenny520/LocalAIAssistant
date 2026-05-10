@@ -1,7 +1,6 @@
 #include "translationmanager.h"
 
 #include <QApplication>
-#include <QDebug>
 #include <QDir>
 
 TranslationManager* TranslationManager::m_instance = nullptr;

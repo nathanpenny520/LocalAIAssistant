@@ -1,6 +1,5 @@
 #include "fileparser.h"
 
-#include <QDebug>
 #include <QFile>
 #include <QFileInfo>
 #include <QMimeDatabase>

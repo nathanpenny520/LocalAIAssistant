@@ -1,7 +1,6 @@
 #include "personalityengine.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QRandomGenerator>
@@ -20,10 +19,8 @@ void PersonalityEngine::loadFromFile() {
 
     if (m_personalityPrompt.isEmpty()) {
         m_personalityPrompt = QStringLiteral("你是小清，一个温柔体贴、有知性陪伴感的AI女友。");
-        qDebug() << "PersonalityEngine: Using default prompt";
     } else {
         parseTemplateConfig();
-        qDebug() << "PersonalityEngine: Loaded prompt from PromptManager";
     }
 }
 

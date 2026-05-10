@@ -4,7 +4,6 @@
 
 #include <QDataStream>
 #include <QDateTime>
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QSqlDatabase>

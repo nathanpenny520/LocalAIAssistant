@@ -1,5 +1,4 @@
 #include <QApplication>
-#include <QDebug>
 #include <QLocale>
 #include <QSettings>
 
@@ -34,7 +33,6 @@ void attachDebugConsole() {
         // Set console title
         SetConsoleTitleW(L"LocalAIAssistant - Debug Console");
 
-        qDebug() << "Debug console created. Close this window to hide logs.";
     }
 }
 #endif
@@ -57,8 +55,6 @@ int main(int argc, char* argv[]) {
 
     if (showDebugConsole) {
         attachDebugConsole();
-        qDebug() << "=== LocalAIAssistant Debug Mode ===";
-        qDebug() << "Application starting...";
     }
 #endif
 

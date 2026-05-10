@@ -1,7 +1,6 @@
 #include "apiprovider.h"
 
 #include <QDateTime>
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QUrl>
@@ -110,9 +109,6 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
     }
 
     QString fullUrl = resolveFullUrl();
-    qDebug() << "[DEBUG] ApiProvider::sendChatRequest, messages:" << messages.size()
-             << "streamingEnabled:" << m_streamingEnabled
-             << "url:" << fullUrl;
 
     if (fullUrl.isEmpty()) {
         emit errorOccurred("API URL is empty");
@@ -163,7 +159,6 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
 
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
-    qDebug() << "[DEBUG] ApiProvider::sendChatRequest: postData size:" << postData.size() << "bytes";
 
     // Save the feedback request payload for debugging
     if (messages.size() > 1) {
@@ -179,7 +174,6 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
             if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 debugFile.write(postData);
                 debugFile.close();
-                qDebug() << "[DEBUG] ApiProvider::sendChatRequest: saved feedback request to ~/Desktop/feedback_request.json";
             }
         }
     }
@@ -194,8 +188,6 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
 
     m_streamBuffer.clear();
     m_currentReply = m_network->post(request, postData);
-    qDebug() << "[DEBUG] ApiProvider::sendChatRequest: post() returned, m_currentReply:" << (m_currentReply != nullptr)
-             << "isFinished:" << (m_currentReply ? m_currentReply->isFinished() : false);
 
     if (m_streamingEnabled) {
         connect(m_currentReply, &QNetworkReply::readyRead, this, &ApiProvider::onStreamReadyRead);
@@ -215,9 +207,7 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
 void ApiProvider::onReplyFinished() {
     if (!m_currentReply) return;
 
-    qDebug() << "[DEBUG] ApiProvider::onReplyFinished, error:" << m_currentReply->error();
     if (m_currentReply->error() != QNetworkReply::NoError) {
-        qDebug() << "[DEBUG] ApiProvider::onReplyFinished: error:" << m_currentReply->errorString();
         emit errorOccurred(m_currentReply->errorString());
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -226,7 +216,6 @@ void ApiProvider::onReplyFinished() {
 
     QByteArray responseData = m_currentReply->readAll();
     QString content = extractContentFromResponse(responseData);
-    qDebug() << "[DEBUG] ApiProvider::onReplyFinished: content length:" << content.size();
     emit responseReceived(content);
 
     m_currentReply->deleteLater();
@@ -237,7 +226,6 @@ void ApiProvider::onStreamReadyRead() {
     if (!m_currentReply) return;
 
     QByteArray newData = m_currentReply->readAll();
-    qDebug() << "[DEBUG] ApiProvider::onStreamReadyRead: received" << newData.size() << "bytes";
     QString chunk = extractDeltaFromSSE(newData);
     if (!chunk.isEmpty()) {
         m_streamBuffer += chunk;
@@ -248,11 +236,8 @@ void ApiProvider::onStreamReadyRead() {
 void ApiProvider::onStreamFinished() {
     if (!m_currentReply) return;
 
-    qDebug() << "[DEBUG] ApiProvider::onStreamFinished, error:" << m_currentReply->error()
-             << "streamBuffer length:" << m_streamBuffer.size();
     if (m_currentReply->error() != QNetworkReply::NoError &&
         m_currentReply->error() != QNetworkReply::OperationCanceledError) {
-        qDebug() << "[DEBUG] ApiProvider::onStreamFinished: error:" << m_currentReply->errorString();
         emit errorOccurred(m_currentReply->errorString());
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -266,7 +251,6 @@ void ApiProvider::onStreamFinished() {
         if (!chunk.isEmpty()) m_streamBuffer += chunk;
     }
 
-    qDebug() << "[DEBUG] ApiProvider::onStreamFinished: emitting streamFinished, final buffer length:" << m_streamBuffer.size();
     emit streamFinished(m_streamBuffer);
     m_streamBuffer.clear();
 
@@ -363,18 +347,9 @@ int ApiProvider::computeContextStartIndex(const QVector<ChatMessage>& messages) 
             realIncluded++;
         }
         if (realIncluded >= m_maxContext) {
-            qDebug() << "[ContextWindow] startIndex:" << i
-                     << "realMessages:" << realIncluded
-                     << "injectedMessages:" << injectedIncluded
-                     << "skippedInjected:" << skippedInjected
-                     << "totalSent:" << (totalCount - i - skippedInjected);
             return i;
         }
     }
-    qDebug() << "[ContextWindow] startIndex: 0 (all messages)"
-             << "realMessages:" << realIncluded
-             << "injectedMessages:" << injectedIncluded
-             << "skippedInjected:" << skippedInjected;
     return 0;
 }
 

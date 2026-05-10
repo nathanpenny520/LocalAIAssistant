@@ -2,7 +2,6 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QRegularExpression>
@@ -60,7 +59,6 @@ QString MemoryManager::loadMemory() {
     if (userFile.exists() && userFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         m_memoryContent = QString::fromUtf8(userFile.readAll());
         userFile.close();
-        qDebug() << "MemoryManager: Loaded memory from user data:" << userPath;
         return m_memoryContent;
     }
 
@@ -71,7 +69,6 @@ QString MemoryManager::loadMemory() {
         if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             m_memoryContent = QString::fromUtf8(file.readAll());
             file.close();
-            qDebug() << "MemoryManager: Loaded memory from:" << path;
 
             // Copy to user data directory so it becomes writable
             saveToFile();
@@ -81,7 +78,6 @@ QString MemoryManager::loadMemory() {
 
     // Default empty memory
     m_memoryContent = "# 用户记忆档案\n\n待记录";
-    qDebug() << "MemoryManager: Using default empty memory";
     return m_memoryContent;
 }
 
@@ -98,9 +94,7 @@ void MemoryManager::saveToFile() {
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         file.write(m_memoryContent.toUtf8());
         file.close();
-        qDebug() << "MemoryManager: Saved memory to:" << path;
     } else {
-        qDebug() << "MemoryManager: Failed to save memory to:" << path;
     }
 }
 
@@ -170,7 +164,6 @@ void MemoryManager::applyMemoryUpdates(const QList<MemoryUpdate>& updates) {
 
         // Skip duplicates
         if (m_memoryContent.contains(content)) {
-            qDebug() << "MemoryManager: 内容已存在，跳过重复记录 - " << content;
             continue;
         }
 
@@ -196,10 +189,8 @@ void MemoryManager::applyMemoryUpdates(const QList<MemoryUpdate>& updates) {
             m_memoryContent =
                     m_memoryContent.replace(match.captured(0), sectionHeader + sectionContent);
         } else {
-            qDebug() << "MemoryManager: Category not found:" << category;
         }
     }
 
     saveToFile();
-    qDebug() << "MemoryManager: Applied" << updates.size() << "memory updates";
 }

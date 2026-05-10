@@ -1,6 +1,5 @@
 #include "networkmanager.h"
 
-#include <QDebug>
 #include <QSettings>
 
 #include "anthropic_provider.h"

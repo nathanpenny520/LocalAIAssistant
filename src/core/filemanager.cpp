@@ -1,6 +1,5 @@
 #include "filemanager.h"
 
-#include <QDebug>
 #include <QFileInfo>
 
 #include "fileparser.h"
@@ -23,12 +22,10 @@ bool FileManager::isImageFile(const QString& path) {
 bool FileManager::addFile(const QString& path) {
     QFileInfo info(path);
     if (!info.exists()) {
-        qDebug() << "File does not exist:" << path;
         return false;
     }
 
     if (info.size() > kMaxFileSize) {
-        qDebug() << "File too large:" << path << info.size() << "bytes";
         return false;
     }
 

@@ -7,7 +7,6 @@
 
 #include "markdownrenderer.h"
 
-#include <QDebug>
 #include <QRegularExpression>
 
 // Helper struct for replacement tracking

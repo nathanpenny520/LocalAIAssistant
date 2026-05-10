@@ -4,7 +4,6 @@
 #include <QButtonGroup>
 #include <QComboBox>
 #include <QCoreApplication>
-#include <QDebug>
 #include <QDialog>
 #include <QEvent>
 #include <QFormLayout>
@@ -194,8 +193,6 @@ GirlfriendWindow::GirlfriendWindow(QWidget* parent)
         // Force overlay labels to reflect correct state on init
         updateOverlayLabels();
 
-        qDebug() << "GirlfriendWindow: Loaded from session - mood:" << sessionMood
-                 << ", emotion:" << sessionEmotion;
     }
 
     // === Connect remaining signals ===
@@ -240,7 +237,6 @@ GirlfriendWindow::GirlfriendWindow(QWidget* parent)
 
     // Check voice configuration
     if (!m_voiceManager->isConfigured()) {
-        qDebug() << "GirlfriendWindow: Voice credentials not configured";
         m_voiceButton->setToolTip(GTr::voiceNotConfiguredTooltip());
     } else {
         m_voiceButton->setToolTip(GTr::voiceInputTooltip());
@@ -388,7 +384,6 @@ void GirlfriendWindow::applyTheme() {
                                             .arg(pink, pinkHover));
     }
 
-    qDebug() << "GirlfriendWindow: Theme applied -" << (m_isDarkTheme ? "dark" : "light");
 }
 
 void GirlfriendWindow::changeEvent(QEvent* event) {
@@ -435,7 +430,6 @@ void GirlfriendWindow::showEvent(QShowEvent* event) {
         updateOverlayLabels();
     }
 
-    qDebug() << "GirlfriendWindow: Show event - overlay visibility updated";
 }
 
 void GirlfriendWindow::retranslateUi() {
@@ -452,7 +446,6 @@ void GirlfriendWindow::retranslateUi() {
     m_avatarWidget->retranslateUi();
     updateOverlayLabels();
 
-    qDebug() << "GirlfriendWindow: UI retranslated";
 }
 
 void GirlfriendWindow::setupUI() {
@@ -945,13 +938,11 @@ void GirlfriendWindow::onSettingsClicked() {
 void GirlfriendWindow::onToggleVoiceOutput() {
     bool enabled = !GirlfriendSettings::instance()->voiceOutputEnabled();
     GirlfriendSettings::instance()->setVoiceOutputEnabled(enabled);
-    qDebug() << "GirlfriendWindow: Voice output toggled to" << enabled;
 
     // If turning off voice output while speaking, stop immediately and unlock state
     if (!enabled && m_voiceManager->isSpeaking()) {
         m_voiceManager->stopSpeaking();
         m_avatarWidget->unlockState();
-        qDebug() << "GirlfriendWindow: Stopped voice and unlocked state";
     }
 }
 
@@ -991,7 +982,6 @@ void GirlfriendWindow::onClearClicked() {
         m_currentOverlayMood = 0.6;
         updateOverlayLabels();
 
-        qDebug() << "GirlfriendWindow: History cleared, emotion and mood reset to default";
     }
 }
 
@@ -1202,7 +1192,6 @@ void GirlfriendWindow::onStreamFinished(const QString& fullContent) {
     // Fallback: apply memory updates via regex
     if (!memoryUpdates.isEmpty()) {
         m_memoryManager->applyMemoryUpdates(memoryUpdates);
-        qDebug() << "GirlfriendWindow: Applied memory updates via fallback (regex)";
     }
 
     // Update emotion (applied immediately, not deferred for TTS)
@@ -1277,7 +1266,6 @@ void GirlfriendWindow::onStreamFinished(const QString& fullContent) {
         // Collapse whitespace
         cleanText = cleanText.simplified();
 
-        qDebug() << "GirlfriendWindow: TTS clean text:" << cleanText;
 
         if (!cleanText.isEmpty()) {
             // Keep speaking state during TTS playback
@@ -1344,7 +1332,6 @@ void GirlfriendWindow::onAsrError(const QString& error) {
 void GirlfriendWindow::onSpeakingStarted() {
     // TTS playback started — state is locked; ensure speaking flag is set
     m_avatarWidget->setSpeaking(true);
-    qDebug() << "GirlfriendWindow: TTS speaking started";
 }
 
 void GirlfriendWindow::onSpeakingFinished() {
@@ -1365,14 +1352,11 @@ void GirlfriendWindow::onSpeakingFinished() {
             QString sessionEmotion = session->currentEmotion();
             if (!sessionEmotion.isEmpty() && sessionEmotion != "speaking") {
                 m_avatarWidget->setEmotion(sessionEmotion);
-                qDebug()
-                        << "GirlfriendWindow: TTS finished, emotion restored to:" << sessionEmotion;
             }
         }
     } else {
         // Level already switched — emotion was restored during the switch; just unlock
         m_avatarWidget->unlockState();
-        qDebug() << "GirlfriendWindow: TTS finished after level change, state unlocked";
     }
 }
 
@@ -1418,10 +1402,8 @@ void GirlfriendWindow::onSessionChanged(int index) {
                 m_personalityEngine->setMood(sessionMood);
                 m_avatarWidget->setMood(sessionMood);
                 m_currentOverlayMood = sessionMood;
-                qDebug() << "GirlfriendWindow: Loaded mood from new session:" << sessionMood;
             }
 
-            qDebug() << "GirlfriendWindow: Switched to session" << sessionId;
         }
     }
 }
@@ -1451,7 +1433,6 @@ void GirlfriendWindow::onNewSessionClicked() {
     m_personalityEngine->resetMood();
     updateOverlayLabels();
 
-    qDebug() << "GirlfriendWindow: Created and switched to new session" << newSessionId;
 }
 
 void GirlfriendWindow::onManageConversations() {
@@ -1623,7 +1604,6 @@ void GirlfriendWindow::onAvatarLevelChanged(int level) {
             // Process event queue to let audio cleanup complete
             QCoreApplication::processEvents();
 
-            qDebug() << "GirlfriendWindow: TTS stopped and audio cleared before video mode";
         } else {
             m_avatarWidget->unlockState();
         }
@@ -1683,20 +1663,15 @@ void GirlfriendWindow::onAvatarLevelChanged(int level) {
 
     updateOverlayVisibility();
 
-    qDebug() << "GirlfriendWindow: Avatar level changed to" << level << "from"
-             << static_cast<int>(oldLevel) + 1 << ", emotion:" << currentEmotion
-             << ", wasSpeaking:" << wasSpeaking;
 }
 
 void GirlfriendWindow::onMoodInfluenceChanged(int level) {
     GirlfriendSettings::instance()->setMoodInfluence(static_cast<MoodInfluenceLevel>(level));
-    qDebug() << "GirlfriendWindow: Mood influence changed to" << level;
 }
 
 void GirlfriendWindow::onVideoSoundToggled() {
     bool enabled = !GirlfriendSettings::instance()->videoSoundEnabled();
     GirlfriendSettings::instance()->setVideoSoundEnabled(enabled);
-    qDebug() << "GirlfriendWindow: Video sound toggled to" << enabled;
 }
 
 void GirlfriendWindow::onSettingsAvatarLevelChanged(AvatarLevel level) {
@@ -1732,8 +1707,6 @@ void GirlfriendWindow::onAvatarEmotionChanged(const QString& emotion) {
 void GirlfriendWindow::onAvatarMoodChanged(double mood) {
     // Use mood value directly from signal (most accurate)
     m_currentOverlayMood = mood;
-    qDebug() << "GirlfriendWindow: Mood changed to" << mood
-             << "percent:" << static_cast<int>(mood * 100);
     updateOverlayLabels();
 }
 
@@ -1805,8 +1778,6 @@ void GirlfriendWindow::updateOverlayLabels() {
     m_overlayMoodPercentLabel->setText(QString("%1%").arg(percent));
     m_overlayMoodPercentLabel->adjustSize();
 
-    qDebug() << "updateOverlayLabels: mood=" << m_currentOverlayMood << "percent=" << percent
-             << "barWidth=" << barWidth;
 
     // Reposition mood bar below emotion label
     int emotionLabelHeight = m_overlayEmotionLabel->sizeHint().height();

@@ -1,6 +1,5 @@
 #include "girlfriendsession.h"
 
-#include <QDebug>
 #include <QJsonDocument>
 #include <QSettings>
 
@@ -87,9 +86,7 @@ void GirlfriendSession::saveToFile(const QString& path) {
     if (file.open(QIODevice::WriteOnly)) {
         file.write(doc.toJson());
         file.close();
-        qDebug() << "GirlfriendSession saved to:" << path;
     } else {
-        qDebug() << "Failed to save GirlfriendSession:" << file.errorString();
     }
 }
 
@@ -102,7 +99,6 @@ void GirlfriendSession::loadFromFile(const QString& path) {
         QJsonDocument doc = QJsonDocument::fromJson(data);
         if (!doc.isNull() && doc.isObject()) {
             fromJson(doc.object());
-            qDebug() << "GirlfriendSession loaded from:" << path;
         }
     }
 }

@@ -1,7 +1,6 @@
 #include "avatarwidget.h"
 
 #include <QCoreApplication>
-#include <QDebug>
 #include <QDir>
 #include <QFile>
 #include <QRandomGenerator>
@@ -128,17 +127,14 @@ void AvatarWidget::loadAvatarImages() {
     QString avatarDir = GirlfriendSettings::instance()->avatarLevelPath();
 
     if (avatarDir.isEmpty()) {
-        qDebug() << "AvatarWidget: Avatar level path not found";
         return;
     }
 
     QDir dir(avatarDir);
     if (!dir.exists()) {
-        qDebug() << "AvatarWidget: Avatar directory does not exist:" << avatarDir;
         return;
     }
 
-    qDebug() << "AvatarWidget: Loading avatars from:" << avatarDir;
 
     m_currentLevel = GirlfriendSettings::instance()->avatarLevel();
 
@@ -164,9 +160,7 @@ void AvatarWidget::loadAvatarImages() {
         QPixmap pixmap(fullPath);
         if (!pixmap.isNull()) {
             m_avatarImages[emotion] = pixmap;
-            qDebug() << "Loaded avatar:" << emotion << "from" << fullPath;
         } else {
-            qDebug() << "Failed to load avatar:" << emotion << "from" << fullPath;
         }
     }
 }
@@ -174,7 +168,6 @@ void AvatarWidget::loadAvatarImages() {
 void AvatarWidget::setEmotion(const QString& emotion, bool forceUpdate) {
     if (m_stateLocked) {
         m_pendingEmotion = emotion;
-        qDebug() << "AvatarWidget: State locked, pending emotion:" << emotion;
         return;
     }
 
@@ -217,14 +210,10 @@ void AvatarWidget::setAvatarLevel(AvatarLevel level) {
         if (level == AvatarLevel::Level3_Hotter) {
             m_videoPlayer->setAudioOutput(m_audioOutput);
             m_audioOutput->setMuted(!GirlfriendSettings::instance()->videoSoundEnabled());
-            qDebug() << "AvatarWidget: Level 3 audio output set, muted:"
-                     << !GirlfriendSettings::instance()->videoSoundEnabled();
         }
 
         updateDisplay();
 
-        qDebug() << "AvatarWidget: Avatar level changed to" << static_cast<int>(level)
-                 << ", pending emotion preserved:" << m_pendingEmotion;
     }
 }
 
@@ -390,7 +379,6 @@ void AvatarWidget::playVideo(const QString& emotion) {
     if (!QFile(videoPath).exists()) {
         videoPath = avatarDir + "/default.mp4";
         if (!QFile(videoPath).exists()) {
-            qDebug() << "AvatarWidget: No video found for emotion:" << emotion;
             return;
         }
     }
@@ -403,8 +391,6 @@ void AvatarWidget::playVideo(const QString& emotion) {
         m_videoPlayer->setSource(QUrl::fromLocalFile(videoPath));
         m_videoPlayer->setLoops(QMediaPlayer::Infinite);
         m_videoPlayer->play();
-        qDebug() << "AvatarWidget: Playing video for emotion:" << emotion << "from" << videoPath
-                 << "audio muted:" << m_audioOutput->isMuted();
     }
     // Always update video size to match current widget dimensions
     m_videoItem->setSize(QSizeF(width(), height()));
@@ -420,7 +406,6 @@ void AvatarWidget::stopVideo() {
 void AvatarWidget::lockState() {
     m_stateLocked = true;
     m_pendingEmotion.clear();
-    qDebug() << "AvatarWidget: State locked";
 }
 
 void AvatarWidget::unlockState() {
@@ -429,8 +414,6 @@ void AvatarWidget::unlockState() {
         QString pending = m_pendingEmotion;
         m_pendingEmotion.clear();
         setEmotion(pending);
-        qDebug() << "AvatarWidget: State unlocked, applied pending emotion:" << pending;
     } else {
-        qDebug() << "AvatarWidget: State unlocked, no pending emotion";
     }
 }

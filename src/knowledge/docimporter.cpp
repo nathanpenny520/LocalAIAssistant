@@ -1,6 +1,5 @@
 #include "docimporter.h"
 
-#include <QDebug>
 #include <QFileInfo>
 
 #include "embedder.h"
