@@ -58,7 +58,40 @@ void AgentLoop::continueWithResponse(const QString& response) {
 }
 
 void AgentLoop::processNextIteration(const QString& response) {
-    // Check for task completion first
+    // Check for TASK_PLAN first — the AI may mix TASK_COMPLETE (closing prior
+    // context) and TASK_PLAN (new work) in a single response. Processing the plan
+    // takes precedence; TASK_COMPLETE alone ends the loop.
+    TaskEngine* engine = TaskEngine::instance();
+    OperationPlan plan = engine->parsePlanFromAIResponse(response);
+
+    if (!plan.isEmpty()) {
+        SafetyChecker::Result safetyResult = engine->validatePlan(plan);
+
+        if (safetyResult == SafetyChecker::Blocked) {
+            QString errMsg = tr("Operation blocked: %1")
+                                     .arg(engine->safetyChecker().lastBlockReason());
+            SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", errMsg);
+            m_state = Stopped;
+            emit stateChanged(m_state);
+            emit loopFinished(errMsg, m_sessionId);
+            return;
+        }
+
+        if (safetyResult == SafetyChecker::NeedsConfirmation) {
+            m_pendingPlan = plan;
+            m_state = AwaitingUserConfirm;
+            emit stateChanged(m_state);
+            QVector<PathViolation> violations = engine->safetyChecker().lastPathViolations();
+            emit planRequiresConfirmation(plan, violations);
+            return;
+        }
+
+        // Approved — execute and continue
+        executeAndContinue(plan);
+        return;
+    }
+
+    // No TASK_PLAN — check if this is a task completion
     if (isTaskComplete(response)) {
         SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", response);
         m_state = Completed;
@@ -67,41 +100,11 @@ void AgentLoop::processNextIteration(const QString& response) {
         return;
     }
 
-    TaskEngine* engine = TaskEngine::instance();
-    OperationPlan plan = engine->parsePlanFromAIResponse(response);
-
-    if (plan.isEmpty()) {
-        // No TASK_PLAN found — treat as normal chat message and end loop
-        SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", response);
-        m_state = Completed;
-        emit stateChanged(m_state);
-        emit loopFinished(tr("Task finished"), m_sessionId);
-        return;
-    }
-
-    SafetyChecker::Result safetyResult = engine->validatePlan(plan);
-
-    if (safetyResult == SafetyChecker::Blocked) {
-        QString errMsg = tr("Operation blocked: %1")
-                                 .arg(engine->safetyChecker().lastBlockReason());
-        SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", errMsg);
-        m_state = Stopped;
-        emit stateChanged(m_state);
-        emit loopFinished(errMsg, m_sessionId);
-        return;
-    }
-
-    if (safetyResult == SafetyChecker::NeedsConfirmation) {
-        m_pendingPlan = plan;
-        m_state = AwaitingUserConfirm;
-        emit stateChanged(m_state);
-        QVector<PathViolation> violations = engine->safetyChecker().lastPathViolations();
-        emit planRequiresConfirmation(plan, violations);
-        return;
-    }
-
-    // Approved — execute and continue
-    executeAndContinue(plan);
+    // No TASK_PLAN and no completion tag — treat as normal chat, end loop
+    SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", response);
+    m_state = Completed;
+    emit stateChanged(m_state);
+    emit loopFinished(tr("Task finished"), m_sessionId);
 }
 
 void AgentLoop::confirmPlan() {
@@ -143,11 +146,6 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     // Build structured feedback message
     QString feedback = buildResultFeedback(results);
     m_lastFeedback = feedback;
-
-    // Save the original AI response (with TASK_PLAN) as assistant message
-    ChatMessage planMsg("assistant", plan.generateSummary());
-    planMsg.isAgentLoopInjected = true;
-    SessionManager::instance()->addMessageToSession(m_sessionId, planMsg);
 
     // Add feedback as a user message to continue the conversation
     ChatMessage feedbackMsg("user", feedback);

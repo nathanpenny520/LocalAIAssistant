@@ -766,6 +766,7 @@ void MainWindow::onNetworkFinished(const QString& response) {
 
     // Check if response contains a task plan
     if (response.contains(TaskEngine::kTagTaskPlan, Qt::CaseInsensitive)) {
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
             AgentLoop::instance()->continueWithResponse(response);
         } else {
@@ -895,6 +896,7 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
 
     // Check if response contains a task plan
     if (fullContent.contains(TaskEngine::kTagTaskPlan, Qt::CaseInsensitive)) {
+        SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullContent);
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
             // Continuation response within an active loop
             AgentLoop::instance()->continueWithResponse(fullContent);
