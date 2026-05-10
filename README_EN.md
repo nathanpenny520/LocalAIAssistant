@@ -100,6 +100,22 @@ and other prose-heavy PDF/TXT/MD/DOCX files.
   `--yes` flag auto-confirms Tier 2 warnings (Tier 1 never bypassed). GUI confirmation dialog
   with per-path buttons.
 
+> ⚠️ **Known Issue: Agent Loop Feedback Hang (macOS)**:
+>
+> After executing a plan, the Agent Loop must send results back to the AI to continue the cycle
+> (e.g., reporting operation success or requesting the next step). **On macOS, this feedback
+> request hangs indefinitely** — no error, no timeout, no data returned, UI freezes.
+>
+> **Cause**: Qt on macOS uses NSURLSession for HTTP requests. The first SSE streaming request
+> (user's initial message) works fine, but sending a second SSE streaming request (Agent Loop
+> feedback) immediately after triggers a known NSURLSession defect — back-to-back SSE streams hang.
+> A `forceNonStreaming` parameter was added to the code to work around this, but testing shows
+> the fix does not resolve the issue.
+>
+> **Impact**: All tasks requiring Agent Loop execution (task plans with file operations).
+> **Status**: Unresolved, under investigation.
+> **Tracking files**: `src/core/apiprovider.cpp:105-106`, `src/tasks/agentloop.cpp`
+
 > ⚠️ **Platform Compatibility**:
 >
 > - **macOS**: Full voice input/output support ✅
