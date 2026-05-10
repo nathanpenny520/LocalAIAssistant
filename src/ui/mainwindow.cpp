@@ -702,6 +702,7 @@ void MainWindow::onSendClicked() {
     }
 
     if (m_fileManager->pendingFileCount() > 0) {
+        qDebug() << tr("发送消息时携带 %1 个文件").arg(m_fileManager->pendingFileCount());
     }
 
     QVector<FileAttachment> attachments;
@@ -974,6 +975,7 @@ void MainWindow::onSettingsClicked() {
             checker.resetToDefaults();
         }
     }
+    m_inputLine->setFocus();
 }
 
 void MainWindow::onNewChatClicked() {
@@ -1182,6 +1184,7 @@ void MainWindow::onFileButtonClicked() {
         }
 
         if (m_fileManager->addFile(path)) {
+            qDebug() << "File added:" << path;
         }
     }
 
@@ -1566,7 +1569,7 @@ void MainWindow::retryEmptyResponseDuringLoop() {
     }
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-    m_networkManager->sendChatRequestWithContext(messages, true);
+    m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void MainWindow::handleTaskResponse(const QString& response) {
@@ -1586,8 +1589,7 @@ void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QS
     messages.append(ChatMessage("user", QStringLiteral("立刻回答")));
     m_requestSessionId = sessionId;
     m_isStreaming = true;
-
-    m_networkManager->sendChatRequestWithContext(messages, true);
+    m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
@@ -1632,6 +1634,7 @@ void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
         }
         AgentLoop::instance()->cancelPlan();
     }
+    m_inputLine->setFocus();
 }
 
 void MainWindow::onAgentLoopFinished(const QString& summary, const QString& sessionId) {
@@ -1698,9 +1701,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         if (event->type() == QEvent::InputMethod) {
             auto* imeEvent = static_cast<QInputMethodEvent*>(event);
             if (!imeEvent->preeditString().isEmpty()) {
+                m_isComposing = true;
                 m_inputLine->setPlaceholderText(QString());
-            } else if (m_inputLine->toPlainText().isEmpty()) {
-                m_inputLine->setPlaceholderText(m_inputPlaceholder);
+            } else {
+                m_isComposing = false;
+                if (m_inputLine->toPlainText().isEmpty()) {
+                    m_inputLine->setPlaceholderText(m_inputPlaceholder);
+                }
             }
         }
         // macOS IME may not populate preeditString; treat input-method
@@ -1720,6 +1727,11 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
         if (event->type() == QEvent::KeyPress) {
             auto* keyEvent = static_cast<QKeyEvent*>(event);
             if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+                // Let Enter through if IME is composing (e.g., Pinyin committing text)
+                if (m_isComposing) {
+                    m_isComposing = false;
+                    return QMainWindow::eventFilter(obj, event);
+                }
                 // Shift+Enter: let QPlainTextEdit handle it (inserts newline)
                 if (keyEvent->modifiers() & Qt::ShiftModifier) {
                     return QMainWindow::eventFilter(obj, event);

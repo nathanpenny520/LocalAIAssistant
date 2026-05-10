@@ -84,9 +84,6 @@ QString OpenAIProvider::extractDeltaFromSSE(const QByteArray& data) {
             if (!choices.isEmpty()) {
                 QJsonObject firstChoice = choices[0].toObject();
                 QJsonObject delta = firstChoice["delta"].toObject();
-                // DeepSeek sends reasoning_content before content
-                if (delta.contains("reasoning_content"))
-                    result += delta["reasoning_content"].toString();
                 if (delta.contains("content")) result += delta["content"].toString();
             }
         }
@@ -113,12 +110,7 @@ QString OpenAIProvider::extractContentFromResponse(const QByteArray& data) {
 
             if (firstChoice.contains("message")) {
                 QJsonObject message = firstChoice["message"].toObject();
-                QString content;
-                if (message.contains("reasoning_content"))
-                    content += message["reasoning_content"].toString();
-                if (message.contains("content"))
-                    content += message["content"].toString();
-                if (!content.isEmpty()) return content.trimmed();
+                if (message.contains("content")) return message["content"].toString().trimmed();
             }
 
             if (firstChoice.contains("finish_reason")) {

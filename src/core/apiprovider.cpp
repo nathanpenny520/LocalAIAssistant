@@ -1,8 +1,7 @@
 #include "apiprovider.h"
 
 #include <QDateTime>
-#include <QDir>
-#include <QFile>
+#include <QDebug>
 #include <QUrl>
 
 #include "../prompts/promptmanager.h"
@@ -97,19 +96,10 @@ void ApiProvider::abortCurrentRequest() {
     m_streamBuffer.clear();
 }
 
-void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool forceNonStreaming) {
+void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
     abortCurrentRequest();
 
-    // Temporarily override streaming setting for this request.
-    // AgentLoop continuation requests are forced to non-streaming
-    // to avoid macOS NSURLSession issues with sequential SSE streams.
-    bool savedStreaming = m_streamingEnabled;
-    if (forceNonStreaming) {
-        m_streamingEnabled = false;
-    }
-
     QString fullUrl = resolveFullUrl();
-
     if (fullUrl.isEmpty()) {
         emit errorOccurred("API URL is empty");
         return;
@@ -160,30 +150,9 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
 
-    // Save the feedback request payload for debugging
-    if (messages.size() > 1) {
-        bool isFeedback = false;
-        for (const auto& msg : messages) {
-            if (msg.content.contains("[ITERATION_FEEDBACK]")) {
-                isFeedback = true;
-                break;
-            }
-        }
-        if (isFeedback) {
-            QFile debugFile(QDir::homePath() + "/Desktop/feedback_request.json");
-            if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                debugFile.write(postData);
-                debugFile.close();
-            }
-        }
-    }
-
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-    request.setRawHeader("Connection", "close");
     request.setTransferTimeout(kTransferTimeoutMs);
-    // Force HTTP/1.1 — some servers/proxies have issues with Qt's HTTP/2 negotiation
-    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     configureRequest(request);
 
     m_streamBuffer.clear();
@@ -194,11 +163,6 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool for
         connect(m_currentReply, &QNetworkReply::finished, this, &ApiProvider::onStreamFinished);
     } else {
         connect(m_currentReply, &QNetworkReply::finished, this, &ApiProvider::onReplyFinished);
-    }
-
-    // Restore streaming setting if it was temporarily overridden
-    if (forceNonStreaming) {
-        m_streamingEnabled = savedStreaming;
     }
 }
 
@@ -347,9 +311,18 @@ int ApiProvider::computeContextStartIndex(const QVector<ChatMessage>& messages) 
             realIncluded++;
         }
         if (realIncluded >= m_maxContext) {
+            qDebug() << "[ContextWindow] startIndex:" << i
+                     << "realMessages:" << realIncluded
+                     << "injectedMessages:" << injectedIncluded
+                     << "skippedInjected:" << skippedInjected
+                     << "totalSent:" << (totalCount - i - skippedInjected);
             return i;
         }
     }
+    qDebug() << "[ContextWindow] startIndex: 0 (all messages)"
+             << "realMessages:" << realIncluded
+             << "injectedMessages:" << injectedIncluded
+             << "skippedInjected:" << skippedInjected;
     return 0;
 }
 

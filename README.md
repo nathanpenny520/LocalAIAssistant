@@ -88,21 +88,6 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
   逐项切换路径许可 + `/confirm` 执行。ask 模式内联 `[Y/n]` 提示。`--yes` 标志可跳过
   Tier 2 警告（Tier 1 永不被绕过）。GUI 确认对话框含逐路径按钮。
 
-> ⚠️ **已知问题：Agent Loop 循环反馈卡死（macOS）**：
->
-> Agent Loop 执行完计划后，需要将结果反馈给 AI 以继续循环（如报告操作成功或发起
-> 下一步计划）。**在 macOS 上，这个反馈请求会永远挂起**，不报错、不超时、不返回数据，
-> 界面卡死。
->
-> **原因**：Qt 在 macOS 底层使用 NSURLSession 发送 HTTP 请求。第一次 SSE 流式请求
-> （用户最初的消息）正常工作，但紧接着发送第二个 SSE 流式请求（Agent Loop 的反馈消息）
-> 时，NSURLSession 存在已知缺陷——连续两个 SSE 流会挂起。代码中已添加
-> `forceNonStreaming` 参数（强制关闭流式）来规避此问题，但经实测，该方案未能解决此 bug。
->
-> **影响范围**：所有需要 Agent Loop 执行的任务（含文件操作的任务计划）。
-> **当前状态**：未修复，待进一步调查。
-> **跟踪文件**：`src/core/apiprovider.cpp:105-106`、`src/tasks/agentloop.cpp`
-
 > ⚠️ **平台兼容性说明**：
 >
 > - **macOS**: 语音输入/输出完整支持 ✅

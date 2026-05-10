@@ -126,6 +126,7 @@ private:
     bool m_isStreaming;
     bool m_firstShow = true;
     bool m_suppressRender = false;  // Suppress renderCurrentSession only during onSendClicked
+    bool m_isComposing = false;     // IME composition active (e.g., Pinyin) — skip Enter interception
     QString m_streamingContent;
     bool m_streamEndedWithNewline = false;
     bool m_isRendering = false;

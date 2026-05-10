@@ -53,9 +53,7 @@ void AgentLoop::start(const QString& aiResponse, const QString& sessionId) {
 }
 
 void AgentLoop::continueWithResponse(const QString& response) {
-    if (m_state != Running) {
-        return;
-    }
+    if (m_state != Running) return;
     processNextIteration(response);
 }
 
@@ -134,7 +132,6 @@ void AgentLoop::stop() {
 void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     m_iterationCount++;
 
-
     // Check iteration limit
     if (m_iterationCount > m_maxIterations) {
         m_state = MaxIterations;
@@ -149,7 +146,6 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     // Build structured feedback message
     QString feedback = buildResultFeedback(results);
     m_lastFeedback = feedback;
-
 
     // Add feedback as a user message to continue the conversation
     ChatMessage feedbackMsg("user", feedback);

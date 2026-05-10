@@ -1204,7 +1204,7 @@ void CLIApplication::onAgentLoopResultReady(const QString& feedbackMessage,
     // Send full message history back to AI
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
     messages.append(ChatMessage("user", QStringLiteral("立刻回答")));
-    m_networkManager->sendChatRequestWithContext(messages, true);
+    m_networkManager->sendChatRequestWithContext(messages);
 }
 
 void CLIApplication::onAgentLoopPlanConfirm(const OperationPlan& plan,
