@@ -101,7 +101,7 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 | 语言     | C++17                                                                                   |
 | 框架     | [Qt 6.x](https://www.qt.io) (Widgets, Network, Multimedia, WebSockets, Sql, Concurrent) |
 | 构建     | [CMake](https://cmake.org) 3.16+                                                        |
-| PDF解析  | [Poppler](https://poppler.freedesktop.org) 26.x（不安装则不支持PDF解析）                |
+| PDF解析  | [Poppler](https://poppler.freedesktop.org)（不安装则不支持PDF解析）                        |
 | DOCX解析 | [libzip](https://libzip.org) + [pugixml](https://pugixml.org)（不安装则不支持DOCX解析） |
 | 嵌入模型 | [ONNX Runtime](https://onnxruntime.ai) ≥1.16（可选，不安装使用占位向量）                |
 | 向量检索 | [hnswlib](https://github.com/nmslib/hnswlib)（header-only，自动包含）                   |
@@ -211,11 +211,13 @@ sourcecode-ai-assistant/
 | Qt WebSockets | ⚠️ 需额外勾选 | Homebrew 自动安装                  | Qt Maintenance Tool 勾选                                            | `qt6-websockets-dev`                  |
 | CMake         | 3.16+         | `brew install cmake`               | [官网下载](https://cmake.org/download/)                             | `sudo apt install cmake`              |
 | Readline      | —             | 系统自带                           | 不适用                                                              | `sudo apt install libreadline-dev`    |
-| Poppler       | 26.x          | `brew install poppler`             | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)         | `sudo apt install libpoppler-cpp-dev` |
+| Poppler       | —             | `brew install poppler`             | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)         | `sudo apt install libpoppler-cpp-dev` |
 | libzip        | ≥1.5 (可选)   | `brew install libzip`              | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)         | `sudo apt install libzip-dev`         |
-| pugixml       | ≥1.11 (可选)  | `brew install pugixml`             | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)         | `sudo apt install libpugixml-dev`     |
+| pugixml       | — (可选)      | `brew install pugixml`             | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)         | `sudo apt install libpugixml-dev`     |
 | ONNX Runtime  | ≥1.16 (可选)  | `brew install onnxruntime`         | [GitHub Release](https://github.com/microsoft/onnxruntime/releases) | `sudo apt install libonnxruntime-dev` |
 
+> **Linux 发行版说明**：表格中 `apt` 为 Ubuntu/Debian。Fedora 用户请用 `dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel libpoppler-cpp-devel libzip-devel libpugixml-devel`，Arch 用户请用 `pacman -S qt6-multimedia qt6-websockets poppler libzip pugixml`。详见下方「安装依赖补充说明」章节。
+>
 > **Qt 模块说明**：Multimedia 和 WebSockets 需在 Qt Maintenance Tool 中额外勾选（语音功能必需）
 > **可选依赖**：Readline（CLI 输入增强）、Poppler（PDF 解析）、libzip+pugixml（DOCX 解析）、ONNX
 > Runtime（知识库嵌入模型），不安装不影响核心功能
@@ -242,8 +244,9 @@ brew install onnxruntime
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev libreadline-dev
-# 可选：sudo apt install libonnxruntime-dev
+sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev
+# 可选：sudo apt install libreadline-dev       # CLI 输入增强
+# 可选：sudo apt install libonnxruntime-dev    # 知识库嵌入推理
 ```
 
 #### Windows 快速安装
@@ -340,8 +343,8 @@ cd scripts
 | 平台    | 格式                              | 产出路径                                      |
 | ------- | --------------------------------- | --------------------------------------------- |
 | macOS   | **DMG**（拖入 Applications 即用） | `release/LocalAIAssistant-x.x.x-macOS.dmg`    |
-| Windows | **ZIP**（解压即用）               | `release/LocalAIAssistant-x.x.x-Windows.zip`  |
-| Linux   | **tar.gz**（含 install.sh）       | `release/LocalAIAssistant-x.x.x-Linux.tar.gz` |
+| Windows | **ZIP**（解压即用）               | `release/LocalAIAssistant-x.x.x-Windows-x64.zip`  |
+| Linux   | **tar.gz**（含 install.sh）       | `release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz` |
 
 > **注意**：当前为免费软件，未进行代码签名。macOS 用户首次打开需右键点击 App
 > →「打开」来绕过 Gatekeeper。Windows 用户运行时 SmartScreen 会警告，点击「更多信息」→「仍要运行」即可。
@@ -422,7 +425,7 @@ build\LocalAIAssistant-CLI.exe
 > 替代 Terminal.app。原版 Terminal 对中文输入的删除处理可能存在问题（Backspace 删除中文字符不完整）。CLI
 > .app bundle 会自动检测 iTerm2 并优先使用它打开。
 
-> **readline 支持**：macOS 自带 readline 库，编译时自动启用，提供更好的输入体验（支持历史记录、多字节字符正确编辑）。
+> **readline 支持**：macOS 自带 libedit（兼容 readline），编译时自动启用，提供更好的输入体验（支持历史记录、多字节字符正确编辑）。
 
 **CLI 命令示例**：
 
@@ -530,7 +533,7 @@ API Secret - API密钥密文
 
 **推荐：应用内配置** — 在 AI 女友窗口的 ⚙️ 设置菜单中点击「配置语音...」，直接在界面填写凭证并保存。
 
-**备选：.env 文件** — 在项目根目录创建 `.env` 文件：
+**备选：.env 文件** — 在项目根目录或用户数据目录创建 `.env` 文件：
 
 ```bash
 # 复制模板
@@ -545,6 +548,11 @@ cp .env.example .env
 XFYUN_APP_ID=你的APPID
 XFYUN_API_KEY=你的APIKey
 XFYUN_API_SECRET=你的APISecret
+
+# 以下为可选配置（有默认值，通常无需修改）
+# XFYUN_ASR_URL=wss://iat-api.xfyun.cn/v2/iat      # 语音听写 WebSocket 地址
+# XFYUN_TTS_URL=wss://tts-api.xfyun.cn/v2/tts      # 语音合成 WebSocket 地址
+# XFYUN_VOICE_TYPE=x6_lingxiaoxuan_pro               # 默认 TTS 音色
 ```
 
 > **安全提示**：`.env` 文件已在 `.gitignore` 中，不会被提交到 Git。Release 包中已移除开发者

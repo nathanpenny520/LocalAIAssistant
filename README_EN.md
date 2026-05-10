@@ -114,7 +114,7 @@ and other prose-heavy PDF/TXT/MD/DOCX files.
 | Language        | C++17                                                                                                  |
 | Framework       | [Qt 6.x](https://www.qt.io) (Widgets, Network, Multimedia, WebSockets, Sql, Concurrent)                |
 | Build           | [CMake](https://cmake.org) 3.16+                                                                       |
-| PDF Parsing     | [Poppler](https://poppler.freedesktop.org) 26.x (PDF parsing disabled if not installed)                |
+| PDF Parsing     | [Poppler](https://poppler.freedesktop.org) (PDF parsing disabled if not installed)                     |
 | DOCX Parsing    | [libzip](https://libzip.org) + [pugixml](https://pugixml.org) (DOCX parsing disabled if not installed) |
 | Embedding Model | [ONNX Runtime](https://onnxruntime.ai) ≥1.16 (optional, uses placeholder vectors if not installed)     |
 | Vector Search   | [hnswlib](https://github.com/nmslib/hnswlib) (header-only, auto-included)                              |
@@ -224,11 +224,13 @@ This script will:
 | Qt WebSockets | ⚠️ Extra selection | Homebrew auto-install                   | Qt Maintenance Tool select                                          | `qt6-websockets-dev`                  |
 | CMake         | 3.16+              | `brew install cmake`                    | [Official Download](https://cmake.org/download/)                    | `sudo apt install cmake`              |
 | Readline      | —                  | System built-in                         | N/A                                                                 | `sudo apt install libreadline-dev`    |
-| Poppler       | 26.x               | `brew install poppler`                  | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)         | `sudo apt install libpoppler-cpp-dev` |
+| Poppler       | —                  | `brew install poppler`                  | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)         | `sudo apt install libpoppler-cpp-dev` |
 | libzip        | ≥1.5 (optional)    | `brew install libzip`                   | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)         | `sudo apt install libzip-dev`         |
-| pugixml       | ≥1.11 (optional)   | `brew install pugixml`                  | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)         | `sudo apt install libpugixml-dev`     |
+| pugixml       | — (optional)       | `brew install pugixml`                  | [MSYS2](https://www.msys2.org) or [vcpkg](https://vcpkg.io)         | `sudo apt install libpugixml-dev`     |
 | ONNX Runtime  | ≥1.16 (optional)   | `brew install onnxruntime`              | [GitHub Release](https://github.com/microsoft/onnxruntime/releases) | `sudo apt install libonnxruntime-dev` |
 
+> **Linux Distribution Note**: The table shows `apt` commands for Ubuntu/Debian. Fedora: `dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel libpoppler-cpp-devel libzip-devel libpugixml-devel`. Arch: `pacman -S qt6-multimedia qt6-websockets poppler libzip pugixml`. See "Dependency Installation Supplement" section below for details.
+>
 > **Qt Module Note**: Multimedia and WebSockets need to be manually selected in Qt Maintenance Tool
 > (required for voice features) **Optional Dependencies**: Readline (CLI input enhancement), Poppler
 > (PDF parsing), libzip+pugixml (DOCX parsing), ONNX Runtime (knowledge base embedding) — core
@@ -256,8 +258,9 @@ brew install onnxruntime
 
 ```bash
 sudo apt update
-sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev libreadline-dev
-# Optional: sudo apt install libonnxruntime-dev
+sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev libpoppler-cpp-dev libzip-dev libpugixml-dev
+# Optional: sudo apt install libreadline-dev       # CLI input enhancement
+# Optional: sudo apt install libonnxruntime-dev    # knowledge base embedding
 ```
 
 #### Windows Quick Install
@@ -356,8 +359,8 @@ Use the `package` command to generate user-installable release packages:
 | Platform | Format                           | Output Path                                   |
 | -------- | -------------------------------- | --------------------------------------------- |
 | macOS    | **DMG** (drag to Applications)   | `release/LocalAIAssistant-x.x.x-macOS.dmg`    |
-| Windows  | **ZIP** (extract and run)        | `release/LocalAIAssistant-x.x.x-Windows.zip`  |
-| Linux    | **tar.gz** (includes install.sh) | `release/LocalAIAssistant-x.x.x-Linux.tar.gz` |
+| Windows  | **ZIP** (extract and run)        | `release/LocalAIAssistant-x.x.x-Windows-x64.zip`  |
+| Linux    | **tar.gz** (includes install.sh) | `release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz` |
 
 > **Note**: This is free software without code signing. macOS users must right-click the app →
 > "Open" to bypass Gatekeeper on first launch. Windows users will see a SmartScreen warning — click
@@ -440,7 +443,7 @@ build\LocalAIAssistant-CLI.exe
 > default Terminal may have issues with Chinese character deletion (Backspace doesn't delete
 > characters completely). CLI .app bundle automatically detects iTerm2 and prefers to open with it.
 
-> **readline Support**: macOS includes readline library, auto-enabled during build, providing better
+> **readline Support**: macOS includes libedit (readline-compatible), auto-enabled during build, providing better
 > input experience (history support, proper multi-byte character editing).
 
 **CLI Command Examples**:
@@ -554,7 +557,7 @@ API Secret - API Secret
 **Recommended: In-App Configuration** — Click ⚙️ in the AI Girlfriend window and select "Configure
 Voice..." to enter credentials directly in the UI and save.
 
-**Alternative: .env File** — Create a `.env` file in the project root:
+**Alternative: .env File** — Create a `.env` file in the project root or user data directory:
 
 ```bash
 # Copy template
@@ -569,6 +572,11 @@ cp .env.example .env
 XFYUN_APP_ID=your_app_id
 XFYUN_API_KEY=your_api_key
 XFYUN_API_SECRET=your_api_secret
+
+# Optional settings (have defaults, usually not needed)
+# XFYUN_ASR_URL=wss://iat-api.xfyun.cn/v2/iat      # ASR WebSocket URL
+# XFYUN_TTS_URL=wss://tts-api.xfyun.cn/v2/tts      # TTS WebSocket URL
+# XFYUN_VOICE_TYPE=x6_lingxiaoxuan_pro               # Default TTS voice
 ```
 
 > **Security Note**: `.env` file is in `.gitignore`, won't be committed to Git. Release packages
