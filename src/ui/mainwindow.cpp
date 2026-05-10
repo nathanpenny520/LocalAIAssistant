@@ -1585,6 +1585,7 @@ void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QS
     }
     m_emptyResponseRetryCount = 0;
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
+    messages.append(ChatMessage("user", QStringLiteral("立刻回答")));
     m_requestSessionId = sessionId;
     m_isStreaming = true;
     m_networkManager->sendChatRequestWithContext(messages);
