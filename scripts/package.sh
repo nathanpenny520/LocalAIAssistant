@@ -550,24 +550,180 @@ package_linux() {
     # Create embedded install script
     cat >"$staging/install.sh" <<'INSTALL_SCRIPT'
 #!/bin/bash
-INSTALL_DIR="$HOME/.local"
-echo "Installing LocalAIAssistant..."
+set -euo pipefail
+
+# ── Dependency detection ──────────────────────────────────────────
+detect_distro() {
+    if command -v apt-get &>/dev/null; then
+        echo "apt"
+    elif command -v dnf &>/dev/null; then
+        echo "dnf"
+    elif command -v pacman &>/dev/null; then
+        echo "pacman"
+    else
+        echo "unknown"
+    fi
+}
+
+# ── Install system runtime dependencies ───────────────────────────
+install_system_deps() {
+    local distro
+    distro=$(detect_distro)
+    echo "Detected distribution: $distro"
+    echo "Checking runtime dependencies..."
+
+    # Quick probe: if libQt6Core is already in the linker cache, deps are installed
+    if ldconfig -p 2>/dev/null | grep -q libQt6Core; then
+        echo "  Qt6 runtime libraries already present, skipping."
+        return 0
+    fi
+
+    echo "Installing Qt6 runtime dependencies..."
+    echo "(You may be prompted for your sudo password.)"
+    case "$distro" in
+        apt)
+            sudo apt-get update -qq
+            sudo apt-get install -y qt6-base-dev qt6-multimedia-dev qt6-websockets-dev \
+                libpoppler-cpp-dev libzip-dev libpugixml-dev 2>/dev/null || true
+            ;;
+        dnf)
+            sudo dnf install -y qt6-qtbase qt6-qtmultimedia qt6-qtwebsockets \
+                poppler-cpp libzip pugixml 2>/dev/null || true
+            ;;
+        pacman)
+            sudo pacman -S --noconfirm qt6-base qt6-multimedia qt6-websockets \
+                poppler libzip pugixml 2>/dev/null || true
+            ;;
+        *)
+            echo "Warning: Could not detect package manager."
+            echo "Please install dependencies manually:"
+            echo "  Qt6 (base, multimedia, websockets), Poppler, libzip, pugixml"
+            ;;
+    esac
+}
+
+# ── Fix library soname symlinks for version mismatches ────────────
+fix_library_links() {
+    echo "Checking library compatibility..."
+    local libdirs=("/usr/lib" "/usr/lib/x86_64-linux-gnu" "/usr/lib64" "/usr/local/lib")
+    local libs_to_check="libpoppler-cpp.so.0|libpoppler-cpp.so libzip.so.4|libzip.so"
+
+    for entry in $libs_to_check; do
+        local expected="${entry%%|*}"
+        local actual_base="${entry##*|}"
+        for libdir in "${libdirs[@]}"; do
+            [ -d "$libdir" ] || continue
+            [ -f "$libdir/$expected" ] && continue
+            local actual
+            actual=$(find "$libdir" -maxdepth 1 -name "${actual_base}*" -type f 2>/dev/null | head -1)
+            if [ -n "$actual" ] && [ "$(basename "$actual")" != "$expected" ]; then
+                echo "  Creating symlink: $expected -> $(basename "$actual")"
+                sudo ln -sf "$(basename "$actual")" "$libdir/$expected" 2>/dev/null || \
+                    echo "  (Could not create symlink; may need sudo)"
+            fi
+        done
+    done
+}
+
+# ── Detect WSL / headless environment ─────────────────────────────
+HAS_DISPLAY=true
+detect_display() {
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        HAS_DISPLAY=false
+        echo ""
+        echo "WARNING: No graphical display detected."
+        echo "  (\$DISPLAY and \$WAYLAND_DISPLAY are unset)"
+        echo "If you are in WSL or a headless server, use the CLI version:"
+        echo "  LocalAIAssistant-CLI chat"
+        echo ""
+        echo "To enable GUI support in WSL:"
+        echo "  1. Install an X server on Windows (VcXsrv, X410, etc.)"
+        echo "  2. Run: export DISPLAY=:0"
+        echo "  3. Or use WSLg if your distro supports it"
+        echo ""
+    fi
+}
+
+# ── Main ──────────────────────────────────────────────────────────
+echo "========================================"
+echo "  LocalAIAssistant Installer"
+echo "========================================"
+
+detect_display
+install_system_deps
+fix_library_links
+
+INSTALL_DIR="${HOME}/.local"
+echo ""
+echo "Installing to $INSTALL_DIR..."
+
 mkdir -p "$INSTALL_DIR/bin"
 mkdir -p "$INSTALL_DIR/share/localaiassistant"
 mkdir -p "$INSTALL_DIR/share/applications"
 mkdir -p "$INSTALL_DIR/share/icons/hicolor/256x256/apps"
 
-cp LocalAIAssistant "$INSTALL_DIR/bin/" 2>/dev/null || true
-cp LocalAIAssistant-CLI "$INSTALL_DIR/bin/" 2>/dev/null || true
-cp -R core AIGirlfriend girlfriend translations models prompts "$INSTALL_DIR/share/localaiassistant/" 2>/dev/null || true
+# Binaries
+cp LocalAIAssistant "$INSTALL_DIR/bin/" 2>/dev/null && echo "  GUI binary installed" || true
+cp LocalAIAssistant-CLI "$INSTALL_DIR/bin/" 2>/dev/null && echo "  CLI binary installed" || true
 
-if [ -f "localaiassistant.desktop" ]; then
-    sed -i "s|^Exec=.*|Exec=$INSTALL_DIR/bin/LocalAIAssistant|" localaiassistant.desktop
-    cp localaiassistant.desktop "$INSTALL_DIR/share/applications/"
+# Resource directories
+for dir in core AIGirlfriend girlfriend translations models prompts; do
+    if [ -d "$dir" ]; then
+        cp -R "$dir" "$INSTALL_DIR/share/localaiassistant/"
+        echo "  $dir/ copied"
+    fi
+done
+
+# Individual resource files
+for file in soul.md personality.md memory.md; do
+    if [ -f "$file" ]; then
+        cp "$file" "$INSTALL_DIR/share/localaiassistant/"
+        echo "  $file copied"
+    fi
+done
+
+# .env.example and auto-create .env
+if [ -f ".env.example" ]; then
+    cp ".env.example" "$INSTALL_DIR/share/localaiassistant/.env.example"
+    echo "  .env.example template copied"
+    if [ ! -f "$INSTALL_DIR/share/localaiassistant/.env" ]; then
+        cp ".env.example" "$INSTALL_DIR/share/localaiassistant/.env"
+        echo "  .env created from .env.example — edit it with your API settings"
+    fi
 fi
 
-echo "Done. Run 'LocalAIAssistant' from terminal or find it in your app launcher."
-echo "Add $INSTALL_DIR/bin to your PATH if it is not already."
+# Docs
+if [ -d "docs" ]; then
+    mkdir -p "$INSTALL_DIR/share/localaiassistant/docs"
+    cp docs/*.md "$INSTALL_DIR/share/localaiassistant/docs/" 2>/dev/null || true
+    echo "  docs/ copied"
+fi
+
+# Desktop file
+if [ -f "localaiassistant.desktop" ]; then
+    sed -i.bak "s|^Exec=.*|Exec=$INSTALL_DIR/bin/LocalAIAssistant|" localaiassistant.desktop
+    rm -f localaiassistant.desktop.bak
+    cp localaiassistant.desktop "$INSTALL_DIR/share/applications/"
+    echo "  .desktop file installed"
+fi
+
+echo ""
+echo "========================================"
+echo "  Installation complete!"
+echo "========================================"
+echo ""
+echo "To run:"
+echo "  GUI:  LocalAIAssistant"
+echo "  CLI:  LocalAIAssistant-CLI chat"
+echo ""
+echo "Add to PATH (add to ~/.bashrc or ~/.zshrc):"
+echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+echo ""
+if [ "$HAS_DISPLAY" = false ]; then
+    echo "NOTE: No display detected. Use CLI mode only."
+fi
+echo "NOTE: Edit $INSTALL_DIR/share/localaiassistant/.env to configure AI and voice services."
+echo ""
 INSTALL_SCRIPT
     chmod +x "$staging/install.sh"
     echo "  install.sh created"

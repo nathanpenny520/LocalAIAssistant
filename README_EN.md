@@ -369,6 +369,10 @@ Use the `package` command to generate user-installable release packages:
 > Release packages do **NOT** include the developer's `.env` credentials. Users can configure
 > iFlytek voice credentials directly via the AI Girlfriend window's settings menu, or copy
 > `.env.example` to create their own `.env` file.
+>
+> **Linux Release Package**: Extract the tar.gz archive and run `./install.sh` to install system-wide,
+> or simply run `./LocalAIAssistant` / `./LocalAIAssistant-CLI chat` directly from the extracted directory
+> (portable mode). The package includes `.env.example` as a configuration template.
 
 ### Automated Release Publishing (GitHub Actions CI)
 
@@ -416,8 +420,11 @@ build\LocalAIAssistant.exe
 # Windows debug mode (shows log console)
 build\LocalAIAssistant.exe --debug
 
-# Linux
+# Linux（development build）
 ./build/LocalAIAssistant
+
+# Linux（release package, extract and run）
+./LocalAIAssistant
 ```
 
 > **Windows Debug Tip**: Use `--debug` flag to show debug console window for viewing logs. Can also
@@ -509,6 +516,26 @@ The program needs to connect to an AI service to work.
 | [Paratera](https://www.paratera.com) | `https://llmapi.paratera.com` | China API proxy service |
 | Other OpenAI compatible services     | Configure per provider docs   | —                       |
 
+### Method 3: .env File Configuration (Advanced / CLI Users)
+
+Configure AI services via a `.env` file in the executable directory or user data directory. No GUI or CLI commands needed:
+
+```bash
+# Copy the template (included in release packages as .env.example)
+cp .env.example .env
+```
+
+AI configuration in `.env`:
+
+```
+AI_API_TYPE=openai                     # openai | ollama | llamacpp | anthropic
+AI_API_URL=http://127.0.0.1:8080       # API base URL
+AI_API_KEY=sk-your-api-key-here        # API key
+AI_MODEL_NAME=local-model              # Model name
+```
+
+> **CLI Tip**: After configuring `.env`, launch the CLI without any setup commands — it works immediately.
+
 ---
 
 ## AI Girlfriend Module Configuration
@@ -575,7 +602,7 @@ XFYUN_API_SECRET=your_api_secret
 
 # Optional settings (have defaults, usually not needed)
 # XFYUN_ASR_URL=wss://iat-api.xfyun.cn/v2/iat      # ASR WebSocket URL
-# XFYUN_TTS_URL=wss://tts-api.xfyun.cn/v2/tts      # TTS WebSocket URL
+# XFYUN_TTS_URL=wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6     # TTS WebSocket URL
 # XFYUN_VOICE_TYPE=x6_lingxiaoxuan_pro               # Default TTS voice
 ```
 
@@ -702,6 +729,20 @@ All data files are stored under the user data directory:
 | `chunks.db`     | SQLite database storing document text chunks and metadata |
 | `vectors.bin`   | Binary vector index file                                  |
 | `memories.json` | Cross-session memory entries (MemoryEnhancer persistence) |
+
+---
+
+## WSL (Windows Subsystem for Linux) Notes
+
+When using under WSL, please note:
+
+- **GUI Mode**: Requires a Windows X server (e.g., VcXsrv, X410) or WSLg (Windows 11). Set `export DISPLAY=:0` before launching.
+- **CLI Mode**: Works out of the box, no extra setup needed. Recommended for WSL users:
+  ```bash
+  ./LocalAIAssistant-CLI chat
+  ```
+- **Voice Features**: Voice input/output in WSL requires additional audio device configuration and is not yet fully tested.
+- **.env Configuration**: Place a `.env` file next to the executable. The CLI auto-loads it on startup.
 
 ---
 

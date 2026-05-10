@@ -352,6 +352,9 @@ cd scripts
 > Release 包**不包含**开发者的 `.env`
 > 凭证文件，用户可通过 AI 女友窗口的设置菜单直接配置讯飞语音凭证，或参考 `.env.example`
 > 模板创建自己的 `.env` 文件。
+>
+> **Linux 发行包**：解压 tar.gz 后，可运行 `./install.sh` 安装到系统，或直接在解压目录执行
+> `./LocalAIAssistant` / `./LocalAIAssistant-CLI chat`（便携模式）。发行包内含 `.env.example` 配置模板。
 
 ### 自动发布 Release（GitHub Actions CI）
 
@@ -398,8 +401,11 @@ build\LocalAIAssistant.exe
 # Windows 调试模式（显示日志控制台）
 build\LocalAIAssistant.exe --debug
 
-# Linux
+# Linux（开发构建）
 ./build/LocalAIAssistant
+
+# Linux（发行包，解压即用）
+./LocalAIAssistant
 ```
 
 > **Windows 调试提示**：使用 `--debug` 参数可显示调试控制台窗口，查看运行日志。也可设置环境变量
@@ -490,6 +496,26 @@ build\LocalAIAssistant-CLI.exe
 | [并行科技](https://www.paratera.com) | `https://llmapi.paratera.com` | 国内 API 代理服务 |
 | 其他 OpenAI 兼容服务                 | 按服务商文档配置              | —                 |
 
+### 方式三：.env 文件配置（高级用户 / CLI 用户）
+
+通过在可执行文件同目录或用户数据目录创建 `.env` 文件来配置 AI 服务，无需进入 GUI 或使用 CLI 命令：
+
+```bash
+# 复制模板（发行包中已包含 .env.example）
+cp .env.example .env
+```
+
+`.env` 文件中的 AI 配置项：
+
+```
+AI_API_TYPE=openai                     # openai | ollama | llamacpp | anthropic
+AI_API_URL=http://127.0.0.1:8080       # API 地址
+AI_API_KEY=sk-your-api-key-here        # API 密钥
+AI_MODEL_NAME=local-model              # 模型名称
+```
+
+> **CLI 用户提示**：配置 `.env` 文件后启动 CLI 无需任何配置命令，即可直接使用。
+
 ---
 
 ## AI 女友模块配置
@@ -551,7 +577,7 @@ XFYUN_API_SECRET=你的APISecret
 
 # 以下为可选配置（有默认值，通常无需修改）
 # XFYUN_ASR_URL=wss://iat-api.xfyun.cn/v2/iat      # 语音听写 WebSocket 地址
-# XFYUN_TTS_URL=wss://tts-api.xfyun.cn/v2/tts      # 语音合成 WebSocket 地址
+# XFYUN_TTS_URL=wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6     # 语音合成 WebSocket 地址
 # XFYUN_VOICE_TYPE=x6_lingxiaoxuan_pro               # 默认 TTS 音色
 ```
 
@@ -674,6 +700,20 @@ sudo pacman -S qt6-multimedia qt6-websockets
 | `chunks.db`     | SQLite 数据库，存储文档文本块和元数据   |
 | `vectors.bin`   | 二进制向量索引文件                      |
 | `memories.json` | 跨会话记忆条目（MemoryEnhancer 持久化） |
+
+---
+
+## WSL（Windows Subsystem for Linux）使用说明
+
+WSL 下使用时，请注意：
+
+- **GUI 模式**：需要安装 Windows X 服务器（如 VcXsrv、X410）或使用 WSLg（Windows 11）。启动前设置 `export DISPLAY=:0`。
+- **CLI 模式**：开箱即用，无需额外配置。推荐 WSL 用户使用 CLI 模式：
+  ```bash
+  ./LocalAIAssistant-CLI chat
+  ```
+- **语音功能**：WSL 下语音输入/输出需要额外的音频设备配置，暂未充分测试。
+- **.env 配置**：在可执行文件同目录放置 `.env` 文件，CLI 启动时自动加载。
 
 ---
 

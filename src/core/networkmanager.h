@@ -10,7 +10,13 @@
 
 #include <optional>
 
+#include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QMap>
 #include <QObject>
+#include <QStandardPaths>
+#include <QTextStream>
 
 #include "datamodels.h"
 
@@ -35,6 +41,9 @@ public:
         return m_apiType;
     }
     void setApiType(ApiType type);
+    QString apiKey() const {
+        return m_apiKey;
+    }
 
 signals:
     void responseReceived(const QString& content);
@@ -49,6 +58,8 @@ public slots:
                         ApiType apiType = ApiType::OpenAI);
 
 private:
+    void loadEnvConfig();
+    void parseEnvFile(const QString& path, QMap<QString, QString>& outVars);
     void loadSettings();
     void saveSettings();
     void applySettingsToProvider();

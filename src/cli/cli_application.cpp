@@ -271,21 +271,32 @@ int CLIApplication::runInteractiveMode(QCoreApplication& app, const QCommandLine
     std::cout << "Streaming: " << (m_networkManager->isStreamingEnabled() ? "ON" : "OFF") << "\n";
     std::cout << "------------------------------------\n";
 
-    // Preflight: warn if using default API config that likely has no server
-    {
-        QSettings settings("LocalAIAssistant", "Settings");
-        QString currentUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString();
-        QString currentKey = settings.value("apiKey", "").toString();
-        if (currentUrl == QStringLiteral("http://127.0.0.1:8080") && currentKey.isEmpty()) {
-            std::cout << "\n*** API not configured ***\n";
-            std::cout << "The app is using the default local API (http://127.0.0.1:8080).\n";
-            std::cout << "To use the assistant, you need a running LLM server:\n";
-            std::cout << "  - Ollama:  run 'ollama serve' then 'ollama pull <model>'\n";
-            std::cout << "  - llama.cpp: run './llama-server -m <model.gguf>'\n";
-            std::cout << "  - Or configure via: ai config --api-url <url> --api-key <key> --api-type <type>\n";
-            std::cout << "  - Or use the GUI Settings dialog\n";
-            std::cout << "\n";
-        }
+    // Preflight: guide user through first-run configuration if API key is not set
+    if (m_networkManager->apiKey().isEmpty()) {
+        std::cout << "\n========================================\n";
+        std::cout << "  First-Run Configuration\n";
+        std::cout << "========================================\n";
+        std::cout << "\n[!] API key not configured. The AI assistant needs an API key to work.\n";
+        std::cout << "    You can also set AI_API_KEY in .env file to skip this step.\n\n";
+
+        std::string input;
+
+        std::cout << "Enter API URL [http://127.0.0.1:8080]: " << std::flush;
+        if (!std::getline(std::cin, input)) input.clear();
+        QString apiUrl = QString::fromStdString(input).trimmed();
+        if (apiUrl.isEmpty()) apiUrl = QStringLiteral("http://127.0.0.1:8080");
+
+        std::cout << "Enter API Key: " << std::flush;
+        if (!std::getline(std::cin, input)) input.clear();
+        QString apiKey = QString::fromStdString(input).trimmed();
+
+        std::cout << "Enter Model Name [local-model]: " << std::flush;
+        if (!std::getline(std::cin, input)) input.clear();
+        QString modelName = QString::fromStdString(input).trimmed();
+        if (modelName.isEmpty()) modelName = QStringLiteral("local-model");
+
+        m_networkManager->updateSettings(apiUrl, apiKey, modelName, ApiType::OpenAI);
+        std::cout << "\nConfiguration saved. Starting chat...\n\n";
     }
 
     std::cout << "------------------------------------\n";

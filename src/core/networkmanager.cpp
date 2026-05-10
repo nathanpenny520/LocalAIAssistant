@@ -1,7 +1,13 @@
 #include "networkmanager.h"
 
+#include <QCoreApplication>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QMap>
 #include <QSettings>
+#include <QStandardPaths>
+#include <QTextStream>
 
 #include "anthropic_provider.h"
 #include "apiprovider.h"
@@ -24,6 +30,7 @@ NetworkManager::NetworkManager(QObject* parent)
         , m_frequencyPenalty(0.0)
         , m_seed(std::nullopt)
         , m_streamingEnabled(true) {
+    loadEnvConfig();
     loadSettings();
     ensureProvider(m_apiType);
     applySettingsToProvider();
@@ -102,31 +109,42 @@ void NetworkManager::updateSettings(const QString& apiBaseUrl, const QString& ap
 void NetworkManager::loadSettings() {
     QSettings settings("LocalAIAssistant", "Settings");
 
-    m_apiBaseUrl = settings.value("apiBaseUrl", "http://127.0.0.1:8080").toString().trimmed();
-    m_apiKey = settings.value("apiKey", "").toString().trimmed();
-    m_modelName = settings.value("modelName", "local-model").toString().trimmed();
+    if (settings.contains("apiBaseUrl")) {
+        QString val = settings.value("apiBaseUrl").toString().trimmed();
+        if (!val.isEmpty()) m_apiBaseUrl = val;
+    }
+    if (settings.contains("apiKey")) {
+        QString val = settings.value("apiKey").toString().trimmed();
+        if (!val.isEmpty()) m_apiKey = val;
+    }
+    if (settings.contains("modelName")) {
+        QString val = settings.value("modelName").toString().trimmed();
+        if (!val.isEmpty()) m_modelName = val;
+    }
+    if (settings.contains("temperature")) m_temperature = settings.value("temperature").toDouble();
+    if (settings.contains("maxContext")) m_maxContext = settings.value("maxContext").toInt();
+    if (settings.contains("maxTokens")) m_maxTokens = settings.value("maxTokens").toInt();
+    if (settings.contains("presencePenalty")) m_presencePenalty = settings.value("presencePenalty").toDouble();
+    if (settings.contains("topP")) m_topP = settings.value("topP").toDouble();
+    if (settings.contains("frequencyPenalty")) m_frequencyPenalty = settings.value("frequencyPenalty").toDouble();
+    if (settings.contains("streamingEnabled")) m_streamingEnabled = settings.value("streamingEnabled").toBool();
 
-    m_temperature = settings.value("temperature", 0.4).toDouble();
-    m_maxContext = settings.value("maxContext", 20).toInt();
-    m_maxTokens = settings.value("maxTokens", 8192).toInt();
-    m_presencePenalty = settings.value("presencePenalty", 0.2).toDouble();
-    m_topP = settings.value("topP", 1.0).toDouble();
-    m_frequencyPenalty = settings.value("frequencyPenalty", 0.0).toDouble();
+    if (settings.contains("apiType")) {
+        QString apiTypeStr = settings.value("apiType").toString().toLower();
+        if (apiTypeStr == "ollama")
+            m_apiType = ApiType::Ollama;
+        else if (apiTypeStr == "llamacpp")
+            m_apiType = ApiType::LlamaCpp;
+        else if (apiTypeStr == "anthropic")
+            m_apiType = ApiType::Anthropic;
+        else if (apiTypeStr == "openai")
+            m_apiType = ApiType::OpenAI;
+    }
 
-    QString apiTypeStr = settings.value("apiType", "openai").toString().toLower();
-    if (apiTypeStr == "ollama")
-        m_apiType = ApiType::Ollama;
-    else if (apiTypeStr == "llamacpp")
-        m_apiType = ApiType::LlamaCpp;
-    else if (apiTypeStr == "anthropic")
-        m_apiType = ApiType::Anthropic;
-    else
-        m_apiType = ApiType::OpenAI;
-
-    int seedValue = settings.value("seed", -1).toInt();
-    m_seed = (seedValue >= 0) ? std::optional<int>(seedValue) : std::nullopt;
-
-    m_streamingEnabled = settings.value("streamingEnabled", true).toBool();
+    if (settings.contains("seed")) {
+        int seedValue = settings.value("seed").toInt();
+        m_seed = (seedValue >= 0) ? std::optional<int>(seedValue) : std::nullopt;
+    }
 }
 
 void NetworkManager::saveSettings() {
@@ -157,6 +175,67 @@ void NetworkManager::saveSettings() {
         default:
             settings.setValue("apiType", "openai");
             break;
+    }
+}
+
+// --- Env file parsing ---
+
+void NetworkManager::parseEnvFile(const QString& path, QMap<QString, QString>& outVars) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QTextStream stream(&file);
+    while (!stream.atEnd()) {
+        QString line = stream.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+
+        int eqPos = line.indexOf('=');
+        if (eqPos <= 0) continue;
+
+        QString key = line.left(eqPos).trimmed();
+        QString value = line.mid(eqPos + 1).trimmed();
+
+        if ((value.startsWith('"') && value.endsWith('"'))
+            || (value.startsWith('\'') && value.endsWith('\''))) {
+            value = value.mid(1, value.length() - 2);
+        }
+
+        outVars[key] = value;
+    }
+}
+
+void NetworkManager::loadEnvConfig() {
+    QString appDir = QCoreApplication::applicationDirPath();
+    QStringList searchPaths;
+    searchPaths << QDir::cleanPath(appDir + "/.env");
+    searchPaths << QDir::cleanPath(appDir + "/../Resources/.env");
+    searchPaths << QDir::currentPath() + "/.env";
+    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!dataDir.isEmpty()) {
+        searchPaths << QDir::cleanPath(dataDir + "/.env");
+    }
+
+    QString envPath;
+    for (const QString& p : searchPaths) {
+        if (QFile::exists(p)) {
+            envPath = p;
+            break;
+        }
+    }
+    if (envPath.isEmpty()) return;
+
+    QMap<QString, QString> vars;
+    parseEnvFile(envPath, vars);
+
+    if (vars.contains("AI_API_KEY")) m_apiKey = vars["AI_API_KEY"];
+    if (vars.contains("AI_API_URL")) m_apiBaseUrl = vars["AI_API_URL"];
+    if (vars.contains("AI_MODEL_NAME")) m_modelName = vars["AI_MODEL_NAME"];
+    if (vars.contains("AI_API_TYPE")) {
+        QString typeStr = vars["AI_API_TYPE"].toLower().trimmed();
+        if (typeStr == "ollama") m_apiType = ApiType::Ollama;
+        else if (typeStr == "llamacpp") m_apiType = ApiType::LlamaCpp;
+        else if (typeStr == "anthropic") m_apiType = ApiType::Anthropic;
+        else if (typeStr == "openai") m_apiType = ApiType::OpenAI;
     }
 }
 
