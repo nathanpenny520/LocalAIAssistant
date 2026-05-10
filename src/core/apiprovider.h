@@ -44,7 +44,7 @@ public:
     void setSeed(std::optional<int> seed);
 
     // Operations
-    void sendChatRequest(const QVector<ChatMessage>& messages);
+    void sendChatRequest(const QVector<ChatMessage>& messages, bool forceNonStreaming = false);
     void abortCurrentRequest();
 
     // Context window — shared across all providers

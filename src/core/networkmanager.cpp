@@ -45,8 +45,8 @@ void NetworkManager::sendChatRequest(const QString& userMessage) {
     sendChatRequestWithContext(singleMessage);
 }
 
-void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage>& messages) {
-    if (m_provider) m_provider->sendChatRequest(messages);
+void NetworkManager::sendChatRequestWithContext(const QVector<ChatMessage>& messages, bool forceNonStreaming) {
+    if (m_provider) m_provider->sendChatRequest(messages, forceNonStreaming);
 }
 
 void NetworkManager::abortCurrentRequest() {

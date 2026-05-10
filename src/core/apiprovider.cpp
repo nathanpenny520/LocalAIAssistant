@@ -2,6 +2,8 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
 #include <QUrl>
 
 #include "../prompts/promptmanager.h"
@@ -96,10 +98,22 @@ void ApiProvider::abortCurrentRequest() {
     m_streamBuffer.clear();
 }
 
-void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
+void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages, bool forceNonStreaming) {
     abortCurrentRequest();
 
+    // Temporarily override streaming setting for this request.
+    // AgentLoop continuation requests are forced to non-streaming
+    // to avoid macOS NSURLSession issues with sequential SSE streams.
+    bool savedStreaming = m_streamingEnabled;
+    if (forceNonStreaming) {
+        m_streamingEnabled = false;
+    }
+
     QString fullUrl = resolveFullUrl();
+    qDebug() << "[DEBUG] ApiProvider::sendChatRequest, messages:" << messages.size()
+             << "streamingEnabled:" << m_streamingEnabled
+             << "url:" << fullUrl;
+
     if (fullUrl.isEmpty()) {
         emit errorOccurred("API URL is empty");
         return;
@@ -149,20 +163,50 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
 
     QJsonDocument doc(jsonPayload);
     QByteArray postData = doc.toJson();
+    qDebug() << "[DEBUG] ApiProvider::sendChatRequest: postData size:" << postData.size() << "bytes";
+
+    // Save the feedback request payload for debugging
+    if (messages.size() > 1) {
+        bool isFeedback = false;
+        for (const auto& msg : messages) {
+            if (msg.content.contains("[ITERATION_FEEDBACK]")) {
+                isFeedback = true;
+                break;
+            }
+        }
+        if (isFeedback) {
+            QFile debugFile(QDir::homePath() + "/Desktop/feedback_request.json");
+            if (debugFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                debugFile.write(postData);
+                debugFile.close();
+                qDebug() << "[DEBUG] ApiProvider::sendChatRequest: saved feedback request to ~/Desktop/feedback_request.json";
+            }
+        }
+    }
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setRawHeader("Connection", "close");
     request.setTransferTimeout(kTransferTimeoutMs);
+    // Force HTTP/1.1 — some servers/proxies have issues with Qt's HTTP/2 negotiation
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     configureRequest(request);
 
     m_streamBuffer.clear();
     m_currentReply = m_network->post(request, postData);
+    qDebug() << "[DEBUG] ApiProvider::sendChatRequest: post() returned, m_currentReply:" << (m_currentReply != nullptr)
+             << "isFinished:" << (m_currentReply ? m_currentReply->isFinished() : false);
 
     if (m_streamingEnabled) {
         connect(m_currentReply, &QNetworkReply::readyRead, this, &ApiProvider::onStreamReadyRead);
         connect(m_currentReply, &QNetworkReply::finished, this, &ApiProvider::onStreamFinished);
     } else {
         connect(m_currentReply, &QNetworkReply::finished, this, &ApiProvider::onReplyFinished);
+    }
+
+    // Restore streaming setting if it was temporarily overridden
+    if (forceNonStreaming) {
+        m_streamingEnabled = savedStreaming;
     }
 }
 
@@ -171,7 +215,9 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
 void ApiProvider::onReplyFinished() {
     if (!m_currentReply) return;
 
+    qDebug() << "[DEBUG] ApiProvider::onReplyFinished, error:" << m_currentReply->error();
     if (m_currentReply->error() != QNetworkReply::NoError) {
+        qDebug() << "[DEBUG] ApiProvider::onReplyFinished: error:" << m_currentReply->errorString();
         emit errorOccurred(m_currentReply->errorString());
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -180,6 +226,7 @@ void ApiProvider::onReplyFinished() {
 
     QByteArray responseData = m_currentReply->readAll();
     QString content = extractContentFromResponse(responseData);
+    qDebug() << "[DEBUG] ApiProvider::onReplyFinished: content length:" << content.size();
     emit responseReceived(content);
 
     m_currentReply->deleteLater();
@@ -190,6 +237,7 @@ void ApiProvider::onStreamReadyRead() {
     if (!m_currentReply) return;
 
     QByteArray newData = m_currentReply->readAll();
+    qDebug() << "[DEBUG] ApiProvider::onStreamReadyRead: received" << newData.size() << "bytes";
     QString chunk = extractDeltaFromSSE(newData);
     if (!chunk.isEmpty()) {
         m_streamBuffer += chunk;
@@ -200,8 +248,11 @@ void ApiProvider::onStreamReadyRead() {
 void ApiProvider::onStreamFinished() {
     if (!m_currentReply) return;
 
+    qDebug() << "[DEBUG] ApiProvider::onStreamFinished, error:" << m_currentReply->error()
+             << "streamBuffer length:" << m_streamBuffer.size();
     if (m_currentReply->error() != QNetworkReply::NoError &&
         m_currentReply->error() != QNetworkReply::OperationCanceledError) {
+        qDebug() << "[DEBUG] ApiProvider::onStreamFinished: error:" << m_currentReply->errorString();
         emit errorOccurred(m_currentReply->errorString());
         m_currentReply->deleteLater();
         m_currentReply = nullptr;
@@ -215,6 +266,7 @@ void ApiProvider::onStreamFinished() {
         if (!chunk.isEmpty()) m_streamBuffer += chunk;
     }
 
+    qDebug() << "[DEBUG] ApiProvider::onStreamFinished: emitting streamFinished, final buffer length:" << m_streamBuffer.size();
     emit streamFinished(m_streamBuffer);
     m_streamBuffer.clear();
 

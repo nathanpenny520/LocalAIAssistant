@@ -53,11 +53,17 @@ void AgentLoop::start(const QString& aiResponse, const QString& sessionId) {
 }
 
 void AgentLoop::continueWithResponse(const QString& response) {
-    if (m_state != Running) return;
+    qDebug() << "[DEBUG] AgentLoop::continueWithResponse called, state:" << m_state;
+    if (m_state != Running) {
+        qDebug() << "[DEBUG] AgentLoop::continueWithResponse: state is not Running, returning without processing";
+        return;
+    }
     processNextIteration(response);
 }
 
 void AgentLoop::processNextIteration(const QString& response) {
+    qDebug() << "[DEBUG] AgentLoop::processNextIteration, response length:" << response.size()
+             << "preview:" << response.left(200);
     // Check for TASK_PLAN first — the AI may mix TASK_COMPLETE (closing prior
     // context) and TASK_PLAN (new work) in a single response. Processing the plan
     // takes precedence; TASK_COMPLETE alone ends the loop.
@@ -65,7 +71,9 @@ void AgentLoop::processNextIteration(const QString& response) {
     OperationPlan plan = engine->parsePlanFromAIResponse(response);
 
     if (!plan.isEmpty()) {
+        qDebug() << "[DEBUG] AgentLoop::processNextIteration: found TASK_PLAN";
         SafetyChecker::Result safetyResult = engine->validatePlan(plan);
+        qDebug() << "[DEBUG] AgentLoop: safety result:" << safetyResult;
 
         if (safetyResult == SafetyChecker::Blocked) {
             QString errMsg = tr("Operation blocked: %1")
@@ -93,6 +101,7 @@ void AgentLoop::processNextIteration(const QString& response) {
 
     // No TASK_PLAN — check if this is a task completion
     if (isTaskComplete(response)) {
+        qDebug() << "[DEBUG] AgentLoop::processNextIteration: detected TASK_COMPLETE/FINISHED";
         SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", response);
         m_state = Completed;
         emit stateChanged(m_state);
@@ -101,6 +110,7 @@ void AgentLoop::processNextIteration(const QString& response) {
     }
 
     // No TASK_PLAN and no completion tag — treat as normal chat, end loop
+    qDebug() << "[DEBUG] AgentLoop::processNextIteration: no plan or completion tag, treating as chat";
     SessionManager::instance()->addMessageToSession(m_sessionId, "assistant", response);
     m_state = Completed;
     emit stateChanged(m_state);
@@ -132,8 +142,12 @@ void AgentLoop::stop() {
 void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     m_iterationCount++;
 
+    qDebug() << "[DEBUG] AgentLoop::executeAndContinue, iteration:" << m_iterationCount
+             << "maxIterations:" << m_maxIterations;
+
     // Check iteration limit
     if (m_iterationCount > m_maxIterations) {
+        qDebug() << "[DEBUG] AgentLoop: max iterations reached, stopping";
         m_state = MaxIterations;
         emit stateChanged(m_state);
         emit loopFinished(tr("Maximum iterations reached (%1)").arg(m_maxIterations), m_sessionId);
@@ -142,17 +156,22 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
 
     TaskEngine* engine = TaskEngine::instance();
     QVector<CommandResult> results = engine->executePlan(plan);
+    qDebug() << "[DEBUG] AgentLoop: executePlan returned" << results.size() << "results";
 
     // Build structured feedback message
     QString feedback = buildResultFeedback(results);
     m_lastFeedback = feedback;
+
+    qDebug() << "[DEBUG] AgentLoop: feedback built, length:" << feedback.size();
 
     // Add feedback as a user message to continue the conversation
     ChatMessage feedbackMsg("user", feedback);
     feedbackMsg.isAgentLoopInjected = true;
     SessionManager::instance()->addMessageToSession(m_sessionId, feedbackMsg);
 
+    qDebug() << "[DEBUG] AgentLoop: emitting executionResultReady, sessionId:" << m_sessionId;
     emit executionResultReady(feedback, m_sessionId);
+    qDebug() << "[DEBUG] AgentLoop: executionResultReady emitted";
 }
 
 QString AgentLoop::buildResultFeedback(const QVector<CommandResult>& results) const {

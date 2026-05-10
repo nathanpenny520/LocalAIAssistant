@@ -750,8 +750,13 @@ void MainWindow::onSendClicked() {
 }
 
 void MainWindow::onNetworkFinished(const QString& response) {
+    qDebug() << "[DEBUG] onNetworkFinished called, response length:" << response.size()
+             << "m_requestSessionId:" << m_requestSessionId
+             << "m_isStreaming:" << m_isStreaming
+             << "AgentLoop state:" << AgentLoop::instance()->state();
     // Verify response belongs to the session that initiated the request
     if (m_requestSessionId.isEmpty()) {
+        qDebug() << "[DEBUG] onNetworkFinished: m_requestSessionId is empty, returning";
         return;
     }
 
@@ -766,6 +771,7 @@ void MainWindow::onNetworkFinished(const QString& response) {
 
     // Check if response contains a task plan
     if (response.contains(TaskEngine::kTagTaskPlan, Qt::CaseInsensitive)) {
+        qDebug() << "[DEBUG] onNetworkFinished: response contains TASK_PLAN, AgentLoop state:" << AgentLoop::instance()->state();
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
             AgentLoop::instance()->continueWithResponse(response);
@@ -779,16 +785,19 @@ void MainWindow::onNetworkFinished(const QString& response) {
     if (AgentLoop::instance()->state() == AgentLoop::Running &&
         (response.contains(TaskEngine::kTagTaskComplete, Qt::CaseInsensitive) ||
          response.contains(TaskEngine::kTagTaskFinished, Qt::CaseInsensitive))) {
+        qDebug() << "[DEBUG] onNetworkFinished: response contains TASK_COMPLETE/FINISHED, routing to continueWithResponse";
         AgentLoop::instance()->continueWithResponse(response);
         return;
     }
 
     // Catch-all: if AgentLoop is still Running, route response to it
     if (AgentLoop::instance()->state() == AgentLoop::Running) {
+        qDebug() << "[DEBUG] onNetworkFinished: AgentLoop is Running, routing to continueWithResponse (catch-all)";
         AgentLoop::instance()->continueWithResponse(response);
         return;
     }
 
+    qDebug() << "[DEBUG] onNetworkFinished: normal chat path, saving response to session";
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", response);
 
     // renderCurrentSession() is triggered via sessionChanged signal
@@ -798,8 +807,11 @@ void MainWindow::onNetworkFinished(const QString& response) {
 }
 
 void MainWindow::onNetworkError(const QString& error) {
+    qDebug() << "[DEBUG] onNetworkError called, error:" << error
+             << "m_requestSessionId:" << m_requestSessionId;
     // Verify response belongs to the session that initiated the request
     if (m_requestSessionId.isEmpty()) {
+        qDebug() << "[DEBUG] onNetworkError: m_requestSessionId is empty, ignoring";
         return;
     }
 
@@ -818,6 +830,7 @@ void MainWindow::onNetworkError(const QString& error) {
 void MainWindow::onStreamChunkReceived(const QString& chunk) {
     // Defensive recovery: if streaming flag wasn't set by caller, fix it on first chunk
     if (!m_isStreaming) {
+        qDebug() << "[DEBUG] onStreamChunkReceived: m_isStreaming was false, attempting recovery";
         if (m_requestSessionId == SessionManager::instance()->currentSessionId()) {
             m_isStreaming = true;
         } else {
@@ -873,15 +886,23 @@ void MainWindow::onStreamChunkReceived(const QString& chunk) {
 }
 
 void MainWindow::onStreamFinished(const QString& fullContent) {
+    qDebug() << "[DEBUG] onStreamFinished called, fullContent length:" << fullContent.size()
+             << "m_isStreaming:" << m_isStreaming
+             << "m_requestSessionId:" << m_requestSessionId
+             << "AgentLoop state:" << AgentLoop::instance()->state();
     // Defensive recovery: if we got content but flag was wrong, fix and continue
     if (!m_isStreaming) {
+        qDebug() << "[DEBUG] onStreamFinished: m_isStreaming is false, attempting defensive recovery";
         if (!m_requestSessionId.isEmpty() && !fullContent.isEmpty()) {
             m_isStreaming = true;
+            qDebug() << "[DEBUG] onStreamFinished: defensive recovery set m_isStreaming=true";
         } else {
+            qDebug() << "[DEBUG] onStreamFinished: defensive recovery FAILED, returning. sessionId empty:" << m_requestSessionId.isEmpty() << "content empty:" << fullContent.isEmpty();
             return;
         }
     }
     if (m_requestSessionId.isEmpty()) {
+        qDebug() << "[DEBUG] onStreamFinished: m_requestSessionId is empty, returning";
         return;
     }
 
@@ -896,6 +917,7 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
 
     // Check if response contains a task plan
     if (fullContent.contains(TaskEngine::kTagTaskPlan, Qt::CaseInsensitive)) {
+        qDebug() << "[DEBUG] onStreamFinished: response contains TASK_PLAN, AgentLoop state:" << AgentLoop::instance()->state();
         SessionManager::instance()->addMessageToSession(m_requestSessionId, "assistant", fullContent);
         if (AgentLoop::instance()->state() == AgentLoop::Running) {
             // Continuation response within an active loop
@@ -912,6 +934,7 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
     if (AgentLoop::instance()->state() == AgentLoop::Running &&
         (fullContent.contains(TaskEngine::kTagTaskComplete, Qt::CaseInsensitive) ||
          fullContent.contains(TaskEngine::kTagTaskFinished, Qt::CaseInsensitive))) {
+        qDebug() << "[DEBUG] onStreamFinished: response contains TASK_COMPLETE/FINISHED, routing to continueWithResponse";
         AgentLoop::instance()->continueWithResponse(fullContent);
         m_streamingContent.clear();
         return;
@@ -919,6 +942,7 @@ void MainWindow::onStreamFinished(const QString& fullContent) {
 
     // Catch-all: if AgentLoop is still Running, route response to it
     if (AgentLoop::instance()->state() == AgentLoop::Running) {
+        qDebug() << "[DEBUG] onStreamFinished: AgentLoop is Running, routing to continueWithResponse (catch-all)";
         AgentLoop::instance()->continueWithResponse(fullContent);
         m_streamingContent.clear();
         return;
@@ -1568,16 +1592,21 @@ void MainWindow::retryEmptyResponseDuringLoop() {
     }
     SessionManager::instance()->addMessageToSession(m_requestSessionId, "user", retryMsg);
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
-    m_networkManager->sendChatRequestWithContext(messages);
+    m_networkManager->sendChatRequestWithContext(messages, true);
 }
 
 void MainWindow::handleTaskResponse(const QString& response) {
+    qDebug() << "[DEBUG] handleTaskResponse called, sessionId:" << m_requestSessionId;
     m_emptyResponseRetryCount = 0;
     AgentLoop::instance()->start(response, m_requestSessionId);
 }
 
 void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QString& sessionId) {
     Q_UNUSED(feedbackMessage);
+    qDebug() << "[DEBUG] onAgentLoopResultReady called, sessionId:" << sessionId
+             << "currentSessionId:" << SessionManager::instance()->currentSessionId()
+             << "m_isStreaming:" << m_isStreaming
+             << "m_requestSessionId:" << m_requestSessionId;
     if (sessionId != SessionManager::instance()->currentSessionId()) {
         qWarning() << "Agent loop: session mismatch in onAgentLoopResultReady, stopping loop";
         AgentLoop::instance()->stop();
@@ -1586,13 +1615,19 @@ void MainWindow::onAgentLoopResultReady(const QString& feedbackMessage, const QS
     m_emptyResponseRetryCount = 0;
     QVector<ChatMessage> messages = SessionManager::instance()->currentSession().messages;
     messages.append(ChatMessage("user", QStringLiteral("立刻回答")));
+    qDebug() << "[DEBUG] onAgentLoopResultReady: sending" << messages.size() << "messages to AI";
     m_requestSessionId = sessionId;
     m_isStreaming = true;
-    m_networkManager->sendChatRequestWithContext(messages);
+    qDebug() << "[DEBUG] onAgentLoopResultReady: set m_isStreaming=true, m_requestSessionId=" << m_requestSessionId;
+
+    m_networkManager->sendChatRequestWithContext(messages, true);
+    qDebug() << "[DEBUG] onAgentLoopResultReady: sendChatRequestWithContext returned";
 }
 
 void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
                                          const QVector<PathViolation>& violations) {
+    qDebug() << "[DEBUG] onAgentLoopPlanConfirm called, plan operations:" << plan.operations.size()
+             << "violations:" << violations.size();
     OperationConfirmDialog dialog(plan, this);
 
     if (!violations.isEmpty()) {
@@ -1601,7 +1636,10 @@ void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
 
     dialog.exec();
 
+    qDebug() << "[DEBUG] onAgentLoopPlanConfirm: dialog result, confirmed:" << dialog.isConfirmed()
+             << "modifyRequested:" << dialog.isModifyRequested();
     if (dialog.isConfirmed()) {
+        qDebug() << "[DEBUG] onAgentLoopPlanConfirm: user confirmed, calling confirmPlan()";
         // Process path violation responses
         SafetyChecker& sc = TaskEngine::instance()->safetyChecker();
         QVector<int> responses = dialog.pathViolationResponses();
@@ -1636,6 +1674,10 @@ void MainWindow::onAgentLoopPlanConfirm(const OperationPlan& plan,
 }
 
 void MainWindow::onAgentLoopFinished(const QString& summary, const QString& sessionId) {
+    qDebug() << "[DEBUG] onAgentLoopFinished called, summary:" << summary
+             << "sessionId:" << sessionId
+             << "m_requestSessionId:" << m_requestSessionId
+             << "currentSessionId:" << SessionManager::instance()->currentSessionId();
     if (sessionId == m_requestSessionId && sessionId == SessionManager::instance()->currentSessionId()) {
         // Append completion summary to chat
         QTextCursor cursor = m_chatDisplay->textCursor();

@@ -44,7 +44,7 @@ signals:
 
 public slots:
     void sendChatRequest(const QString& userMessage);
-    void sendChatRequestWithContext(const QVector<ChatMessage>& messages);
+    void sendChatRequestWithContext(const QVector<ChatMessage>& messages, bool forceNonStreaming = false);
     void updateSettings(const QString& apiBaseUrl, const QString& apiKey, const QString& modelName,
                         ApiType apiType = ApiType::OpenAI);
 
