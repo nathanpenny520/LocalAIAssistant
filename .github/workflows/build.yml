@@ -208,6 +208,16 @@ jobs:
           echo "=== macOS ===" && ls -la release-macos/
           echo "=== Windows ===" && ls -la release-windows/
 
+      - name: Rename SHA256SUM to avoid name collision
+        run: |
+          for d in release-linux release-macos release-windows; do
+            platform=$(echo "$d" | sed 's/release-//')
+            if [ -f "$d/SHA256SUM" ]; then
+              mv "$d/SHA256SUM" "$d/SHA256SUM-$platform"
+              echo "Renamed $d/SHA256SUM → $d/SHA256SUM-$platform"
+            fi
+          done
+
       - name: Create Release
         uses: softprops/action-gh-release@v3.0.0
         with:
