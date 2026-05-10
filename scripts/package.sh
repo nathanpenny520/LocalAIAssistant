@@ -347,10 +347,11 @@ package_windows() {
         fi
     done
 
-    # Copy .env.example
+    # Copy .env.example and auto-create .env
     if [ -f "$PROJECT_ROOT/.env.example" ]; then
         cp "$PROJECT_ROOT/.env.example" "$staging/.env.example"
-        echo "  .env.example template included"
+        cp "$PROJECT_ROOT/.env.example" "$staging/.env"
+        echo "  .env.example template and .env created"
     fi
 
     # Copy docs
