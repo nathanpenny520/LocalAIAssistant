@@ -340,16 +340,16 @@ void MainWindow::setupUI() {
     resize(900, 600);
     setWindowTitle(tr("本地AI助手"));
 
-    // Set window icon for taskbar display
-    // On Windows, this ensures correct taskbar icon
-    // On macOS, the bundle icon is handled by Info.plist
+    // Set window icon for taskbar/dock display
+    // On macOS, also set as fallback — the bundle icon is normally handled by Info.plist
 #ifdef Q_OS_WIN
-    // Load icon from executable's directory (copied by CMake)
     QString iconPath = QCoreApplication::applicationDirPath() + "/app.ico";
+#else
+    QString iconPath = QCoreApplication::applicationDirPath() + "/../Resources/app.icns";
+#endif
     if (QFile::exists(iconPath)) {
         setWindowIcon(QIcon(iconPath));
     }
-#endif
 }
 
 void MainWindow::setupMenuBar() {

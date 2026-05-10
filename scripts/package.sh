@@ -206,6 +206,13 @@ package_macos() {
         echo "  .env.example template included"
     fi
 
+    # Set custom DMG volume icon
+    if [ -f "$PROJECT_ROOT/resources/icons/app.icns" ]; then
+        cp "$PROJECT_ROOT/resources/icons/app.icns" "$staging/.VolumeIcon.icns"
+        SetFile -a C "$staging" 2>/dev/null || true
+        echo "  DMG volume icon set"
+    fi
+
     # Applications folder symlink (drag-to-install)
     ln -s /Applications "$staging/Applications"
 
@@ -315,6 +322,7 @@ package_windows() {
     if [ -f "$gui_exe" ]; then
         cp "$BUILD_DIR"/*.exe "$staging/" 2>/dev/null || true
         cp "$BUILD_DIR"/*.dll "$staging/" 2>/dev/null || true
+        cp "$BUILD_DIR"/*.ico "$staging/" 2>/dev/null || true
         # Copy Qt plugin directories deployed by windeployqt
         for dir in platforms styles sqldrivers tls networkinformation multimedia iconengines imageformats generic; do
             if [ -d "$BUILD_DIR/$dir" ]; then
@@ -414,6 +422,7 @@ create_nsis_installer() {
     # Collect all files into the NSIS staging dir (from build dir, re-collect)
     cp "$BUILD_DIR"/*.exe "$nsis_staging/" 2>/dev/null || true
     cp "$BUILD_DIR"/*.dll "$nsis_staging/" 2>/dev/null || true
+    cp "$BUILD_DIR"/*.ico "$nsis_staging/" 2>/dev/null || true
     # Copy Qt plugin directories deployed by windeployqt
     for dir in platforms styles sqldrivers tls networkinformation multimedia iconengines imageformats generic; do
         if [ -d "$BUILD_DIR/$dir" ]; then

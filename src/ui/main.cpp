@@ -1,4 +1,6 @@
 #include <QApplication>
+#include <QFile>
+#include <QIcon>
 #include <QLocale>
 #include <QSettings>
 
@@ -61,6 +63,12 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName("LocalAIAssistant");
     QApplication::setApplicationVersion("1.1.0");
+
+    // Explicity set app icon as fallback on macOS
+    QString iconPath = QCoreApplication::applicationDirPath() + "/../Resources/app.icns";
+    if (QFile::exists(iconPath)) {
+        app.setWindowIcon(QIcon(iconPath));
+    }
 
     QSettings settings("LocalAIAssistant", "Settings");
     QString language = settings.value("language", "system").toString();
