@@ -223,23 +223,41 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           body: |
-            自动构建发布包 首次运行说明
+            ## 中文
+
+            自动构建发布包，首次运行说明：
 
             本安装包未进行开发者数字签名，系统会触发安全拦截，属正常现象，请按对应系统指引放行：
 
-            macOS 用户首次打开程序后若提示无法验证开发者，操作步骤：
+            **macOS** 用户首次打开程序后若提示无法验证开发者，操作步骤：
 
             1. 双击程序图标；
-
             2. 打开「系统设置」→「隐私与安全性」，下滑找到对应程序；
-
             3. 点击「仍要打开 / 允许」，确认后即可正常启动。
 
-            Windows 用户首次运行若弹出 Windows Defender SmartScreen 安全拦截：
+            **Windows** 用户首次运行若弹出 Windows Defender SmartScreen 安全拦截：
 
             1. 点击更多信息；
-            
             2. 选择仍要运行，即可正常打开程序。
+
+            ---
+
+            ## English
+
+            Auto-built release packages. First-run instructions:
+
+            These packages are not digitally signed, so your system may show a security warning. This is expected — follow the steps below for your platform:
+
+            **macOS**: If you see "cannot verify developer" on first launch:
+
+            1. Double-click the app icon;
+            2. Open **System Settings** → **Privacy & Security**, scroll down to find the app;
+            3. Click **Open Anyway / Allow**, then confirm to launch.
+
+            **Windows**: If Windows Defender SmartScreen blocks the app on first launch:
+
+            1. Click **More info**;
+            2. Select **Run anyway** to start the program.
           files: |
             release-linux/*
             release-macos/*
