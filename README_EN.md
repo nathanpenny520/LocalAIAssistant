@@ -5,8 +5,9 @@
 A cross-platform AI assistant desktop application based on Qt 6, supporting both GUI and CLI modes,
 with a built-in AI Girlfriend voice interaction module.
 
-Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git Gitee repo:
-https://gitee.com/nathanpenny520/LocalAIAssistant.git
+Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git 
+
+Gitee repo:https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
 ![Level 1 Demo](AIGirlfriend/level-1-belle/demo-belle.png)
 
