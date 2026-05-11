@@ -1,0 +1,23 @@
+{
+    "tab_size": 4,
+    "line_width": 100,
+    "dangle_parens": false,
+    "keyword_case": "upper",
+    "command_case": "canonical",
+    "always_wrap": [],
+    "enable_sort": true,
+    "autosort": true,
+    "separate_ctrl_name_with_space": false,
+    "separate_fn_name_with_space": false,
+    "max_pargs_hwrap": 3,
+    "max_rows_cmdline": 2,
+    "min_prefix_chars": 4,
+    "bullet_char": "*",
+    "enum_char": ".",
+    "line_ending": "unix",
+    "first_comment_is_literal": false,
+    "literal_comment_pattern": null,
+    "fence_pattern": "^\\s*$",
+    "ruler_pattern": "^\\s*$",
+    "emit_byteorder_mark": false
+}

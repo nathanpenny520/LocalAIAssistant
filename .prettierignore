@@ -1,0 +1,5 @@
+build/
+resources/models/
+third_party/
+*.ipynb
+CMakeFiles/

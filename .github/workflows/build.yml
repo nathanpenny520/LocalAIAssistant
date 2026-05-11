@@ -1,0 +1,247 @@
+name: Build and Test
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Qt6 and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            qt6-base-dev \
+            qt6-multimedia-dev \
+            qt6-websockets-dev \
+            qt6-tools-dev \
+            libqt6sql6-sqlite \
+            libpoppler-cpp-dev \
+            libzip-dev \
+            libpugixml-dev \
+            cmake ninja-build ccache
+
+          # libzip-dev is installed for find_library; broken CMake config is bypassed
+
+      - name: Cache ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Setup ccache
+        run: |
+          ccache --version
+          ccache --max-size=1G
+          ccache --zero-stats
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Test
+        run: cd build && ctest --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Package
+        if: success()
+        run: |
+          ./scripts/package.sh --build-dir build --output-dir release
+          # AppImage skipped: linuxdeployqt/appimagetool not in apt
+
+      - name: Upload Linux artifacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: LocalAIAssistant-Linux
+          path: release/*
+          if-no-files-found: warn
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Qt6 and dependencies
+        run: |
+          brew install --quiet qt@6 poppler libzip pugixml ninja ccache
+
+      - name: Cache ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Setup ccache
+        run: |
+          ccache --version
+          ccache --max-size=1G
+          ccache --zero-stats
+
+      - name: Configure
+        run:
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -DCMAKE_PREFIX_PATH="$(brew --prefix qt@6)"
+
+      - name: Build
+        run: cmake --build build --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Test
+        run: cd build && ctest --output-on-failure
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Package
+        if: success()
+        run: |
+          ./scripts/package.sh \
+            --build-dir build \
+            --qt-path "$(brew --prefix qt@6)" \
+            --output-dir release
+
+      - name: Upload macOS artifacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: LocalAIAssistant-macOS
+          path: release/*
+          if-no-files-found: warn
+
+  test-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.*'
+          modules: 'qtmultimedia qtwebsockets'
+          cache: true
+
+      - name: Install ccache
+        run: choco install ccache --no-progress -y
+
+      - name: Cache ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Setup ccache
+        run: |
+          ccache --version
+          ccache --max-size=1G
+          ccache --zero-stats
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        run: cmake --build build --parallel $env:NUMBER_OF_PROCESSORS --config Release
+
+      - name: Test
+        run: cd build && ctest --output-on-failure -C Release
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Package
+        if: success()
+        shell: bash
+        run: |
+          # MSVC multi-config puts executables in build/Release/
+          ./scripts/package.sh --build-dir build/Release --output-dir release
+          # NSIS skipped: makensis not on default runner
+
+      - name: Upload Windows artifacts
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: LocalAIAssistant-Windows
+          path: release/*
+          if-no-files-found: warn
+
+  create-release:
+    needs: [test-linux, test-macos, test-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: LocalAIAssistant-Linux
+          path: release-linux
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: LocalAIAssistant-macOS
+          path: release-macos
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: LocalAIAssistant-Windows
+          path: release-windows
+
+      - name: Show files
+        run: |
+          echo "=== Linux ===" && ls -la release-linux/
+          echo "=== macOS ===" && ls -la release-macos/
+          echo "=== Windows ===" && ls -la release-windows/
+
+      - name: Rename SHA256SUM to avoid name collision
+        run: |
+          for d in release-linux release-macos release-windows; do
+            platform=$(echo "$d" | sed 's/release-//')
+            if [ -f "$d/SHA256SUM" ]; then
+              mv "$d/SHA256SUM" "$d/SHA256SUM-$platform"
+              echo "Renamed $d/SHA256SUM → $d/SHA256SUM-$platform"
+            fi
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3.0.0
+        with:
+          name: ${{ github.ref_name }}
+          body: |
+            自动构建发布包 首次运行说明
+
+            本安装包未进行开发者数字签名，系统会触发安全拦截，属正常现象，请按对应系统指引放行：
+
+            macOS 用户首次打开程序后若提示无法验证开发者，操作步骤：
+
+            1. 双击程序图标；
+
+            2. 打开「系统设置」→「隐私与安全性」，下滑找到对应程序；
+
+            3. 点击「仍要打开 / 允许」，确认后即可正常启动。
+
+            Windows 用户首次运行若弹出 Windows Defender SmartScreen 安全拦截：
+
+            1. 点击更多信息；
+            
+            2. 选择仍要运行，即可正常打开程序。
+          files: |
+            release-linux/*
+            release-macos/*
+            release-windows/*
+          fail_on_unmatched_files: true

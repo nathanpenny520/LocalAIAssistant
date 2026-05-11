@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=LocalAIAssistant
+Name[zh_CN]=本地AI助手
+Comment=A cross-platform AI assistant with AI Girlfriend voice interaction
+Comment[zh_CN]=跨平台AI助手桌面应用，内置AI女友语音交互模块
+Exec=LocalAIAssistant
+Icon=localaiassistant
+Terminal=false
+Categories=Office;Utility;ArtificialIntelligence;
+Keywords=AI;Assistant;Chat;GPT;Girlfriend;
+StartupWMClass=LocalAIAssistant

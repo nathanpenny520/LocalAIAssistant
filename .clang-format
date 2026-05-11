@@ -1,0 +1,114 @@
+---
+# clang-format config for LocalAIAssistant
+# Based on Google style, adapted for Qt and project conventions
+BasedOnStyle: Google
+
+# Indentation: 4 spaces (Google default is 2, project uses 4)
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 8
+AccessModifierOffset: -4
+
+# Line width
+ColumnLimit: 100
+
+# Braces: Keep K&R (same line) for everything — matching current code
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterExternBlock: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterObjCDeclaration: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+# Qt macros that clang-format shouldn't reformat
+StatementMacros:
+  - Q_OBJECT
+  - Q_SIGNALS
+  - Q_SLOTS
+  - Q_SIGNAL
+  - Q_SLOT
+  - Q_EMIT
+  - Q_DECLARE_METATYPE
+  - Q_DECLARE_TR_FUNCTIONS
+  - Q_UNUSED
+  - Q_PROPERTY
+
+# Include ordering: C std → C++ std → Qt → third-party libs → project headers
+# Note: related header (e.g. fileparser.h in fileparser.cpp) should be included
+# first manually within the project headers block.
+IncludeBlocks: Regroup
+IncludeCategories:
+  # C standard
+  - Regex: '^<c.*>'
+    Priority: 1
+    SortPriority: 0
+  # C++ standard
+  - Regex: '^<(algorithm|array|atomic|bitset|chrono|codecvt|complex|condition_variable|deque|exception|filesystem|forward_list|fstream|functional|future|initializer_list|iomanip|ios|iosfwd|iostream|istream|iterator|limits|list|locale|map|memory|mutex|new|numeric|optional|ostream|queue|random|ratio|regex|scoped_allocator|set|shared_mutex|span|sstream|stack|stdexcept|streambuf|string|string_view|strstream|system_error|thread|tuple|type_traits|typeindex|typeinfo|unordered_map|unordered_set|utility|valarray|variant|vector)>'
+    Priority: 2
+    SortPriority: 0
+  # Qt headers
+  - Regex: '^<Q.*>'
+    Priority: 3
+    SortPriority: 0
+  # Other third-party libraries (poppler, zip, pugi, ONNX, hnswlib)
+  - Regex: '^<(poppler|zip|pugixml|onnxruntime|hnswlib)'
+    Priority: 4
+    SortPriority: 0
+  # Project headers
+  - Regex: '^"'
+    Priority: 5
+    SortPriority: 0
+
+# Pointer alignment: keep default (left)
+DerivePointerAlignment: false
+PointerAlignment: Left
+
+# Spacing
+SpaceAfterCStyleCast: false
+SpaceBeforeCpp11BracedList: true
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyBlock: false
+SpacesInAngles: Never
+
+# Constructor initializer list: one per line, indented
+AllowShortFunctionsOnASingleLine: None
+BreakConstructorInitializers: BeforeComma
+ConstructorInitializerIndentWidth: 8
+
+# Comments and alignment
+AlignTrailingComments: true
+CommentPragmas: '(TODO|FIXME|HACK|NOTE|XXX):?'
+
+# Penalties to guide formatting
+PenaltyBreakAssignment: 10
+PenaltyBreakBeforeFirstCallParameter: 30
+PenaltyBreakComment: 10
+PenaltyBreakFirstLessLess: 0
+PenaltyBreakString: 10
+PenaltyExcessCharacter: 100
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Allow argument bin-packing to avoid overly verbose parameter lists
+BinPackArguments: true
+BinPackParameters: true
+
+# Max empty lines
+MaxEmptyLinesToKeep: 1
