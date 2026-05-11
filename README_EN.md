@@ -807,45 +807,6 @@ Temporary workaround:
 
 **Solution**: Install Qt WebSockets module (see "Dependency Installation Supplement" above)
 
-### iFlytek API Errors
-
-**Problem**: Voice recognition returns error codes
-
-**Common Error Codes**: | Error Code | Cause | Solution | |------------|-------|----------| | 10005
-| API Key error | Check credentials | | 10006 | Invalid parameter | Check APPID format | | 10007 |
-Illegal parameter | Check API Secret | | 10010 | No authorization | Enable corresponding service | |
-10014 | Engine not enabled | Enable voice service in console | | 10700 | Engine error | Contact
-iFlytek support |
-
-### AI Response Too Long, Sounds Like Customer Service
-
-**Problem**: Response exceeds 50 characters, mechanical tone
-
-**Solution**: Edit `personality.md` to adjust personality, ensure it includes:
-
-- Response length limit (under 30 characters)
-- Colloquial expression rules
-- Prohibit customer service language like "you", "according to my understanding"
-
-### Expression Not Switching
-
-**Problem**: Avatar expression always default state
-
-**Solution**:
-
-1. Check if AI response contains `[emotion:xxx]` marker
-2. Confirm corresponding level's `AIGirlfriend/LevelX/` directory has complete resources
-3. Level 1/2 need PNG images, Level 3 needs MP4 videos
-4. Check console log to confirm emotion detection triggered
-
-### Video Mode UI Invisible
-
-**Problem**: In Level 3 video mode, emotion labels and chat area not visible
-
-**Explanation**: This is a technical limitation of Qt QVideoWidget using native window rendering on
-macOS. Only the settings button remains visible for level switching. Recommend using Level 1 or
-Level 2 image modes for full UI experience.
-
 ### Multi-session Data Loss
 
 **Problem**: Conversation history disappeared after switching sessions
