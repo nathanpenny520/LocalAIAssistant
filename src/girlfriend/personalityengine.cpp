@@ -64,7 +64,7 @@ QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
         timeKey = QStringLiteral("time_noon");
     else if (hour >= 18 && hour < 22)
         timeKey = QStringLiteral("time_evening");
-    else if (hour >= 22 || hour < 2)
+    else if (hour >= 22 || hour < 6)
         timeKey = QStringLiteral("time_night");
     else
         timeKey = QStringLiteral("time_afternoon");
