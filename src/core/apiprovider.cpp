@@ -26,6 +26,9 @@ ApiProvider::ApiProvider(QObject* parent)
         , m_frequencyPenalty(0.0)
         , m_seed(std::nullopt) {
     m_systemPrompt = loadSystemPrompt();
+
+    connect(PromptManager::instance(), &PromptManager::promptsReloaded,
+            this, &ApiProvider::reloadSystemPrompt);
 }
 
 ApiProvider::~ApiProvider() {
@@ -117,8 +120,8 @@ void ApiProvider::sendChatRequest(const QVector<ChatMessage>& messages) {
     // Resolve datetime sentinel to current time (language-aware)
     QString lang = PromptManager::instance()->currentLanguage();
     QString dtStr = (lang == QStringLiteral("en"))
-            ? QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd (dddd)"))
-            : QDateTime::currentDateTime().toString(QStringLiteral("yyyy年M月d日 dddd"));
+            ? QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd (dddd) HH:mm:ss"))
+            : QDateTime::currentDateTime().toString(QStringLiteral("yyyy年M月d日 dddd HH:mm:ss"));
     effectivePrompt.replace(QStringLiteral("__CURRENT_DATETIME__"), dtStr);
 
     // Inject knowledge base context with language-aware header (non-mutating)
@@ -267,6 +270,10 @@ QString ApiProvider::loadSystemPrompt() const {
     QString task = PromptManager::instance()->taskPrompt();
     if (!task.isEmpty()) prompt += QStringLiteral("\n\n") + task;
     return prompt;
+}
+
+void ApiProvider::reloadSystemPrompt() {
+    m_systemPrompt = loadSystemPrompt();
 }
 
 QJsonObject ApiProvider::buildTextContentBlock(const QString& text) const {

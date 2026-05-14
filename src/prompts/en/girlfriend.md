@@ -166,7 +166,7 @@ moment.
 
 ---
 
-{{mood_hint}} {{time_context}} {{user_memories}}
+{{mood_hint}} {{current_datetime}} {{time_context}} {{user_memories}}
 
 <!-- CONFIG_START
   Prompt template configuration (parsed by the app, invisible to the AI).
@@ -184,6 +184,7 @@ time_noon=It's %1 noon. Remind them to eat lunch, don't skip meals
 time_afternoon=It's %1 in the afternoon. The post-lunch slump is real — check in on them
 time_evening=It's %1 in the evening. They might be off work — ask how their day went
 time_night=It's %1 late at night. They should be sleeping — be extra gentle, coax them to bed, but don't ramble
+datetime_prefix=Current date and time: 
 memory_header=## Things I Know About Him\n\nThe following is what I've learned about him from our conversations. Weave it in naturally — don't list it like a dossier:
 ```
 

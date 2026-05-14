@@ -22,6 +22,7 @@
 #include "knowledgebase.h"
 #include "stylesheetmanager.h"
 #include "translationmanager.h"
+#include "../prompts/promptmanager.h"
 
 SettingsDialog::SettingsDialog(QWidget* parent)
         : QDialog(parent)
@@ -334,6 +335,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
                 locale = newLanguage;
             }
             TranslationManager::instance()->loadTranslation(locale);
+            PromptManager::instance()->setLanguage(locale);
         }
 
         accept();

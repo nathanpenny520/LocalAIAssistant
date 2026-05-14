@@ -224,7 +224,10 @@ GirlfriendWindow::GirlfriendWindow(QWidget* parent)
     connect(StyleSheetManager::instance(), &StyleSheetManager::themeChanged, this,
             [this](StyleSheetManager::Theme) { applyTheme(); });
     connect(TranslationManager::instance(), &TranslationManager::languageChanged, this,
-            [this]() { retranslateUi(); });
+            [this]() {
+                retranslateUi();
+                m_personalityEngine->reloadPrompt();
+            });
 
     // Ctrl+G closes this window (same shortcut that opens it from MainWindow)
     QShortcut* closeShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_G), this);

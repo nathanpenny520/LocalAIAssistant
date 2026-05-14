@@ -49,6 +49,9 @@ public:
         return m_userNickname;
     }
 
+public slots:
+    void reloadPrompt();
+
     // Mood value (0.0 = worst, 1.0 = best)
     double mood() const {
         return m_mood;

@@ -146,7 +146,7 @@
 
 ---
 
-{{mood_hint}} {{time_context}} {{user_memories}}
+{{mood_hint}} {{current_datetime}} {{time_context}} {{user_memories}}
 
 <!-- CONFIG_START
   提示词模板配置（程序解析用，AI 看不到）。
@@ -164,6 +164,7 @@ time_noon=中午%1点了。该提醒他吃午饭了，别饿着
 time_afternoon=下午%1点。下午容易犯困，可以关心一下他
 time_evening=晚上%1点。他可能刚下班，问问他今天过得怎么样
 time_night=深夜%1点。他该睡觉了，语气要特别温柔，哄他睡——但也别太啰嗦
+datetime_prefix=当前日期时间：
 memory_header=## 关于他的记忆\n\n以下是之前聊天中了解到的关于他的信息。自然地融入对话，不要刻意列举：
 ```
 

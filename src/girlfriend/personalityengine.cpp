@@ -1,6 +1,7 @@
 #include "personalityengine.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QRandomGenerator>
@@ -30,6 +31,10 @@ void PersonalityEngine::parseTemplateConfig() {
 
 QString PersonalityEngine::templateValue(const QString& key, const QString& fallback) const {
     return m_templateConfig.value(key, fallback);
+}
+
+void PersonalityEngine::reloadPrompt() {
+    loadFromFile();
 }
 
 QString PersonalityEngine::loadPersonalityPrompt() {
@@ -96,6 +101,16 @@ QString PersonalityEngine::buildSystemPrompt(const QString& memoryContent) {
     prompt.replace(QStringLiteral("{{time_context}}"),
                    templateValue(QStringLiteral("time_prefix"), QStringLiteral("当前时间：")) +
                            timeContext + QLatin1Char('\n'));
+
+    // Inject current date and time (language-aware)
+    QString lang = PromptManager::instance()->currentLanguage();
+    QString datetimeStr = (lang == QStringLiteral("en"))
+            ? QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd (dddd) HH:mm:ss"))
+            : QDateTime::currentDateTime().toString(QStringLiteral("yyyy年M月d日 dddd HH:mm:ss"));
+    prompt.replace(QStringLiteral("{{current_datetime}}"),
+                   templateValue(QStringLiteral("datetime_prefix"),
+                                 QStringLiteral("Current date and time: ")) +
+                           datetimeStr + QLatin1Char('\n'));
 
     // User memory injection
     if (!memoryContent.isEmpty()) {

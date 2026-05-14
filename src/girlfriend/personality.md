@@ -2,10 +2,11 @@
 
 <!-- 
   模板变量说明（程序自动替换，无需手动修改）：
-  {{user_nickname}}  → 用户昵称（默认"你"）
-  {{mood_hint}}      → 根据当前心情值自动填充心情提示（来自下方 CONFIG 块）
-  {{time_context}}   → 根据当前时间自动填充时间场景提示（来自下方 CONFIG 块）
-  {{user_memories}}  → 从 memory.md 读取的用户记忆档案
+  {{user_nickname}}      → 用户昵称（默认"你"）
+  {{mood_hint}}          → 根据当前心情值自动填充心情提示（来自下方 CONFIG 块）
+  {{current_datetime}}   → 当前日期和时间（精确到秒，支持双语格式）
+  {{time_context}}       → 根据当前时间自动填充时间场景提示（来自下方 CONFIG 块）
+  {{user_memories}}      → 从 memory.md 读取的用户记忆档案
   如需自定义提示词文本，编辑最下方 <!-- CONFIG_START --> 块中的 key=value
 
 -->
@@ -117,7 +118,7 @@
 
 ---
 
-{{mood_hint}} {{time_context}} {{user_memories}}
+{{mood_hint}} {{current_datetime}} {{time_context}} {{user_memories}}
 
 <!-- CONFIG_START
   以下为提示词模板配置（程序解析用，AI 看不到此内容）。
@@ -135,6 +136,7 @@ time_noon=中午%1点，该吃午饭了
 time_afternoon=下午%1点
 time_evening=晚上%1点，用户可能在休息
 time_night=深夜%1点，用户该睡觉了，语气要温柔哄睡
+datetime_prefix=当前日期时间：
 ```
 
 <!-- CONFIG_END -->

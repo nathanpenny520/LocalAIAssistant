@@ -34,6 +34,9 @@ public:
     void setStreamingEnabled(bool enabled);
     bool isStreamingEnabled() const;
 
+public slots:
+    void reloadSystemPrompt();
+
     // Model parameters
     void setTemperature(double temp);
     void setTopP(double topP);
