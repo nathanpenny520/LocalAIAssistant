@@ -78,10 +78,11 @@ else()
     message(STATUS "pugixml not found, using header-only fallback")
 endif()
 
-# vcpkg fallback: use find_path/find_library (same pattern as libzip above)
-# poppler-cpp is included by default in vcpkg, no [cpp] feature needed
+# vcpkg fallback: use find_library for lib + find_path with PATH_SUFFIXES
+# so the include dir points to .../poppler/cpp/, matching the #include style
+# (pkg_check_modules on Unix returns .../poppler/cpp/ already)
 if(NOT POPPLER_FOUND)
-    find_path(POPPLER_INCLUDE_DIRS poppler/cpp/poppler-document.h)
+    find_path(POPPLER_INCLUDE_DIRS poppler-document.h PATH_SUFFIXES poppler/cpp)
     find_library(POPPLER_LIBRARIES poppler-cpp)
     if(POPPLER_INCLUDE_DIRS AND POPPLER_LIBRARIES)
         set(POPPLER_FOUND TRUE)
