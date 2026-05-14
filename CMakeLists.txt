@@ -78,13 +78,13 @@ else()
     message(STATUS "pugixml not found, using header-only fallback")
 endif()
 
-# vcpkg fallback for Poppler (pkg_check_modules is Unix-only)
-# poppler-cpp bindings are included by default, no [cpp] feature needed
+# vcpkg fallback: use find_path/find_library (same pattern as libzip above)
+# poppler-cpp is included by default in vcpkg, no [cpp] feature needed
 if(NOT POPPLER_FOUND)
-    find_package(unofficial-poppler CONFIG QUIET)
-    if(unofficial-poppler_FOUND)
+    find_path(POPPLER_INCLUDE_DIRS poppler/cpp/poppler-document.h)
+    find_library(POPPLER_LIBRARIES poppler-cpp)
+    if(POPPLER_INCLUDE_DIRS AND POPPLER_LIBRARIES)
         set(POPPLER_FOUND TRUE)
-        set(POPPLER_LIBRARIES unofficial::poppler::poppler-cpp)
     endif()
 endif()
 
