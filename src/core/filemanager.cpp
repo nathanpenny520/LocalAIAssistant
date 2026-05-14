@@ -93,6 +93,15 @@ FileAttachment FileManager::processFile(const QString& path) {
             attachment.content =
                     QStringLiteral("[PDF 文件: %1]\n\n%2").arg(info.fileName()).arg(rawText);
         }
+    } else if (ext == QStringLiteral("docx")) {
+        attachment.type = QStringLiteral("text");
+        QString rawText = FileParser::extractDocxText(path);
+        if (rawText.isEmpty()) {
+            attachment.content = QStringLiteral("[无法读取 DOCX 文件: %1]").arg(info.fileName());
+        } else {
+            attachment.content =
+                    QStringLiteral("[DOCX 文件: %1]\n\n%2").arg(info.fileName()).arg(rawText);
+        }
     } else if (FileParser::isTextFile(path)) {
         attachment.type = QStringLiteral("text");
         QString rawText = FileParser::extractPlainText(path);

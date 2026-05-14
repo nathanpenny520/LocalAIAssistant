@@ -135,6 +135,10 @@ jobs:
           modules: 'qtmultimedia qtwebsockets'
           cache: true
 
+      - name: Install document parsing libraries (vcpkg)
+        run: |
+          vcpkg install poppler[cpp]:x64-windows libzip:x64-windows pugixml:x64-windows
+
       - name: Install ccache
         run: choco install ccache --no-progress -y
 
@@ -153,7 +157,7 @@ jobs:
           ccache --zero-stats
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build
         run: cmake --build build --parallel $env:NUMBER_OF_PROCESSORS --config Release
