@@ -137,7 +137,7 @@ jobs:
 
       - name: Install document parsing libraries (vcpkg)
         run: |
-          vcpkg install poppler[cpp]:x64-windows libzip:x64-windows pugixml:x64-windows
+          vcpkg install poppler:x64-windows libzip:x64-windows pugixml:x64-windows
 
       - name: Install ccache
         run: choco install ccache --no-progress -y

@@ -79,11 +79,12 @@ else()
 endif()
 
 # vcpkg fallback for Poppler (pkg_check_modules is Unix-only)
+# poppler-cpp bindings are included by default, no [cpp] feature needed
 if(NOT POPPLER_FOUND)
-    find_package(Poppler CONFIG QUIET)
-    if(Poppler_FOUND)
+    find_package(unofficial-poppler CONFIG QUIET)
+    if(unofficial-poppler_FOUND)
         set(POPPLER_FOUND TRUE)
-        set(POPPLER_LIBRARIES Poppler::Poppler)
+        set(POPPLER_LIBRARIES unofficial::poppler::poppler-cpp)
     endif()
 endif()
 
