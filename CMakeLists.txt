@@ -1,22 +1,39 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Auto-detect Qt path, prioritizing official Qt over Homebrew stubs.
-# Override with: cmake -B build -DQT_PATH=/custom/qt/path
+# Auto-detect Qt path, prioritizing official Qt over Homebrew stubs. Override with: cmake -B build
+# -DQT_PATH=/custom/qt/path
 if(NOT DEFINED QT_PATH)
     if(APPLE AND EXISTS "$ENV{HOME}/Qt")
-        file(GLOB qt_dirs RELATIVE "$ENV{HOME}/Qt" "$ENV{HOME}/Qt/6.*")
+        file(
+            GLOB qt_dirs
+            RELATIVE "$ENV{HOME}/Qt"
+            "$ENV{HOME}/Qt/6.*")
         list(SORT qt_dirs COMPARE NATURAL)
         list(REVERSE qt_dirs)
         if(qt_dirs)
-            list(GET qt_dirs 0 latest)
+            list(
+                GET
+                qt_dirs
+                0
+                latest)
             set(QT_PATH "$ENV{HOME}/Qt/${latest}/macos")
         endif()
-    elseif(UNIX AND NOT APPLE AND EXISTS "$ENV{HOME}/Qt")
-        file(GLOB qt_dirs RELATIVE "$ENV{HOME}/Qt" "$ENV{HOME}/Qt/6.*")
+    elseif(
+        UNIX
+        AND NOT APPLE
+        AND EXISTS "$ENV{HOME}/Qt")
+        file(
+            GLOB qt_dirs
+            RELATIVE "$ENV{HOME}/Qt"
+            "$ENV{HOME}/Qt/6.*")
         list(SORT qt_dirs COMPARE NATURAL)
         list(REVERSE qt_dirs)
         if(qt_dirs)
-            list(GET qt_dirs 0 latest)
+            list(
+                GET
+                qt_dirs
+                0
+                latest)
             set(QT_PATH "$ENV{HOME}/Qt/${latest}/gcc_64")
         endif()
     endif()
@@ -59,8 +76,8 @@ if(PkgConfig_FOUND)
     pkg_check_modules(PUGIXML pugixml QUIET)
 endif()
 
-# DOCX support: libzip for ZIP decompression + pugixml for XML
-# Use find_library to avoid broken libzip CMake config on some platforms
+# DOCX support: libzip for ZIP decompression + pugixml for XML Use find_library to avoid broken
+# libzip CMake config on some platforms
 find_path(libzip_INCLUDE_DIRS zip.h)
 find_library(libzip_LIBRARIES NAMES zip libzip)
 if(libzip_INCLUDE_DIRS AND libzip_LIBRARIES)
@@ -78,9 +95,9 @@ else()
     message(STATUS "pugixml not found, using header-only fallback")
 endif()
 
-# vcpkg fallback: use find_library for lib + find_path with PATH_SUFFIXES
-# so the include dir points to .../poppler/cpp/, matching the #include style
-# (pkg_check_modules on Unix returns .../poppler/cpp/ already)
+# vcpkg fallback: use find_library for lib + find_path with PATH_SUFFIXES so the include dir points
+# to .../poppler/cpp/, matching the #include style (pkg_check_modules on Unix returns
+# .../poppler/cpp/ already)
 if(NOT POPPLER_FOUND)
     find_path(POPPLER_INCLUDE_DIRS poppler-document.h PATH_SUFFIXES poppler/cpp)
     find_library(POPPLER_LIBRARIES poppler-cpp)
@@ -132,18 +149,15 @@ if(Qt6LinguistTools_FOUND)
 
     # Direct lrelease avoids qt_add_lrelease API differences across Qt 6.x versions
     set(QM_DIR ${CMAKE_CURRENT_BINARY_DIR}/translations)
-    set(QM_FILES
-        ${QM_DIR}/localai_zh_CN.qm
-        ${QM_DIR}/localai_en.qm)
+    set(QM_FILES ${QM_DIR}/localai_zh_CN.qm ${QM_DIR}/localai_en.qm)
 
     add_custom_command(
         OUTPUT ${QM_FILES}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${QM_DIR}
-        COMMAND $<TARGET_FILE:Qt6::lrelease>
-                ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
-                -qm ${QM_DIR}/localai_zh_CN.qm
-        COMMAND $<TARGET_FILE:Qt6::lrelease>
-                ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts
+        COMMAND
+            $<TARGET_FILE:Qt6::lrelease> ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_zh_CN.ts
+            -qm ${QM_DIR}/localai_zh_CN.qm
+        COMMAND $<TARGET_FILE:Qt6::lrelease> ${CMAKE_CURRENT_SOURCE_DIR}/translations/localai_en.ts
                 -qm ${QM_DIR}/localai_en.qm
         DEPENDS ${TS_FILES}
         COMMENT "Generating .qm translation files with lrelease")
@@ -152,7 +166,7 @@ if(Qt6LinguistTools_FOUND)
     add_custom_target(translations ALL DEPENDS translations_target)
 else()
     message(STATUS "Qt6 LinguistTools not found, translations disabled")
-    add_custom_target(translations ALL)  # dummy target for add_dependencies
+    add_custom_target(translations ALL) # dummy target for add_dependencies
 endif()
 
 add_library(
@@ -260,6 +274,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE GirlfriendModule)
 # ============================================================
 add_library(
     TaskModule
+    src/tasks/agentloop.cpp
+    src/tasks/agentloop.h
     src/tasks/commandexecutor.cpp
     src/tasks/commandexecutor.h
     src/tasks/operationplan.cpp
@@ -269,9 +285,7 @@ add_library(
     src/tasks/safetychecker.cpp
     src/tasks/safetychecker.h
     src/tasks/taskengine.cpp
-    src/tasks/taskengine.h
-    src/tasks/agentloop.cpp
-    src/tasks/agentloop.h)
+    src/tasks/taskengine.h)
 target_include_directories(TaskModule PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/tasks
                                              ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
 target_link_libraries(TaskModule PUBLIC LocalAIAssistantCore Qt6::Widgets)
@@ -369,13 +383,8 @@ endif()
 
 add_subdirectory(tests)
 
-# ============================================================
-# copy_app_resources(TARGET_NAME DEST_DIR)
-#
-# Post-build copy of shared app resources (prompts, girlfriend
-# assets, models, docs, .env) to a platform-specific destination.
-# Called once per platform to eliminate ~200 lines of duplication.
-# ============================================================
+# Post-build copy of shared app resources (prompts, girlfriend assets, models, docs, .env) to a
+# platform-specific destination.
 function(copy_app_resources TARGET_NAME DEST_DIR)
 
     # 1. Prompts
@@ -383,72 +392,72 @@ function(copy_app_resources TARGET_NAME DEST_DIR)
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/prompts"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/src/prompts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/prompts"
                 "${DEST_DIR}/prompts"
         COMMENT "Copying prompts to ${DEST_DIR}")
 
-    # 2. AIGirlfriend images
+    # 1. AIGirlfriend images
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/AIGirlfriend"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
                 "${DEST_DIR}/AIGirlfriend"
         COMMENT "Copying AIGirlfriend images to ${DEST_DIR}")
 
-    # 3. girlfriend_memory.md
+    # 1. girlfriend_memory.md
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/girlfriend"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md"
-                "${DEST_DIR}/girlfriend/girlfriend_memory.md"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md"
+            "${DEST_DIR}/girlfriend/girlfriend_memory.md"
         COMMENT "Copying girlfriend_memory.md to ${DEST_DIR}")
 
-    # 4. .env (conditional)
+    # 1. .env (conditional)
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
         add_custom_command(
             TARGET ${TARGET_NAME}
             POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CMAKE_CURRENT_SOURCE_DIR}/.env"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/.env"
                     "${DEST_DIR}/.env"
             COMMENT "Copying .env to ${DEST_DIR}")
     endif()
 
-    # 5. ONNX models
+    # 1. ONNX models
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/models"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx"
-                "${DEST_DIR}/models/all-MiniLM-L6-v2-arm64.onnx"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx"
-                "${DEST_DIR}/models/all-MiniLM-L6-v2-avx2.onnx"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json"
-                "${DEST_DIR}/models/tokenizer.json"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json"
-                "${DEST_DIR}/models/tokenizer_config.json"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx"
+            "${DEST_DIR}/models/all-MiniLM-L6-v2-arm64.onnx"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx"
+            "${DEST_DIR}/models/all-MiniLM-L6-v2-avx2.onnx"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json"
+            "${DEST_DIR}/models/tokenizer.json"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json"
+            "${DEST_DIR}/models/tokenizer_config.json"
         COMMENT "Copying model files to ${DEST_DIR}")
 
-    # 6. Usage docs
+    # 1. Usage docs
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/docs"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
                 "${DEST_DIR}/docs/USAGE.md"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md"
-                "${DEST_DIR}/docs/USAGE_zh_CN.md"
+                "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md" "${DEST_DIR}/docs/USAGE_zh_CN.md"
         COMMENT "Copying usage docs to ${DEST_DIR}")
 
 endfunction()
@@ -468,7 +477,11 @@ if(APPLE)
     set(PROMPTS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts)
     set(PROMPTS_DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/prompts)
 
-    file(GLOB PROMPTS_DEP_FILES "${PROMPTS_SOURCE_DIR}/en/*.md" "${PROMPTS_SOURCE_DIR}/zh_CN/*.md")
+    file(
+        GLOB
+        PROMPTS_DEP_FILES
+        "${PROMPTS_SOURCE_DIR}/en/*.md"
+        "${PROMPTS_SOURCE_DIR}/zh_CN/*.md")
 
     add_custom_command(
         OUTPUT ${PROMPTS_DEST_DIR}
@@ -512,9 +525,10 @@ if(APPLE)
     add_custom_command(
         TARGET ${PROJECT_NAME}
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/app.icns
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
+            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/app.icns
         COMMENT "Copying app icon to bundle Resources")
 
     add_dependencies(${PROJECT_NAME} app_icon copy_prompts_dev)
@@ -617,7 +631,8 @@ if(WIN32)
         add_custom_command(
             TARGET ${PROJECT_NAME}
             POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
             COMMAND
                 ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
@@ -639,7 +654,8 @@ if(UNIX AND NOT APPLE)
         add_custom_command(
             TARGET ${PROJECT_NAME}
             POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations"
             COMMAND
                 ${CMAKE_COMMAND} -E copy_if_different
                 "${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm"
@@ -673,7 +689,8 @@ if(WIN32)
     install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}-CLI RUNTIME DESTINATION bin)
     install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts/ DESTINATION bin/prompts)
     install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend/ DESTINATION bin/AIGirlfriend)
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md DESTINATION bin/girlfriend)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md
+            DESTINATION bin/girlfriend)
     install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/docs/ DESTINATION bin/docs)
     if(Qt6LinguistTools_FOUND)
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm
