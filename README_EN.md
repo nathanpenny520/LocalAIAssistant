@@ -40,7 +40,7 @@ Gitee repo:https://gitee.com/nathanpenny520/LocalAIAssistant.git
   persistence
 - **Multi-session Management** — Create, switch, delete multiple independent sessions
 - **Voice Interaction** — Voice input (ASR) + Voice output (TTS)
-- **Personality Customization** — Modify personality.md to customize character
+- **Personality Customization** — Modify girlfriend.md in prompts directory to customize character
 - **Voice Output Toggle** — Enable/disable voice playback in settings
 - **Video Sound Toggle** — Enable/disable background sound in Level 3 video mode
 - **Shortcut Key** — Command/Ctrl+G to quickly open/close girlfriend window
@@ -128,6 +128,9 @@ sourcecode-ai-assistant/
 ├── src/
 │   ├── core/           # Core business logic (network, session, file handling)
 │   │   └── datamodels.h    # Data model definitions
+│   ├── prompts/         # AI prompt templates (per-language subdirectories)
+│   │   ├── en/          #   English prompts
+│   │   └── zh_CN/       #   Chinese prompts
 │   ├── ui/             # GUI interface (main window, settings dialog)
 │   ├── cli/            # CLI command line interface
 │   ├── tasks/          # Task execution module (file ops, safety checks, undo, agent loop)
@@ -162,16 +165,16 @@ sourcecode-ai-assistant/
 │       ├── girlfriendsession.cpp  # Single session data
 │       ├── girlfriendsession.h    # Session data header
 │       ├── girlfriend_translations.h # Translation helper class
-│       ├── personality.md         # Personality Prompt (customizable)
-│       └── memory.md              # User memory archive
+│       └── girlfriend_memory.md       # User memory archive (long-term persistence)
 ├── AIGirlfriend/       # Avatar resources directory
 │   ├── level-1-belle/  # Level 1 PNG images
 │   ├── level-2-hot/    # Level 2 PNG images
 │   └── level-3-hotter/ # Level 3 MP4 videos
-├── scripts/            # Build scripts
+├── scripts/            # Build and tooling scripts
 │   ├── build.sh        # Unified cross-platform build script
 │   ├── package.sh      # Cross-platform packaging script (CI-friendly)
 │   ├── setup.sh        # First-time clone initialization script
+│   ├── format.sh       # Code formatter (clang-format + cmake-format + shfmt)
 │   ├── version.sh      # Shared version extraction utility
 │   └── cli-wrapper.sh  # macOS CLI launcher (detects iTerm2)
 ├── translations/       # Internationalization translation files
@@ -643,13 +646,14 @@ Select "AI Girlfriend" from View menu, or use shortcut `Ctrl/Cmd+G`.
 
 ### Customize Personality
 
-Edit `src/girlfriend/personality.md` to customize AI girlfriend's personality and response style.
-Rebuild or copy file to application resource directory after modification.
+Edit `src/prompts/<lang>/girlfriend.md` (e.g., `src/prompts/en/girlfriend.md`) to customize AI
+girlfriend's personality and response style. Changes are auto-synced on `cmake --build build`.
 
 ### Memory System Mechanism
 
-AI girlfriend's memory system is implemented via text markers (defined in personality.md through
-system prompt, **memory system code not recommended to remove**), no API tool calls needed.
+AI girlfriend's memory system is implemented via text markers (defined in
+`prompts/<lang>/girlfriend.md` through system prompt, **memory system code not recommended to
+remove**), no API tool calls needed.
 
 ---
 
@@ -826,7 +830,7 @@ Temporary workaround:
 1. Check if `memory.md` file has content (in user data directory)
 2. Confirm AI response contains `[update memory:xxx]` marker
 3. Some models don't support special marker output, try different model
-4. Emphasize memory rules in `personality.md` to guide AI output
+4. Emphasize memory rules in `prompts/<lang>/girlfriend.md` to guide AI output
 
 ---
 

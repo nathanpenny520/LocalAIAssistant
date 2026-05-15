@@ -37,7 +37,7 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **记忆系统** — 通过文本标记自动记录用户信息，长期记忆持久化
 - **多会话管理** — 创建、切换、删除多个独立会话
 - **语音交互** — 语音输入（ASR）+ 语音播报（TTS）
-- **人设定制** — 可修改 personality.md 自定义性格
+- **人设定制** — 可修改 prompts 目录下的 girlfriend.md 自定义性格
 - **语音输出开关** — 可在设置中开启/关闭语音播报
 - **视频声音开关** — Level 3 视频模式下可开启/关闭背景声音
 - **快捷键** — Command/Ctrl+G 快速打开/关闭女友窗口
@@ -115,6 +115,9 @@ sourcecode-ai-assistant/
 ├── src/
 │   ├── core/           # 核心业务逻辑（网络请求、会话管理、文件处理）
 │   │   └── datamodels.h    # 数据模型定义
+│   ├── prompts/         # AI 提示词模板（按语言分目录）
+│   │   ├── en/          #   英文提示词
+│   │   └── zh_CN/       #   中文提示词
 │   ├── ui/             # GUI 界面（主窗口、设置对话框）
 │   ├── cli/            # CLI 命令行界面
 │   ├── tasks/          # 任务执行模块（文件操作、安全检查、撤销、Agent 循环）
@@ -149,16 +152,16 @@ sourcecode-ai-assistant/
 │       ├── girlfriendsession.cpp  # 单个会话数据
 │       ├── girlfriendsession.h    # 会话数据头文件
 │       ├── girlfriend_translations.h # 翻译辅助类
-│       ├── personality.md         # 人设 Prompt（可自定义）
-│       └── memory.md              # 用户记忆档案
+│       └── girlfriend_memory.md       # 用户记忆档案（长期记忆持久化）
 ├── AIGirlfriend/       # 头像资源目录
 │   ├── level-1-belle/  # Level 1 PNG 图片
 │   ├── level-2-hot/    # Level 2 PNG 图片
 │   └── level-3-hotter/ # Level 3 MP4 视频
-├── scripts/            # 构建脚本
+├── scripts/            # 构建与工具脚本
 │   ├── build.sh        # 统一跨平台构建脚本
 │   ├── package.sh      # 跨平台打包脚本（CI 友好）
 │   ├── setup.sh        # 首次克隆初始化脚本
+│   ├── format.sh       # 代码格式化工具（clang-format + cmake-format + shfmt）
 │   ├── version.sh      # 共享版本号提取工具
 │   └── cli-wrapper.sh  # macOS CLI 启动脚本（检测 iTerm2）
 ├── translations/       # 国际化翻译文件
@@ -617,12 +620,12 @@ XFYUN_API_SECRET=你的APISecret
 
 ### 自定义人设
 
-编辑 `src/girlfriend/personality.md`
-可自定义 AI 女友的性格和回复风格。修改后需要重新编译或将文件复制到应用资源目录。
+编辑 `src/prompts/<语言>/girlfriend.md`（如 `src/prompts/zh_CN/girlfriend.md`）可自定义 AI
+女友的性格和回复风格。运行 `cmake --build build` 后自动同步到应用资源目录。
 
 ### 记忆系统工作原理
 
-AI 女友的记忆系统通过文本标记实现（在personality.md中通过系统提示词定义实现**记忆系统**这部分代码不建议删去），无需 API 工具调用支持。
+AI 女友的记忆系统通过文本标记实现（在 `prompts/<语言>/girlfriend.md` 中通过系统提示词定义实现**记忆系统**这部分代码不建议删去），无需 API 工具调用支持。
 
 ---
 
@@ -793,7 +796,7 @@ QAudioSource 的兼容性问题。后续版本会尝试修复。
 1. 检查 `memory.md` 文件是否有内容（位于用户数据目录）
 2. 确认 AI 回复中是否包含 `[更新记忆:xxx]` 标记
 3. 部分模型不支持输出特殊标记，可尝试更换模型
-4. 在 `personality.md` 中强调记忆规则，引导 AI 输出标记
+4. 在 `prompts/<语言>/girlfriend.md` 中强调记忆规则，引导 AI 输出标记
 
 ---
 

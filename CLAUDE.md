@@ -62,9 +62,10 @@ LocalAIAssistant-CLI (src/cli/)                    — links Core + Task + Knowl
 - Naming: `snake_case.cpp/h` files, `PascalCase` types, `snake_case` vars, `m_` members,
   `kPascalCase` constants
 - Include order: related header → C std → C++ std → Qt → other libs → project headers
-- Formatters: `clang-format -i`, `cmake-format -i CMakeLists.txt`,
-  `shfmt -i 4 -ci -bn -w scripts/*.sh`, `prettier --write`
-  (see `.clang-format`, `.cmake-format.json`, `.editorconfig`, `.prettierrc`)
+- Formatters: `./scripts/format.sh` (or manually: `clang-format -i`,
+  `cmake-format -i CMakeLists.txt`, `shfmt -i 4 -ci -bn -w scripts/*.sh`,
+  `prettier --write`). Use `./scripts/format.sh --check` for CI/dry-run.
+  Config: `.clang-format`, `.cmake-format.json`, `.editorconfig`, `.prettierrc`
 - English only comments. Doxygen in headers. Explain WHY, not WHAT.
 
 ## Testing
