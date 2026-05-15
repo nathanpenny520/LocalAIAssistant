@@ -116,21 +116,25 @@ Both files stay in `src/ui/`. Header unchanged.
 
 ---
 
-## Phase 3: CMakeLists.txt & Tooling
+## Phase 3: CMakeLists.txt & Tooling ✅ (completed 2026-05-15)
 
-### 3.1 Deduplicate post-build copy commands
+### 3.1 Deduplicate post-build copy commands ✅
 
-macOS (lines 408-521), Windows (616-723), Linux (728-835) copy identical resource sets. Extract a `copy_app_resources(TARGET DEST_DIR)` CMake function. Reduces ~250 lines of duplication to a single function + 3 one-line calls. Low risk: pure refactor, same commands, same behavior.
+macOS (lines 408-521), Windows (616-723), Linux (728-835) copy identical resource sets. Extract a `copy_app_resources(TARGET DEST_DIR)` CMake function. Reduces ~250 lines of duplication to a single function + 3 one-line calls.
 
-### 3.2 Integrate `shfmt` into workflow
+**Done:** `copy_app_resources` function at CMakeLists.txt:371. macOS, Windows, and Linux each call it with one line. Saved ~131 net lines.
 
-- `.shfmtrc` exists but is never invoked. The project has 5 shell scripts (2,645 lines).
-- Add a pre-commit hook or CI step: `shfmt -d scripts/*.sh`
-- Or add a `scripts/format.sh` that runs `shfmt`, `clang-format`, and `cmake-format`
+### 3.2 Integrate `shfmt` into workflow ✅
 
-### 3.3 (Optional) CI format check
+- `.shfmtrc` replaced with `.editorconfig` (shfmt reads it natively)
+- `scripts/format.sh` created — runs `clang-format`, `cmake-format`, `shfmt` with `--check` mode
+- `set -euo pipefail` added to `build.sh`, `setup.sh`, `cli-wrapper.sh` (all tested)
+- All shell scripts formatted with `shfmt -i 4 -ci -bn`
+- `version.sh` skipped (sourced by other scripts)
 
-Add `.github/workflows/format-check.yml` to enforce `clang-format` and `cmake-format` on PRs.
+### 3.3 (Optional) CI format check ✅
+
+Added `.github/workflows/format-check.yml` to enforce `clang-format`, `cmake-format`, and `shfmt` on PRs.
 
 ---
 
@@ -195,8 +199,8 @@ Add new AI backends, tools, web search, and MCP servers without modifying/recomp
 | `personality.md` orphaned — never read by code | ✅ Phase 1.2 |
 | `memory.md` ambiguous name | ✅ Phase 1.3 |
 | `CLAUDE.md` missing directories / verbose | ✅ Phase 1.4 |
-| CMake copy duplication (~250 lines) | Phase 3.1 |
-| `.shfmtrc` never invoked by tooling | Phase 3.2 |
+| CMake copy duplication (~250 lines) | ✅ Phase 3.1 |
+| `.shfmtrc` never invoked by tooling | ✅ Phase 3.2 |
 | No plugin/extension architecture | Phase 4 |
 | `girlfriend_translations.h` header-only (360 lines) | Phase 5 |
 | `ROADMAP.md` referenced but didn't exist | Created 2026-05-15 |
