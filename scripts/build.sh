@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # ============================================================
 # LocalAIAssistant - Unified Cross-Platform Build Script
