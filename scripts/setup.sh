@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # ============================================================
 # LocalAIAssistant - First-time Setup Script
