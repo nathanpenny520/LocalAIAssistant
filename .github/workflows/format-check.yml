@@ -1,0 +1,22 @@
+name: Format Check
+
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  format-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install formatters
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+          pip install cmake-format
+          curl -sSfL https://github.com/mvdan/sh/releases/latest/download/shfmt_linux_amd64 -o /usr/local/bin/shfmt
+          chmod +x /usr/local/bin/shfmt
+
+      - name: Run format check
+        run: ./scripts/format.sh --check
