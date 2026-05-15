@@ -54,6 +54,7 @@ private slots:
     void onRenameSession();
     void onTogglePinSession();
     void onCustomContextMenuRequested(const QPoint& pos);
+    void onChatDisplayContextMenu(const QPoint& pos);
     void onThemeChanged(int theme);
     void onLanguageChanged();
     void onToggleHistoryPanel();

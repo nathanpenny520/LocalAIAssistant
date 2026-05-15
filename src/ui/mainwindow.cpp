@@ -337,6 +337,13 @@ void MainWindow::setupUI() {
     m_contextMenu->addAction(m_deleteAction);
     m_historyList->setContextMenuPolicy(Qt::CustomContextMenu);
 
+    m_chatDisplay->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_chatDisplay, &QWidget::customContextMenuRequested, this,
+            &MainWindow::onChatDisplayContextMenu);
+    m_inputLine->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_inputLine, &QWidget::customContextMenuRequested, this,
+            &MainWindow::onChatDisplayContextMenu);
+
     resize(900, 600);
     setWindowTitle(tr("本地AI助手"));
 
@@ -1111,6 +1118,77 @@ void MainWindow::onCustomContextMenuRequested(const QPoint& pos) {
         }
 
         m_contextMenu->exec(m_historyList->mapToGlobal(pos));
+    }
+}
+
+void MainWindow::onChatDisplayContextMenu(const QPoint& pos) {
+    QWidget* widget = qobject_cast<QWidget*>(sender());
+    if (!widget) return;
+
+    const bool isInputLine = (widget == m_inputLine);
+    const bool hasSelection = isInputLine ? m_inputLine->textCursor().hasSelection()
+                                          : m_chatDisplay->textCursor().hasSelection();
+
+    QMenu menu;
+    const AppTheme& t = AppTheme::current();
+
+    auto nativeShortcut = [](QKeySequence::StandardKey key) {
+        return QKeySequence(key).toString(QKeySequence::NativeText);
+    };
+
+    menu.setStyleSheet(QString(
+        "QMenu {"
+        "  background-color: %1;"
+        "  color: %2;"
+        "  border: 1px solid %3;"
+        "  border-radius: 8px;"
+        "  padding: 4px 0;"
+        "}"
+        "QMenu::item {"
+        "  padding: 8px 20px;"
+        "}"
+        "QMenu::item:selected {"
+        "  background-color: %4;"
+        "  color: %5;"
+        "}"
+        "QMenu::item:disabled {"
+        "  color: %6;"
+        "}"
+        "QMenu::separator {"
+        "  height: 1px;"
+        "  background: %3;"
+        "  margin: 4px 12px;"
+        "}")
+        .arg(t.surfaceBg.name(), t.textPrimary.name(), t.border.name(),
+             t.accentHover.name(), t.textOnAccent.name(), t.textDisabled.name()));
+
+    QAction* cutAction = menu.addAction(tr("剪切") + "\t" + nativeShortcut(QKeySequence::Cut));
+    cutAction->setEnabled(isInputLine && hasSelection);
+
+    QAction* copyAction = menu.addAction(tr("复制") + "\t" + nativeShortcut(QKeySequence::Copy));
+    copyAction->setEnabled(hasSelection);
+
+    QAction* pasteAction = menu.addAction(tr("粘贴") + "\t" + nativeShortcut(QKeySequence::Paste));
+    pasteAction->setEnabled(isInputLine);
+
+    menu.addSeparator();
+
+    QAction* selectAllAction =
+        menu.addAction(tr("全选") + "\t" + nativeShortcut(QKeySequence::SelectAll));
+
+    QAction* chosen = menu.exec(widget->mapToGlobal(pos));
+    if (!chosen) return;
+
+    if (chosen == cutAction) {
+        if (isInputLine) m_inputLine->cut();
+    } else if (chosen == copyAction) {
+        if (isInputLine) m_inputLine->copy();
+        else m_chatDisplay->copy();
+    } else if (chosen == pasteAction) {
+        if (isInputLine) m_inputLine->paste();
+    } else if (chosen == selectAllAction) {
+        if (isInputLine) m_inputLine->selectAll();
+        else m_chatDisplay->selectAll();
     }
 }
 
