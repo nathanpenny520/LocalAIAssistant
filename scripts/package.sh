@@ -525,8 +525,8 @@ package_linux() {
             cp "$PROJECT_ROOT/resources/localaiassistant.desktop" "$staging/"
         fi
         "$linuxdeployqt" "$staging/LocalAIAssistant" -verbose=1 -no-strip \
-            -bundle-non-qt-libs 2>&1 | sed 's/^/  /' || \
-            echo "  Warning: linuxdeployqt reported issues, continuing anyway..."
+            -bundle-non-qt-libs 2>&1 | sed 's/^/  /' \
+            || echo "  Warning: linuxdeployqt reported issues, continuing anyway..."
         echo "  Qt libraries bundled"
     elif [ -f "$staging/LocalAIAssistant" ]; then
         echo ""
