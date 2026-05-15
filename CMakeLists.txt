@@ -369,6 +369,90 @@ endif()
 
 add_subdirectory(tests)
 
+# ============================================================
+# copy_app_resources(TARGET_NAME DEST_DIR)
+#
+# Post-build copy of shared app resources (prompts, girlfriend
+# assets, models, docs, .env) to a platform-specific destination.
+# Called once per platform to eliminate ~200 lines of duplication.
+# ============================================================
+function(copy_app_resources TARGET_NAME DEST_DIR)
+
+    # 1. Prompts
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/prompts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/prompts"
+                "${DEST_DIR}/prompts"
+        COMMENT "Copying prompts to ${DEST_DIR}")
+
+    # 2. AIGirlfriend images
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/AIGirlfriend"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
+                "${DEST_DIR}/AIGirlfriend"
+        COMMENT "Copying AIGirlfriend images to ${DEST_DIR}")
+
+    # 3. girlfriend_memory.md
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/girlfriend"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md"
+                "${DEST_DIR}/girlfriend/girlfriend_memory.md"
+        COMMENT "Copying girlfriend_memory.md to ${DEST_DIR}")
+
+    # 4. .env (conditional)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
+        add_custom_command(
+            TARGET ${TARGET_NAME}
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_CURRENT_SOURCE_DIR}/.env"
+                    "${DEST_DIR}/.env"
+            COMMENT "Copying .env to ${DEST_DIR}")
+    endif()
+
+    # 5. ONNX models
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/models"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx"
+                "${DEST_DIR}/models/all-MiniLM-L6-v2-arm64.onnx"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx"
+                "${DEST_DIR}/models/all-MiniLM-L6-v2-avx2.onnx"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json"
+                "${DEST_DIR}/models/tokenizer.json"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json"
+                "${DEST_DIR}/models/tokenizer_config.json"
+        COMMENT "Copying model files to ${DEST_DIR}")
+
+    # 6. Usage docs
+    add_custom_command(
+        TARGET ${TARGET_NAME}
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/docs"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
+                "${DEST_DIR}/docs/USAGE.md"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md"
+                "${DEST_DIR}/docs/USAGE_zh_CN.md"
+        COMMENT "Copying usage docs to ${DEST_DIR}")
+
+endfunction()
+
 if(APPLE)
     # Copy icon to bundle Resources
     set(APP_ICON_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns)
@@ -402,15 +486,9 @@ if(APPLE)
                    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in
                    RESOURCE ${APP_ICON_DEST})
 
-    # Copy prompts to app bundle Resources after build
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/prompts
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROMPTS_SOURCE_DIR}
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/prompts
-        COMMENT "Copying prompts to app bundle Resources")
+    # Copy shared app resources into the .app bundle
+    copy_app_resources(${PROJECT_NAME}
+                       "${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources")
 
     # Copy localization directories to app bundle Resources
     add_custom_command(
@@ -430,16 +508,6 @@ if(APPLE)
             ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/zh_CN.lproj/InfoPlist.strings
         COMMENT "Copying localization files to app bundle Resources")
 
-    # Copy AIGirlfriend images to app bundle Resources
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/AIGirlfriend
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/AIGirlfriend
-        COMMENT "Copying AIGirlfriend images to app bundle Resources")
-
     # Copy app icon to app bundle Resources
     add_custom_command(
         TARGET ${PROJECT_NAME}
@@ -448,65 +516,6 @@ if(APPLE)
                 ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
                 ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/app.icns
         COMMENT "Copying app icon to bundle Resources")
-
-    # Copy girlfriend_memory.md to app bundle Resources
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/girlfriend
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md
-            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/girlfriend/girlfriend_memory.md
-        COMMENT "Copying girlfriend_memory.md to app bundle Resources")
-
-    # Copy usage docs to app bundle Resources
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/docs
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/docs/USAGE.md
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md
-            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/docs/USAGE_zh_CN.md
-        COMMENT "Copying usage docs to app bundle Resources")
-
-    # Copy ONNX models to app bundle Resources (if exists)
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/models
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx
-            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/models/all-MiniLM-L6-v2-arm64.onnx
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx
-            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/models/all-MiniLM-L6-v2-avx2.onnx
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json
-            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/models/tokenizer.json
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json
-            ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/models/tokenizer_config.json
-        COMMENT "Copying model files to app bundle Resources")
-
-    # Copy .env to app bundle Resources (if exists)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
-        add_custom_command(
-            TARGET ${PROJECT_NAME}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/.env"
-                    ${CMAKE_CURRENT_BINARY_DIR}/LocalAIAssistant.app/Contents/Resources/.env
-            COMMENT "Copying .env to app bundle Resources")
-    endif()
 
     add_dependencies(${PROJECT_NAME} app_icon copy_prompts_dev)
 
@@ -600,43 +609,8 @@ if(WIN32)
         message(WARNING "Windows icon file app.ico not found. Please create it from app.icns.")
     endif()
 
-    # Copy prompts to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/prompts"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/prompts"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/prompts"
-        COMMENT "Copying prompts to build directory")
-
-    # Copy AIGirlfriend images to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/AIGirlfriend"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/AIGirlfriend"
-        COMMENT "Copying AIGirlfriend images to build directory")
-
-    # Copy girlfriend_memory.md to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/girlfriend/girlfriend_memory.md"
-        COMMENT "Copying girlfriend_memory.md to build directory")
-
-    # Copy .env to build directory (if exists)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
-        add_custom_command(
-            TARGET ${PROJECT_NAME}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/.env"
-                    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/.env"
-            COMMENT "Copying .env to build directory")
-    endif()
+    # Copy shared resources to the executable directory
+    copy_app_resources(${PROJECT_NAME} "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
 
     # Copy translations to build directory (if LinguistTools available)
     if(Qt6LinguistTools_FOUND)
@@ -654,81 +628,11 @@ if(WIN32)
                 "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
             COMMENT "Copying translations to build directory")
     endif()
-
-    # Copy usage docs to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs/USAGE.md"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs/USAGE_zh_CN.md"
-        COMMENT "Copying usage docs to build directory")
-
-    # Copy ONNX models to build directory (if exists)
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/all-MiniLM-L6-v2-arm64.onnx"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/all-MiniLM-L6-v2-avx2.onnx"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/tokenizer.json"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/tokenizer_config.json"
-        COMMENT "Copying model files to build directory")
 endif()
 
 if(UNIX AND NOT APPLE)
-    # Linux configuration Copy prompts to build directory for development
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/prompts"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/prompts"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/prompts"
-        COMMENT "Copying prompts to build directory")
-
-    # Copy AIGirlfriend images to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/AIGirlfriend"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/AIGirlfriend"
-        COMMENT "Copying AIGirlfriend images to build directory")
-
-    # Copy girlfriend_memory.md to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/girlfriend/girlfriend_memory.md"
-        COMMENT "Copying girlfriend_memory.md to build directory")
-
-    # Copy .env to build directory (if exists)
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.env")
-        add_custom_command(
-            TARGET ${PROJECT_NAME}
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/.env"
-                    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/.env"
-            COMMENT "Copying .env to build directory")
-    endif()
+    # Copy shared resources to the executable directory
+    copy_app_resources(${PROJECT_NAME} "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
 
     # Copy translations to build directory (if LinguistTools available)
     if(Qt6LinguistTools_FOUND)
@@ -746,41 +650,6 @@ if(UNIX AND NOT APPLE)
                 "$<TARGET_FILE_DIR:${PROJECT_NAME}>/translations/localai_en.qm"
             COMMENT "Copying translations to build directory")
     endif()
-
-    # Copy ONNX models to build directory (if exists)
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-arm64.onnx"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/all-MiniLM-L6-v2-arm64.onnx"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/all-MiniLM-L6-v2-avx2.onnx"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/all-MiniLM-L6-v2-avx2.onnx"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer.json"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/tokenizer.json"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/models/tokenizer_config.json"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/models/tokenizer_config.json"
-        COMMENT "Copying model files to build directory")
-
-    # Copy usage docs to build directory
-    add_custom_command(
-        TARGET ${PROJECT_NAME}
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
-                "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs/USAGE.md"
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md"
-            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/docs/USAGE_zh_CN.md"
-        COMMENT "Copying usage docs to build directory")
 endif()
 
 install(TARGETS ${PROJECT_NAME}-CLI RUNTIME DESTINATION bin)
