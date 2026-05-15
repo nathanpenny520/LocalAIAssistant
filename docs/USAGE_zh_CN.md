@@ -245,7 +245,7 @@ AI 女友通过讯飞开放平台 WebSocket API 支持语音输入（语音识�
 
 ### 自定义人设
 
-编辑 `personality.md`
+编辑 `prompts/<语言>/girlfriend.md`（如 `prompts/zh_CN/girlfriend.md`）
 文件可自定义 AI 女友的性格、说话风格和行为模式。文件支持以下模板变量（程序自动替换，无需手动修改）：
 
 | 变量                | 说明                            |
@@ -253,7 +253,7 @@ AI 女友通过讯飞开放平台 WebSocket API 支持语音输入（语音识�
 | `{{user_nickname}}` | 用户昵称，默认"你"              |
 | `{{mood_hint}}`     | 根据心情自动填充提示词          |
 | `{{time_context}}`  | 根据当前时间自动填充场景描述    |
-| `{{user_memories}}` | 从 `memory.md` 注入用户记忆档案 |
+| `{{user_memories}}` | 从 `girlfriend_memory.md` 注入用户记忆档案 |
 
 文件底部的 `<!-- CONFIG_START -->` 配置块可自定义心情和时间提示词文本，格式为
 `key=值`，支持以下键名：
@@ -274,7 +274,7 @@ AI 女友通过讯飞开放平台 WebSocket API 支持语音输入（语音识�
 
 ### 记忆系统
 
-AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `memory.md` 中，跨会话引用。
+AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `girlfriend_memory.md` 中，跨会话引用。
 
 ---
 

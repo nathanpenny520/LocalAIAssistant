@@ -256,15 +256,15 @@ your speakers.
 
 ### Customizing Personality
 
-Edit `personality.md` to customize the AI girlfriend's personality, speaking style, and behavior.
-The file supports template variables (auto-replaced by the app):
+Edit `prompts/<lang>/girlfriend.md` (e.g., `prompts/en/girlfriend.md`) to customize the AI
+girlfriend's personality, speaking style, and behavior. Template variables are auto-replaced:
 
 | Variable            | Description                                   |
 | ------------------- | --------------------------------------------- |
 | `{{user_nickname}}` | User's nickname, defaults to "你"             |
 | `{{mood_hint}}`     | Auto-filled mood hint based on mood value     |
 | `{{time_context}}`  | Auto-filled time-of-day context               |
-| `{{user_memories}}` | Injected user memory archive from `memory.md` |
+| `{{user_memories}}` | Injected user memory archive from `girlfriend_memory.md` |
 
 The `<!-- CONFIG_START -->` block at the bottom of the file allows customizing mood and time hint
 text in `key=value` format:
@@ -286,7 +286,7 @@ CONFIG block is removed, built-in defaults are used.
 ### Memory System
 
 The AI girlfriend remembers information about you through a persistent memory system. Memories are
-stored in `memory.md` and referenced across sessions.
+stored in `girlfriend_memory.md` and referenced across sessions.
 
 ---
 
