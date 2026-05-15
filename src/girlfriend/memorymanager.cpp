@@ -18,22 +18,22 @@ QStringList MemoryManager::findPossiblePaths() const {
 
 #ifdef Q_OS_MACOS
     // macOS app bundle structure
-    paths << QDir::cleanPath(appDir + "/../Resources/girlfriend/memory.md");
+    paths << QDir::cleanPath(appDir + "/../Resources/girlfriend/girlfriend_memory.md");
 #elif defined(Q_OS_WIN)
     // Windows: resources in same directory as executable
-    paths << QDir::cleanPath(appDir + "/girlfriend/memory.md");
+    paths << QDir::cleanPath(appDir + "/girlfriend/girlfriend_memory.md");
 #else
     // Linux
-    paths << QDir::cleanPath(appDir + "/girlfriend/memory.md");
+    paths << QDir::cleanPath(appDir + "/girlfriend/girlfriend_memory.md");
 #endif
 
     // Generic fallback paths
-    paths << "src/girlfriend/memory.md";
-    paths << "sourcecode-ai-assistant/src/girlfriend/memory.md";
+    paths << "src/girlfriend/girlfriend_memory.md";
+    paths << "sourcecode-ai-assistant/src/girlfriend/girlfriend_memory.md";
 
     // User data directory
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    paths << QDir::cleanPath(dataDir + "/girlfriend/memory.md");
+    paths << QDir::cleanPath(dataDir + "/girlfriend/girlfriend_memory.md");
 
     return paths;
 }
@@ -49,7 +49,7 @@ QString MemoryManager::memoryFilePath() {
     if (!gfDir.exists()) {
         gfDir.mkpath(".");
     }
-    return girlfriendDir + "/memory.md";
+    return girlfriendDir + "/girlfriend_memory.md";
 }
 
 QString MemoryManager::loadMemory() {
