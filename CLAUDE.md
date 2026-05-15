@@ -64,7 +64,7 @@ LocalAIAssistant-CLI (src/cli/)                    — links Core + Task + Knowl
 - Include order: related header → C std → C++ std → Qt → other libs → project headers
 - Formatters: `clang-format -i`, `cmake-format -i CMakeLists.txt`,
   `shfmt -i 4 -ci -bn -w scripts/*.sh`, `prettier --write`
-  (see `.clang-format`, `.cmake-format.json`, `.shfmtrc`, `.prettierrc`)
+  (see `.clang-format`, `.cmake-format.json`, `.editorconfig`, `.prettierrc`)
 - English only comments. Doxygen in headers. Explain WHY, not WHAT.
 
 ## Testing

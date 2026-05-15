@@ -1,3 +1,0 @@
-#!/bin/sh
-# shfmt config (sourced as .shfmtrc or via editorconfig-style flags)
-# Run: shfmt -i 4 -ci -bn -w scripts/*.sh
