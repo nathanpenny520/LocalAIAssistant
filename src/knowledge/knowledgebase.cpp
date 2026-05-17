@@ -79,8 +79,15 @@ QVector<ImportResult> KnowledgeBase::importDocuments(const QStringList& filePath
 
 void KnowledgeBase::importDocumentAsync(const QString& filePath) {
     QThreadPool::globalInstance()->start([this, filePath]() {
-        if (!m_ready || !m_importer) return;
-        ImportResult result = m_importer->importDocument(filePath);
+        m_mutex.lock();
+        if (!m_ready || !m_importer) {
+            m_mutex.unlock();
+            return;
+        }
+        DocImporter* importer = m_importer;
+        m_mutex.unlock();
+
+        ImportResult result = importer->importDocument(filePath);
         QMetaObject::invokeMethod(
                 this,
                 [this, result]() {
@@ -95,9 +102,16 @@ void KnowledgeBase::importDocumentAsync(const QString& filePath) {
 
 void KnowledgeBase::importDocumentsAsync(const QStringList& filePaths) {
     QThreadPool::globalInstance()->start([this, filePaths]() {
-        if (!m_ready || !m_importer) return;
+        m_mutex.lock();
+        if (!m_ready || !m_importer) {
+            m_mutex.unlock();
+            return;
+        }
+        DocImporter* importer = m_importer;
+        m_mutex.unlock();
+
         for (const auto& path : filePaths) {
-            ImportResult result = m_importer->importDocument(path);
+            ImportResult result = importer->importDocument(path);
             QMetaObject::invokeMethod(
                     this,
                     [this, result]() {

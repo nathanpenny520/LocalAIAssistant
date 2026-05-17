@@ -10,6 +10,7 @@
 #include <QJsonArray>
 #include <QMap>
 #include <QObject>
+#include <QTimer>
 
 #include "datamodels.h"
 
@@ -58,6 +59,7 @@ private:
     QMap<QString, ChatSession> m_sessions;
     QString m_currentSessionId;
     int m_maxMessages;
+    QTimer* m_saveDebounceTimer = nullptr;
     QString getStorageFilePath() const;
     void truncateSession(const QString& sessionId);
 };

@@ -7,6 +7,7 @@
 #ifndef KNOWLEDGEBASE_H
 #define KNOWLEDGEBASE_H
 
+#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -68,6 +69,7 @@ private:
     VectorDB* m_vectorDB;
     DocImporter* m_importer;
     bool m_ready = false;
+    QMutex m_mutex;
 };
 
 #endif  // KNOWLEDGEBASE_H

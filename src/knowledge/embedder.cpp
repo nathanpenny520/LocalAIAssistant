@@ -18,7 +18,14 @@
 // ============================================================
 
 Embedder::Embedder() = default;
-Embedder::~Embedder() = default;
+Embedder::~Embedder() {
+#ifdef ONNXRUNTIME_AVAILABLE
+    for (const char* name : m_onnxInputNames)
+        free(const_cast<char*>(name));
+    for (const char* name : m_onnxOutputNames)
+        free(const_cast<char*>(name));
+#endif
+}
 
 // ── Model loading ────────────────────────────────────────────
 
@@ -38,6 +45,15 @@ static QString findTokenizerPath(const QString& modelPath) {
 bool Embedder::loadModel(const QString& modelPath) {
     m_modelPath = modelPath;
     m_loaded = false;
+
+#ifdef ONNXRUNTIME_AVAILABLE
+    for (const char* name : m_onnxInputNames)
+        free(const_cast<char*>(name));
+    m_onnxInputNames.clear();
+    for (const char* name : m_onnxOutputNames)
+        free(const_cast<char*>(name));
+    m_onnxOutputNames.clear();
+#endif
 
     if (!QFileInfo::exists(modelPath)) {
         qWarning("Embedder: model file not found: %s", qUtf8Printable(modelPath));

@@ -2,6 +2,7 @@
 
 #include <QRegularExpression>
 #include <QSettings>
+#include <QTimer>
 
 #include "../core/sessionmanager.h"
 #include "taskengine.h"
@@ -140,19 +141,24 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
         return;
     }
 
-    TaskEngine* engine = TaskEngine::instance();
-    QVector<CommandResult> results = engine->executePlan(plan);
+    // Execute plan synchronously (CommandExecutor uses internal QEventLoop
+    // that pumps UI events, so the UI is not completely frozen). Defer the
+    // feedback emission to let the calling handler return to the event loop
+    // between iterations.
+    m_pendingResults = TaskEngine::instance()->executePlan(plan);
 
-    // Build structured feedback message
-    QString feedback = buildResultFeedback(results);
-    m_lastFeedback = feedback;
+    QTimer::singleShot(0, this, [this]() {
+        if (m_state != Running) return;
 
-    // Add feedback as a user message to continue the conversation
-    ChatMessage feedbackMsg("user", feedback);
-    feedbackMsg.isAgentLoopInjected = true;
-    SessionManager::instance()->addMessageToSession(m_sessionId, feedbackMsg);
+        QString feedback = buildResultFeedback(m_pendingResults);
+        m_lastFeedback = feedback;
 
-    emit executionResultReady(feedback, m_sessionId);
+        ChatMessage feedbackMsg("user", feedback);
+        feedbackMsg.isAgentLoopInjected = true;
+        SessionManager::instance()->addMessageToSession(m_sessionId, feedbackMsg);
+
+        emit executionResultReady(feedback, m_sessionId);
+    });
 }
 
 QString AgentLoop::buildResultFeedback(const QVector<CommandResult>& results) const {

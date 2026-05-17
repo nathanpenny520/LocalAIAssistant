@@ -112,8 +112,13 @@ private slots:
         QString id = sm->currentSessionId();
         int countBefore = sm->allSessions().size();
         sm->removeSession(id);
-        QCOMPARE(sm->allSessions().size(), countBefore - 1);
+        // Removing the current session creates a new one (count stays the same)
+        QCOMPARE(sm->allSessions().size(), countBefore);
         QVERIFY(!sm->allSessions().contains(id));
+        // Verify currentSessionId now points to a valid, different session
+        QVERIFY(!sm->currentSessionId().isEmpty());
+        QVERIFY(sm->currentSessionId() != id);
+        QVERIFY(sm->allSessions().contains(sm->currentSessionId()));
     }
 
     void testJsonRoundTrip() {

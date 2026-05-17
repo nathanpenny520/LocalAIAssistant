@@ -212,9 +212,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(SessionManager::instance(), &SessionManager::sessionChanged, this,
             [this](const QString& sessionId) {
-                // Only re-render if the changed session is currently being displayed.
-                // Background updates (e.g. streaming to another session) should not
-                // disrupt the current view.
+                if (m_suppressRender || m_isStreaming) return;
                 if (sessionId == SessionManager::instance()->currentSessionId()) {
                     renderCurrentSession();
                 }

@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTimer>
 
 SessionManager* SessionManager::m_instance = nullptr;
 
@@ -15,6 +16,12 @@ SessionManager::SessionManager(QObject* parent) : QObject(parent) {
     if (m_maxMessages > 0 && m_maxMessages < 10) {
         m_maxMessages = 10;
     }
+
+    m_saveDebounceTimer = new QTimer(this);
+    m_saveDebounceTimer->setSingleShot(true);
+    m_saveDebounceTimer->setInterval(2000);
+    connect(m_saveDebounceTimer, &QTimer::timeout, this, &SessionManager::saveSessionsToFile);
+
     createNewSession();
 }
 
@@ -57,7 +64,7 @@ void SessionManager::switchToSession(const QString& sessionId) {
 void SessionManager::addMessageToCurrentSession(const QString& role, const QString& content) {
     m_sessions[m_currentSessionId].messages.append(ChatMessage(role, content));
     truncateSession(m_currentSessionId);
-    saveSessionsToFile();
+    m_saveDebounceTimer->start();
     emit sessionChanged(m_currentSessionId);
 }
 
@@ -67,7 +74,7 @@ void SessionManager::addMessageToCurrentSession(const QString& role, const QStri
     msg.attachments = attachments;
     m_sessions[m_currentSessionId].messages.append(msg);
     truncateSession(m_currentSessionId);
-    saveSessionsToFile();
+    m_saveDebounceTimer->start();
     emit sessionChanged(m_currentSessionId);
 }
 
@@ -76,7 +83,7 @@ void SessionManager::addMessageToSession(const QString& sessionId, const QString
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].messages.append(ChatMessage(role, content));
         truncateSession(sessionId);
-        saveSessionsToFile();
+        m_saveDebounceTimer->start();
         emit sessionChanged(sessionId);
     }
 }
@@ -85,7 +92,7 @@ void SessionManager::addMessageToSession(const QString& sessionId, const ChatMes
     if (m_sessions.contains(sessionId)) {
         m_sessions[sessionId].messages.append(message);
         truncateSession(sessionId);
-        saveSessionsToFile();
+        m_saveDebounceTimer->start();
         emit sessionChanged(sessionId);
     }
 }
@@ -107,6 +114,10 @@ void SessionManager::setSessionPinned(const QString& sessionId, bool pinned) {
 
 void SessionManager::removeSession(const QString& sessionId) {
     m_sessions.remove(sessionId);
+
+    if (sessionId == m_currentSessionId) {
+        createNewSession();
+    }
 }
 
 void SessionManager::truncateSession(const QString& sessionId) {
