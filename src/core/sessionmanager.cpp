@@ -114,10 +114,6 @@ void SessionManager::setSessionPinned(const QString& sessionId, bool pinned) {
 
 void SessionManager::removeSession(const QString& sessionId) {
     m_sessions.remove(sessionId);
-
-    if (sessionId == m_currentSessionId) {
-        createNewSession();
-    }
 }
 
 void SessionManager::truncateSession(const QString& sessionId) {

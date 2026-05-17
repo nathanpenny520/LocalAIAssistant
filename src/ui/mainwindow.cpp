@@ -212,7 +212,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(SessionManager::instance(), &SessionManager::sessionChanged, this,
             [this](const QString& sessionId) {
-                if (m_suppressRender || m_isStreaming) return;
+                if (m_suppressRender) return;
                 if (sessionId == SessionManager::instance()->currentSessionId()) {
                     renderCurrentSession();
                 }

@@ -55,7 +55,6 @@ private:
     OperationPlan m_pendingPlan;
     QString m_sessionId;
     QString m_lastFeedback;
-    QVector<CommandResult> m_pendingResults;
 };
 
 #endif  // AGENTLOOP_H
