@@ -8,9 +8,9 @@ GitHub仓库地址：https://github.com/nathanpenny520/LocalAIAssistant.git
 
 Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
-![Level 1 Demo](AIGirlfriend/level-1-belle/demo-belle.png)
+![Level 1 Demo](resources/girlfriend/level-1-belle/demo-belle.png)
 
-![Level 2 Demo](AIGirlfriend/level-2-hot/demo-hot.png)
+![Level 2 Demo](resources/girlfriend/level-2-hot/demo-hot.png)
 
 ## 功能特点
 
@@ -153,7 +153,7 @@ sourcecode-ai-assistant/
 │       ├── girlfriendsession.h    # 会话数据头文件
 │       ├── girlfriend_translations.h # 翻译辅助类
 │       └── girlfriend_memory.md       # 用户记忆档案（长期记忆持久化）
-├── AIGirlfriend/       # 头像资源目录
+├── resources/girlfriend/  # 头像资源目录
 │   ├── level-1-belle/  # Level 1 PNG 图片
 │   ├── level-2-hot/    # Level 2 PNG 图片
 │   └── level-3-hotter/ # Level 3 MP4 视频
@@ -620,7 +620,7 @@ XFYUN_API_SECRET=你的APISecret
 
 ### 自定义人设
 
-编辑 `src/prompts/<语言>/girlfriend.md`（如 `src/prompts/zh_CN/girlfriend.md`）可自定义 AI
+编辑 `resources/prompts/<语言>/girlfriend.md`（如 `resources/prompts/zh_CN/girlfriend.md`）可自定义 AI
 女友的性格和回复风格。运行 `cmake --build build` 后自动同步到应用资源目录。
 
 ### 记忆系统工作原理

@@ -9,9 +9,9 @@ Github repo: https://github.com/nathanpenny520/LocalAIAssistant.git
 
 Gitee repo:https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
-![Level 1 Demo](AIGirlfriend/level-1-belle/demo-belle.png)
+![Level 1 Demo](resources/girlfriend/level-1-belle/demo-belle.png)
 
-![Level 2 Demo](AIGirlfriend/level-2-hot/demo-hot.png)
+![Level 2 Demo](resources/girlfriend/level-2-hot/demo-hot.png)
 
 ## Features
 
@@ -166,7 +166,7 @@ sourcecode-ai-assistant/
 │       ├── girlfriendsession.h    # Session data header
 │       ├── girlfriend_translations.h # Translation helper class
 │       └── girlfriend_memory.md       # User memory archive (long-term persistence)
-├── AIGirlfriend/       # Avatar resources directory
+├── resources/girlfriend/  # Avatar resources directory
 │   ├── level-1-belle/  # Level 1 PNG images
 │   ├── level-2-hot/    # Level 2 PNG images
 │   └── level-3-hotter/ # Level 3 MP4 videos
@@ -646,7 +646,7 @@ Select "AI Girlfriend" from View menu, or use shortcut `Ctrl/Cmd+G`.
 
 ### Customize Personality
 
-Edit `src/prompts/<lang>/girlfriend.md` (e.g., `src/prompts/en/girlfriend.md`) to customize AI
+Edit `resources/prompts/<lang>/girlfriend.md` (e.g., `resources/prompts/en/girlfriend.md`) to customize AI
 girlfriend's personality and response style. Changes are auto-synced on `cmake --build build`.
 
 ### Memory System Mechanism

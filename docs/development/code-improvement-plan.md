@@ -264,12 +264,34 @@ review.md 声称的 8 个 GitHub规范问题 **全部确认属实**。
 
 ---
 
-## 建议执行顺序
+## 执行状态（截至 2026-05-17）
 
-1. **Phase 1**（C++ Critical）：Fix 1 → Fix 2 → Fix 3 → Fix 5 → Fix 6 → Fix 4（Fix 4 放最后因为改动最大）
-2. **Phase 2**（C++ High/Medium）：Fix 9 → Fix 8 → Fix 10 → Fix 12 → Fix 7 → Fix 14 → Fix 11 → Fix 15 → Fix 13
-3. **Phase 3**（CMake）：Fix 16 → Fix 17
-4. **Phase 4**（规范 + 测试）：Fix 20 → Fix 19 → Fix 21
+| Fix | 状态 | 说明 |
+|-----|------|------|
+| Fix 1 (removeSession) | ❌ 已回滚 | UI 层已处理切换逻辑，回滚至原始代码 |
+| Fix 2 (Embedder leak) | ✅ 已完成 | `loadModel()` 和析构函数中释放 ONNX 名称 |
+| Fix 3 (KB thread safety) | ✅ 已完成 | `QMutex` 保护 `m_importer` 访问 |
+| Fix 4 (AgentLoop async) | ❌ 已回滚 | `QTimer::singleShot(0)` 打断信号链，任务不执行 |
+| Fix 5 (debounce save) | ✅ 已完成 | `QTimer` 2000ms 去抖动保存 |
+| Fix 6 (double render) | ❌ 已回滚 | `m_isStreaming` 阻止了流式切换会话 |
+| Fix 7 (SSE currentEvent) | ⏳ 待执行 | Phase 2 未完成项 |
+| Fix 8 (env var limit) | ✅ 已完成 | 3 个 while 循环各加 `maxIter = 100` |
+| **Fix 9 (dynamic version)** | ✅ **已完成（改进版）** | **动态版本：CMake → version.h.in → APP_VERSION，替代硬编码** |
+| Fix 10-14 | ⏳ 待执行 | Phase 2 未完成项 |
+| Fix 15 (zh_TW/HK) | ✅ 已完成 | 添加注释说明简体中文回退 |
+| Fix 16 (Win Qt path) | ✅ 已完成 | CMake WIN32 分支 msvc/mingw 自动检测 |
+| Fix 17 (CTest labels) | ✅ 已完成 | 全部 12 个测试添加 `LABELS unit` |
+| Fix 18 (macro naming) | ⏭️ 跳过 | 低优先级，风格一致性不影响功能 |
+| Fix 19 (GitHub files) | ✅ 已完成 | 5 个社区文件创建 |
+| Fix 20 (test coverage) | ✅ 已完成 | 新增 test_vectordb/embedder/knowledgebase/apiprovider |
+| Fix 21 (--help) | ✅ 已完成 | setup.sh 和 format.sh 添加 -h/--help |
+
+### 超出原计划的改进
+- **版本号动态化**: 原 Fix 9 仅统一硬编码版本，改为 `version.h.in` + `configure_file` 方案，CMakeLists.txt 为唯一版本来源
+
+## 建议执行顺序（剩余项）
+
+1. **Phase 2**（C++ High/Medium，剩余）：Fix 10 → Fix 12 → Fix 7 → Fix 14 → Fix 11 → Fix 13
 
 ---
 

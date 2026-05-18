@@ -27,17 +27,17 @@ QString GirlfriendSettings::avatarLevelPath() const {
     QString basePath;
 
 #ifdef Q_OS_MACOS
-    basePath = QDir::cleanPath(appDir + "/../Resources/AIGirlfriend");
+    basePath = QDir::cleanPath(appDir + "/../Resources/girlfriend");
 #else
-    basePath = QDir::cleanPath(appDir + "/AIGirlfriend");
+    basePath = QDir::cleanPath(appDir + "/girlfriend");
 #endif
 
     // Fallback paths
     if (!QDir(basePath).exists()) {
-        basePath = "AIGirlfriend";
+        basePath = "girlfriend";
     }
     if (!QDir(basePath).exists()) {
-        basePath = "sourcecode-ai-assistant/AIGirlfriend";
+        basePath = "sourcecode-ai-assistant/resources/girlfriend";
     }
 
     switch (m_avatarLevel) {

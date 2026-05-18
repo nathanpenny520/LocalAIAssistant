@@ -36,6 +36,26 @@ if(NOT DEFINED QT_PATH)
                 latest)
             set(QT_PATH "$ENV{HOME}/Qt/${latest}/gcc_64")
         endif()
+    elseif(WIN32 AND EXISTS "C:/Qt")
+        file(
+            GLOB qt_dirs
+            RELATIVE "C:/Qt"
+            "C:/Qt/6.*")
+        list(SORT qt_dirs COMPARE NATURAL)
+        list(REVERSE qt_dirs)
+        if(qt_dirs)
+            list(
+                GET
+                qt_dirs
+                0
+                latest)
+            # Prefer msvc toolchain; fall back to mingw
+            if(EXISTS "C:/Qt/${latest}/msvc2019_64")
+                set(QT_PATH "C:/Qt/${latest}/msvc2019_64")
+            elseif(EXISTS "C:/Qt/${latest}/mingw_64")
+                set(QT_PATH "C:/Qt/${latest}/mingw_64")
+            endif()
+        endif()
     endif()
 endif()
 
@@ -195,10 +215,15 @@ add_library(
     src/ui/apptheme.cpp
     src/ui/apptheme.h)
 
+# Generate version header from CMake project version (single source of truth)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/core/version.h.in
+               ${CMAKE_CURRENT_BINARY_DIR}/version.h)
+
 target_include_directories(
     LocalAIAssistantCore
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/core ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts
-           ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
+           ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
+           ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(LocalAIAssistantCore PUBLIC FileParser Qt6::Network Qt6::Widgets)
 
@@ -392,18 +417,18 @@ function(copy_app_resources TARGET_NAME DEST_DIR)
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/prompts"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/src/prompts"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts"
                 "${DEST_DIR}/prompts"
         COMMENT "Copying prompts to ${DEST_DIR}")
 
-    # 1. AIGirlfriend images
+    # 1. girlfriend images
     add_custom_command(
         TARGET ${TARGET_NAME}
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/AIGirlfriend"
-        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend"
-                "${DEST_DIR}/AIGirlfriend"
-        COMMENT "Copying AIGirlfriend images to ${DEST_DIR}")
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/girlfriend"
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/resources/girlfriend"
+                "${DEST_DIR}/girlfriend"
+        COMMENT "Copying girlfriend images to ${DEST_DIR}")
 
     # 1. girlfriend_memory.md
     add_custom_command(
@@ -412,7 +437,7 @@ function(copy_app_resources TARGET_NAME DEST_DIR)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/girlfriend"
         COMMAND
             ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md"
+            "${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts/girlfriend_memory.md"
             "${DEST_DIR}/girlfriend/girlfriend_memory.md"
         COMMENT "Copying girlfriend_memory.md to ${DEST_DIR}")
 
@@ -454,10 +479,10 @@ function(copy_app_resources TARGET_NAME DEST_DIR)
         TARGET ${TARGET_NAME}
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}/docs"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE.md"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/docs/user/USAGE.md"
                 "${DEST_DIR}/docs/USAGE.md"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${CMAKE_CURRENT_SOURCE_DIR}/docs/USAGE_zh_CN.md" "${DEST_DIR}/docs/USAGE_zh_CN.md"
+                "${CMAKE_CURRENT_SOURCE_DIR}/docs/user/USAGE_zh_CN.md" "${DEST_DIR}/docs/USAGE_zh_CN.md"
         COMMENT "Copying usage docs to ${DEST_DIR}")
 
 endfunction()
@@ -474,7 +499,7 @@ if(APPLE)
         COMMENT "Copying app icon to build directory")
 
     # Copy prompts directory to build directory for development
-    set(PROMPTS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts)
+    set(PROMPTS_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts)
     set(PROMPTS_DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/prompts)
 
     file(
@@ -681,15 +706,15 @@ if(APPLE)
         FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.icns
         DESTINATION LocalAIAssistant.app/Contents/Resources
         RENAME app.icns)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts/
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts/
             DESTINATION LocalAIAssistant.app/Contents/Resources/prompts)
 endif()
 
 if(WIN32)
     install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}-CLI RUNTIME DESTINATION bin)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts/ DESTINATION bin/prompts)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend/ DESTINATION bin/AIGirlfriend)
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts/ DESTINATION bin/prompts)
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/girlfriend/ DESTINATION bin/girlfriend)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts/girlfriend_memory.md
             DESTINATION bin/girlfriend)
     install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/docs/ DESTINATION bin/docs)
     if(Qt6LinguistTools_FOUND)
@@ -701,11 +726,11 @@ endif()
 
 if(UNIX AND NOT APPLE)
     install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/prompts/
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts/
             DESTINATION share/localaiassistant/prompts)
-    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/AIGirlfriend/
-            DESTINATION share/localaiassistant/AIGirlfriend)
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/girlfriend/girlfriend_memory.md
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/resources/girlfriend/
+            DESTINATION share/localaiassistant/girlfriend)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/resources/prompts/girlfriend_memory.md
             DESTINATION share/localaiassistant/girlfriend)
     if(Qt6LinguistTools_FOUND)
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/translations/localai_zh_CN.qm

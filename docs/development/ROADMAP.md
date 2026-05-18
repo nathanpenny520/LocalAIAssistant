@@ -1,15 +1,15 @@
 # ROADMAP
 
-## Current State (2026-05-15)
+## Current State (2026-05-17)
 
 | Metric | Count |
 |---|---|
-| Total source files (.cpp/.h) | 75 |
-| Total source lines | ~19,324 |
+| Total source files (.cpp/.h) | 76 |
+| Total source lines | ~19,500 |
 | Prompt files (.md) | 7 files, ~1,200 lines |
-| Shell scripts | 5 files, ~2,645 lines |
-| CMakeLists.txt | 902 lines |
-| Test files | 8 files, ~1,780 lines |
+| Shell scripts | 6 files, ~2,700 lines |
+| CMakeLists.txt | ~910 lines |
+| Test files | 12 files, ~2,500 lines |
 | **Files over 500 lines** | **9 files** |
 | Build targets | 6 libraries + 2 executables |
 

@@ -123,6 +123,8 @@ QString PromptManager::currentLanguage() const {
 
     if (language == QStringLiteral("system")) {
         QString sysLocale = QLocale::system().name();
+        // No Traditional Chinese (zh_TW/zh_HK) translations exist yet;
+        // all Chinese variants intentionally fall back to Simplified Chinese.
         if (sysLocale.startsWith(QStringLiteral("zh"))) return QStringLiteral("zh_CN");
         return QStringLiteral("en");
     }
@@ -149,8 +151,8 @@ QString PromptManager::promptsDir() {
 
     QStringList devPaths = {
             QDir::cleanPath(appDir + "/prompts"),
-            QStringLiteral("src/prompts"),
-            QStringLiteral("sourcecode-ai-assistant/src/prompts"),
+            QStringLiteral("resources/prompts"),
+            QStringLiteral("sourcecode-ai-assistant/resources/prompts"),
     };
     for (const auto& p : devPaths) {
         if (QDir(p).exists()) return QDir::cleanPath(p);

@@ -333,7 +333,7 @@ package_windows() {
     fi
 
     # Copy resource directories from build
-    for dir in core AIGirlfriend girlfriend translations models prompts; do
+    for dir in core girlfriend translations models prompts; do
         if [ -d "$BUILD_DIR/$dir" ]; then
             cp -R "$BUILD_DIR/$dir" "$staging/"
             echo "  $dir/ copied"
@@ -430,7 +430,7 @@ create_nsis_installer() {
             cp -R "$BUILD_DIR/$dir" "$nsis_staging/"
         fi
     done
-    for dir in core AIGirlfriend girlfriend translations models prompts; do
+    for dir in core girlfriend translations models prompts; do
         if [ -d "$BUILD_DIR/$dir" ]; then
             cp -R "$BUILD_DIR/$dir" "$nsis_staging/"
         fi
@@ -535,7 +535,7 @@ package_linux() {
     fi
 
     # Copy resource directories
-    for dir in core AIGirlfriend girlfriend translations models prompts; do
+    for dir in core girlfriend translations models prompts; do
         if [ -d "$BUILD_DIR/$dir" ]; then
             cp -R "$BUILD_DIR/$dir" "$staging/"
             echo "  $dir/ copied"
@@ -689,7 +689,7 @@ cp LocalAIAssistant "$INSTALL_DIR/bin/" 2>/dev/null && echo "  GUI binary instal
 cp LocalAIAssistant-CLI "$INSTALL_DIR/bin/" 2>/dev/null && echo "  CLI binary installed" || true
 
 # Resource directories
-for dir in core AIGirlfriend girlfriend translations models prompts; do
+for dir in core girlfriend translations models prompts; do
     if [ -d "$dir" ]; then
         cp -R "$dir" "$INSTALL_DIR/share/localaiassistant/"
         echo "  $dir/ copied"
@@ -809,7 +809,7 @@ create_appimage() {
     cp "$BUILD_DIR/LocalAIAssistant-CLI" "$appdir/usr/bin/" 2>/dev/null || true
 
     # Copy resources
-    for dir in core AIGirlfriend girlfriend translations models prompts; do
+    for dir in core girlfriend translations models prompts; do
         if [ -d "$BUILD_DIR/$dir" ]; then
             mkdir -p "$appdir/usr/$dir"
             cp -R "$BUILD_DIR/$dir/"* "$appdir/usr/$dir/" 2>/dev/null || true

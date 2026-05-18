@@ -28,8 +28,8 @@ QStringList MemoryManager::findPossiblePaths() const {
 #endif
 
     // Generic fallback paths
-    paths << "src/girlfriend/girlfriend_memory.md";
-    paths << "sourcecode-ai-assistant/src/girlfriend/girlfriend_memory.md";
+    paths << "resources/prompts/girlfriend_memory.md";
+    paths << "sourcecode-ai-assistant/resources/prompts/girlfriend_memory.md";
 
     // User data directory
     QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
