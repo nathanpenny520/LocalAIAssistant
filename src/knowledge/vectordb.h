@@ -44,6 +44,7 @@ private:
 
     int m_dimension = 0;
     QString m_storageDir;
+    QString m_connName;
 
 #ifdef HNSWLIB_AVAILABLE
     bool ensureIndex();

@@ -47,10 +47,12 @@ bool VectorDB::initStorage(const QString& dir) {
 
     QString dbPath = dir + QStringLiteral("/chunks.db");
 
-    const QString connName = QStringLiteral("vectordb_conn");
-    if (QSqlDatabase::contains(connName)) QSqlDatabase::removeDatabase(connName);
+    m_connName = QStringLiteral("vectordb_conn_%1").arg(
+            QString::number(reinterpret_cast<quintptr>(this), 16));
 
-    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connName);
+    if (QSqlDatabase::contains(m_connName)) QSqlDatabase::removeDatabase(m_connName);
+
+    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connName);
     db.setDatabaseName(dbPath);
 
     if (!db.open()) {
@@ -129,13 +131,12 @@ void VectorDB::addVectors(const QVector<QVector<float>>& vectors,
         }
     }
 
-    const QString connName = QStringLiteral("vectordb_conn");
-    if (!QSqlDatabase::contains(connName)) {
+    if (!QSqlDatabase::contains(m_connName)) {
         qWarning() << "VectorDB: database connection not found";
         return;
     }
 
-    QSqlDatabase db = QSqlDatabase::database(connName);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
     if (!db.isOpen()) db.open();
 
     // Cache doc_id per path
@@ -262,10 +263,9 @@ QVector<SearchResult> VectorDB::search(const QVector<float>& queryVector, int to
 }
 
 int VectorDB::removeDocument(const QString& documentPath) {
-    const QString connName = QStringLiteral("vectordb_conn");
-    if (!QSqlDatabase::contains(connName)) return 0;
+    if (!QSqlDatabase::contains(m_connName)) return 0;
 
-    QSqlDatabase db = QSqlDatabase::database(connName);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
     if (!db.isOpen()) db.open();
 
     QSqlQuery query(db);
@@ -335,10 +335,9 @@ int VectorDB::totalDocuments() const {
 }
 
 QStringList VectorDB::allDocuments() const {
-    const QString connName = QStringLiteral("vectordb_conn");
-    if (!QSqlDatabase::contains(connName)) return {};
+    if (!QSqlDatabase::contains(m_connName)) return {};
 
-    QSqlDatabase db = QSqlDatabase::database(connName);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
     if (!db.isOpen()) db.open();
 
     QSqlQuery query(db);
@@ -389,8 +388,7 @@ bool VectorDB::load() {
     if (m_storageDir.isEmpty()) return false;
 
     // Load chunk metadata from SQLite
-    const QString connName = QStringLiteral("vectordb_conn");
-    QSqlDatabase db = QSqlDatabase::database(connName);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
     if (!db.isOpen()) db.open();
 
     // Verify stored dimension matches
@@ -460,7 +458,7 @@ bool VectorDB::load() {
 
                 // Transactionally clear SQLite
                 {
-                    QSqlDatabase db = QSqlDatabase::database(connName);
+                    QSqlDatabase db = QSqlDatabase::database(m_connName);
                     if (db.isOpen()) {
                         db.transaction();
                         QSqlQuery q(db);

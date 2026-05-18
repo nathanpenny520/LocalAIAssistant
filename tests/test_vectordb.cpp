@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -27,9 +28,17 @@ private slots:
     }
 
     void testInitInvalidDir() {
+        // Create a temporary file, then try to use a path inside it as a storage dir.
+        // mkpath fails because a file (not a directory) exists at that path component.
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        QString filePath = dir.path() + "/not_a_dir";
+        QFile file(filePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.close();
+
         VectorDB db;
-        // /dev/null is a file, not a directory — mkpath will fail inside it
-        QVERIFY(!db.init(128, "/dev/null/chunks"));
+        QVERIFY(!db.init(128, filePath + "/chunks"));
     }
 
     void testAddAndSearch() {
