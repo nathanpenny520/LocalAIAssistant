@@ -156,8 +156,8 @@ detect_qt_path() {
             return 0
         fi
 
-        if [ -n "$Qt6_DIR" ]; then
-            QT_PATH=$(cygpath -u "$Qt6_DIR/../.." 2>/dev/null || echo "$Qt6_DIR/../..")
+        if [ -n "${Qt6_DIR:-}" ]; then
+            QT_PATH=$(cygpath -u "${Qt6_DIR:-}/../.." 2>/dev/null || echo "${Qt6_DIR:-}/../..")
             if [ -d "$QT_PATH" ]; then
                 echo "  Detected Qt6_DIR env: $QT_PATH"
                 return 0
@@ -338,8 +338,8 @@ deploy_windows_dlls() {
     fi
 
     # Also check Qt6_DIR environment variable
-    if [ ! -f "$windeployqt" ] && [ -n "$Qt6_DIR" ]; then
-        local qt_bin=$(cygpath -u "$Qt6_DIR/../bin" 2>/dev/null || echo "$Qt6_DIR/../bin")
+    if [ ! -f "$windeployqt" ] && [ -n "${Qt6_DIR:-}" ]; then
+        local qt_bin=$(cygpath -u "${Qt6_DIR:-}/../bin" 2>/dev/null || echo "${Qt6_DIR:-}/../bin")
         windeployqt="$qt_bin/windeployqt.exe"
         if [[ "$PLATFORM" == "windows" ]]; then
             windeployqt=$(cygpath -w "$windeployqt" 2>/dev/null || echo "$windeployqt")
