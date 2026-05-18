@@ -65,7 +65,7 @@ endif()
 
 project(
     LocalAIAssistant
-    VERSION 1.1.1
+    VERSION 1.1.2
     LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
