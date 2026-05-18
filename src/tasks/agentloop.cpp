@@ -1,5 +1,8 @@
 #include "agentloop.h"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QSettings>
 
@@ -144,7 +147,7 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     QVector<CommandResult> results = engine->executePlan(plan);
 
     // Build structured feedback message
-    QString feedback = buildResultFeedback(results);
+    QString feedback = buildResultFeedback(plan, results);
     m_lastFeedback = feedback;
 
     // Add feedback as a user message to continue the conversation
@@ -155,40 +158,65 @@ void AgentLoop::executeAndContinue(const OperationPlan& plan) {
     emit executionResultReady(feedback, m_sessionId);
 }
 
-QString AgentLoop::buildResultFeedback(const QVector<CommandResult>& results) const {
-    QString feedback;
-    feedback += QStringLiteral("[ITERATION_FEEDBACK]\n");
-    feedback += tr("Previous iteration results:\n");
+QString AgentLoop::buildResultFeedback(const OperationPlan& plan,
+                                       const QVector<CommandResult>& results) const {
+    static const int kMaxFieldLength = 4000;
 
     int successCount = 0;
     int failCount = 0;
+    QJsonArray opsArray;
+
     for (int i = 0; i < results.size(); ++i) {
         const auto& r = results[i];
-        if (r.success) {
-            successCount++;
-            feedback += tr("  Operation %1: SUCCESS").arg(i + 1);
-            if (!r.stdoutOutput.trimmed().isEmpty()) {
-                QString output = r.stdoutOutput.trimmed();
-                if (output.length() > 80) output = output.left(77) + QStringLiteral("...");
-                feedback += QStringLiteral(" — ") + output;
-            }
-        } else {
-            failCount++;
-            feedback += tr("  Operation %1: FAILED").arg(i + 1);
-            if (!r.errorMessage.isEmpty())
-                feedback += QStringLiteral(" — ") + r.errorMessage;
+        if (r.success) successCount++;
+        else failCount++;
+
+        QJsonObject opObj;
+        opObj[QStringLiteral("index")] = i + 1;
+        opObj[QStringLiteral("success")] = r.success;
+        opObj[QStringLiteral("exit_code")] = r.exitCode;
+
+        if (i < plan.operations.size()) {
+            opObj[QStringLiteral("type")] = plan.operations[i].typeName();
+            if (!plan.operations[i].description.isEmpty())
+                opObj[QStringLiteral("description")] = plan.operations[i].description;
         }
-        feedback += QLatin1Char('\n');
+
+        auto truncated = [](const QString& s, int maxLen) -> QString {
+            if (s.length() <= maxLen) return s;
+            return s.left(maxLen - 3) + QStringLiteral("...");
+        };
+
+        opObj[QStringLiteral("stdout")] = truncated(r.stdoutOutput.trimmed(), kMaxFieldLength);
+        opObj[QStringLiteral("stderr")] = truncated(r.stderrOutput.trimmed(), kMaxFieldLength);
+        opObj[QStringLiteral("error")] = r.errorMessage;
+        opObj[QStringLiteral("elapsed_ms")] = static_cast<double>(r.elapsedMs);
+
+        opsArray.append(opObj);
     }
 
-    feedback += tr("  Total: %1 succeeded, %2 failed\n").arg(successCount).arg(failCount);
-    feedback += QStringLiteral("\n");
+    QJsonObject root;
+    root[QStringLiteral("iteration")] = m_iterationCount;
+    root[QStringLiteral("summary")] = QJsonObject{
+        {QStringLiteral("total"), results.size()},
+        {QStringLiteral("succeeded"), successCount},
+        {QStringLiteral("failed"), failCount}
+    };
+    root[QStringLiteral("operations")] = opsArray;
+
+    QString feedback;
+    feedback += QStringLiteral("[ITERATION_FEEDBACK]\n");
+    feedback += QString::fromUtf8(
+        QJsonDocument(root).toJson(QJsonDocument::Indented));
+
+    feedback += QStringLiteral("\n\n");
     feedback += tr("You MUST respond now. If all operations succeeded, output %1 or %2 with "
                    "a user-facing summary of what was accomplished. If more work is needed, output "
                    "a new %3. Never remain silent — the conversation will stall.")
                         .arg(TaskEngine::kTagTaskComplete,
                              TaskEngine::kTagTaskFinished,
                              TaskEngine::kTagTaskPlan);
+    feedback += QLatin1Char('\n');
 
     return feedback;
 }

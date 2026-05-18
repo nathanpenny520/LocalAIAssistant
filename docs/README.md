@@ -11,14 +11,10 @@
 
 | File | Description |
 |------|-------------|
-| [development/ROADMAP.md](development/ROADMAP.md) | Refactoring plan, file metrics, known issues |
-| [development/code-improvement-plan.md](development/code-improvement-plan.md) | Comprehensive code audit and improvement plan |
-| [development/mcp_integration_plan.md](development/mcp_integration_plan.md) | MCP (Model Context Protocol) integration plan |
-| [development/review.md](development/review.md) | Original code review document |
+| [development/ROADMAP.md](development/ROADMAP.md) | Refactoring plan, file metrics, known issues, verification checklist |
+| [development/code-improvement-plan.md](development/code-improvement-plan.md) | Code audit and improvement plan |
+| [development/code-review-report.md](development/code-review-report.md) | Full code review report |
+| [development/mcp-integration-plan.md](development/mcp-integration-plan.md) | MCP (Model Context Protocol) integration plan |
+| [development/agent-runtime-review.md](development/agent-runtime-review.md) | Agent runtime architecture review |
+| [development/known-issues.md](development/known-issues.md) | Known issues and limitations |
 | [../CLAUDE.md](../CLAUDE.md) | Build commands, architecture, code standards |
-
-## Reviews
-
-| File | Description |
-|------|-------------|
-| [reviews/ai-agent-runtime-review.md](reviews/ai-agent-runtime-review.md) | Local AI Agent Runtime architecture review |

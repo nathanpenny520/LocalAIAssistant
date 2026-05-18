@@ -44,7 +44,8 @@ private:
     static AgentLoop* s_instance;
 
     void processNextIteration(const QString& response);
-    QString buildResultFeedback(const QVector<CommandResult>& results) const;
+    QString buildResultFeedback(const OperationPlan& plan,
+                                const QVector<CommandResult>& results) const;
     bool isTaskComplete(const QString& response) const;
     void executeAndContinue(const OperationPlan& plan);
 

@@ -11,14 +11,13 @@ Gitee repo:https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
 ![Level 1 Demo](resources/girlfriend/level-1-belle/demo-belle.png)
 
-![Level 2 Demo](resources/girlfriend/level-2-hot/demo-hot.png)
 
 ## Features
 
 ### LocalAIAssistant Core Features
 
 - **Dual Mode Support** — GUI interface + CLI command line
-- **File Upload** — Support for text, image(multi-model necessary), and PDF file attachments
+- **File Upload** — Support for text, image(multi-model necessary), PDF, and DOCX file attachments
 - **Streaming Output** — SSE real-time display, AI responses appear character by character
 - **Session Management** — Multi-session switching, history persistence
 - **Multi-language** — Simplified Chinese / English switching
@@ -30,7 +29,7 @@ Gitee repo:https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **Independent Window** — Immersive full-screen avatar background, 9:16 window ratio
 - **Avatar Level System** — Three levels available:
     - Level 1 (Belle): PNG static images, classic style
-    - Level 2 (Hot): PNG static images, hotter than you can imagine
+    - Level 2 (Hot): PNG static images, more charming
     - Level 3 (Hotter): MP4 dynamic video, dancing before your eyes
 - **Emotion System** — 14 expressions real-time switching (happy, shy, loving, playful, crying,
   travelling, etc.)
@@ -54,28 +53,6 @@ Gitee repo:https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **HNSW Index** — High-performance approximate nearest neighbor search
 - **Async Import** — Background thread processing, non-blocking UI
 - **Memory Enhancement** — Cross-session memory extraction, semantic retrieval, context injection
-
-#### Known Limitation: Math PDF Support
-
-Math/formula-heavy PDFs (e.g., problem sets, academic papers) produce significantly worse search
-results than prose PDFs. Three compounding root causes:
-
-| Layer                   | File                             | Issue                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PDF Text Extraction** | `src/parsers/fileparser.cpp:111` | [Poppler](https://poppler.freedesktop.org)'s `page->text()` reads only the PDF text layer. Formulas rendered as vector graphics, embedded images, or fonts without Unicode mappings are completely lost (no OCR capability)                                                                                                                    |
-| **Text Chunking**       | `src/knowledge/textchunker.cpp`  | Paragraph splitting relies on `\n\n+` (double newlines), which math PDFs rarely produce; the fallback sentence splitter only recognizes `.?!。！？`, which math content lacks; token estimation treats math symbols as ~0.25 tokens (like ASCII letters), drastically undercounting, causing the entire document to fit in one oversized chunk |
-| **Embedding Model**     | `src/knowledge/embedder.cpp`     | `all-MiniLM-L6-v2` WordPiece vocabulary contains zero LaTeX commands (`\frac`, `\int`, `\sqrt`, etc. are all missing); the model was trained on natural language sentence similarity, not mathematical semantics                                                                                                                               |
-
-**Suitable knowledge base documents**: Business plans, technical docs, Markdown notes, tutorials,
-and other prose-heavy PDF/TXT/MD/DOCX files.
-
-**Future improvement directions**:
-
-- Add OCR (e.g., Tesseract) to recognize formulas from PDF image regions
-- Math-aware chunking strategies (split at section/equation boundaries, single-newline fallback)
-- Switch to a math-specialized embedding model (e.g., [MathBERT](https://github.com/tbs17/MathBERT))
-  or a multilingual model with LaTeX support
-- Fix token estimation for math symbols
 
 ### Task Execution Module 🔧
 
@@ -101,13 +78,6 @@ and other prose-heavy PDF/TXT/MD/DOCX files.
   `--yes` flag auto-confirms Tier 2 warnings (Tier 1 never bypassed). GUI confirmation dialog
   with per-path buttons.
 
-> ⚠️ **Platform Compatibility**:
->
-> - **macOS**: Full voice input/output support ✅
-> - **Windows**: Voice output (TTS) works normally, voice input (ASR) not supported ⚠️
-> - **Linux**: Voice output (TTS) works, voice input (ASR) depends on system audio device, not yet
->   fully tested
-
 ## Tech Stack
 
 | Item            | Technology                                                                                             |
@@ -125,98 +95,179 @@ and other prose-heavy PDF/TXT/MD/DOCX files.
 
 ```
 sourcecode-ai-assistant/
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md         # Bug report template
+│   │   └── feature_request.md    # Feature request template
+│   ├── PULL_REQUEST_TEMPLATE.md  # PR template
+│   └── workflows/
+│       ├── build.yml             # CI build and release
+│       └── format-check.yml      # Code format check
+├── cmake/
+│   ├── Info.plist.in             # GUI .app bundle configuration
+│   └── CLI-Info.plist.in         # CLI .app bundle configuration
+├── docs/
+│   ├── README.md                 # Documentation index
+│   ├── development/              # Development docs
+│   │   ├── ROADMAP.md                 # Roadmap
+│   │   ├── code-improvement-plan.md   # Code improvement plan
+│   │   ├── code-review-report.md      # Code review report
+│   │   ├── mcp-integration-plan.md    # MCP integration plan
+│   │   ├── agent-runtime-review.md    # Agent runtime review
+│   │   └── known-issues.md            # Known issues
+│   └── user/                     # User docs
+│       ├── USAGE.md              # English usage guide
+│       └── USAGE_zh_CN.md        # Chinese usage guide
+├── resources/
+│   ├── girlfriend/               # AI Girlfriend avatar resources
+│   │   ├── level-1-belle/        # Level 1 PNG images
+│   │   ├── level-2-hot/          # Level 2 PNG images
+│   │   └── level-3-hotter/       # Level 3 MP4 videos
+│   ├── icons/                    # App icons
+│   │   ├── app.icns              # macOS icon
+│   │   ├── app.ico               # Windows icon
+│   │   ├── app.png               # Linux icon
+│   │   └── app.rc                # Windows resource file
+│   ├── installer/
+│   │   └── installer.nsi.in      # NSIS installer template
+│   ├── models/                   # ONNX embedding model files
+│   ├── prompts/                  # AI prompt templates (synced to app resources at build)
+│   │   ├── en/                   #   English prompts
+│   │   │   ├── girlfriend.md     #     Girlfriend persona
+│   │   │   ├── knowledge.md      #     Knowledge base prompt
+│   │   │   ├── system.md         #     System prompt
+│   │   │   └── task.md           #     Task prompt
+│   │   ├── zh_CN/                #   Chinese prompts
+│   │   │   ├── girlfriend.md     #     Girlfriend persona
+│   │   │   ├── knowledge.md      #     Knowledge base prompt
+│   │   │   ├── system.md         #     System prompt
+│   │   │   └── task.md           #     Task prompt
+│   │   └── girlfriend_memory.md  # Memory enhancement template
+│   ├── localaiassistant.desktop  # Linux desktop entry
+│   ├── en.lproj/                 # macOS English localization
+│   └── zh_CN.lproj/              # macOS Chinese localization
+├── scripts/
+│   ├── README.md                 # Script usage documentation
+│   ├── build.sh                  # Unified cross-platform build script
+│   ├── package.sh                # Cross-platform packaging script
+│   ├── setup.sh                  # First-time clone initialization script
+│   ├── format.sh                 # Code formatting tool
+│   ├── version.sh                # Shared version extraction
+│   └── cli-wrapper.sh            # macOS CLI launcher (detects iTerm2)
 ├── src/
-│   ├── core/           # Core business logic (network, session, file handling)
-│   │   └── datamodels.h    # Data model definitions
-│   ├── prompts/         # AI prompt templates (per-language subdirectories)
-│   │   ├── en/          #   English prompts
-│   │   └── zh_CN/       #   Chinese prompts
-│   ├── ui/             # GUI interface (main window, settings dialog)
-│   ├── cli/            # CLI command line interface
-│   ├── tasks/          # Task execution module (file ops, safety checks, undo, agent loop)
-│   │   ├── taskengine.cpp/h       # Task execution engine (AI response parsing, plan dispatch)
-│   │   ├── agentloop.cpp/h        # Agent iteration loop (plan→execute→feedback→continue cycle)
-│   │   ├── commandexecutor.cpp/h  # Command executor (native file ops + shell command execution)
-│   │   ├── safetychecker.cpp/h    # Safety checker (cross-platform dangerous command/path detection)
-│   │   ├── operationplan.cpp/h    # Operation plan definition (ShellOperation types)
-│   │   └── operationundo.cpp/h    # Operation undo
-│   ├── knowledge/      # Knowledge management (chunking, embedding, search, import, memory)
-│   │   ├── textchunker.cpp/h      # Text chunker
-│   │   ├── embedder.cpp/h         # Text to vector
-│   │   ├── vectordb.cpp/h         # Vector database
-│   │   ├── docimporter.cpp/h      # Document importer (TXT/MD/PDF/DOCX)
-│   │   ├── knowledgebase.cpp/h    # Knowledge base manager
-│   │   └── memoryenhancer.cpp/h   # Conversation memory enhancer
-│   └── girlfriend/     # AI Girlfriend module
-│       ├── girlfriendwindow.cpp   # Girlfriend window
-│       ├── girlfriendwindow.h     # Girlfriend window header
-│       ├── avatarwidget.cpp       # Avatar/expression/video component
-│       ├── avatarwidget.h         # Avatar widget header
-│       ├── personalityengine.cpp  # Personality engine, emotion detection, mood calculation
-│       ├── personalityengine.h    # Personality engine header
-│       ├── voicemanager.cpp       # Voice management (iFlytek ASR/TTS)
-│       ├── voicemanager.h         # Voice manager header
-│       ├── memorymanager.cpp      # Long-term memory management
-│       ├── memorymanager.h        # Memory manager header
-│       ├── girlfriendsettings.cpp # Settings management (avatar level, mood influence, etc.)
-│       ├── girlfriendsettings.h   # Settings header
-│       ├── girlfriendsessionmanager.cpp # Multi-session management
-│       ├── girlfriendsessionmanager.h   # Session manager header
-│       ├── girlfriendsession.cpp  # Single session data
-│       ├── girlfriendsession.h    # Session data header
-│       ├── girlfriend_translations.h # Translation helper class
-│       └── girlfriend_memory.md       # User memory archive (long-term persistence)
-├── resources/girlfriend/  # Avatar resources directory
-│   ├── level-1-belle/  # Level 1 PNG images
-│   ├── level-2-hot/    # Level 2 PNG images
-│   └── level-3-hotter/ # Level 3 MP4 videos
-├── scripts/            # Build and tooling scripts
-│   ├── build.sh        # Unified cross-platform build script
-│   ├── package.sh      # Cross-platform packaging script (CI-friendly)
-│   ├── setup.sh        # First-time clone initialization script
-│   ├── format.sh       # Code formatter (clang-format + cmake-format + shfmt)
-│   ├── version.sh      # Shared version extraction utility
-│   └── cli-wrapper.sh  # macOS CLI launcher (detects iTerm2)
-├── translations/       # Internationalization translation files
-├── resources/          # Resource files
-│   ├── icons/          # App icons (icns, ico, png)
-│   ├── models/         # ONNX embedding model files
-│   └── *.lproj/        # macOS localization strings
-├── third_party/        # Third-party libraries
-│   └── hnswlib/        # High-performance vector search (header-only)
-├── cmake/              # CMake configuration templates
-│   ├── Info.plist.in   # GUI .app bundle configuration
-│   └── CLI-Info.plist.in # CLI .app bundle configuration
-├── CMakeLists.txt      # CMake main configuration file
-├── .gitattributes      # Git line ending configuration
-├── .gitignore          # Git ignore rules
-├── .env.example        # iFlytek voice credential template
-├── LICENSE             # MIT License
-├── README.md           # Chinese documentation
-└── README_EN.md        # English documentation
+│   ├── cli/
+│   │   ├── cli_main.cpp          # CLI entry point
+│   │   ├── cli_application.cpp   # CLI application logic
+│   │   └── cli_application.h     # CLI application header
+│   ├── core/                     # Core business logic
+│   │   ├── apiprovider.cpp/h     #   API provider base (OpenAI/Ollama/Anthropic/LlamaCpp)
+│   │   ├── networkmanager.cpp/h  #   Network request manager (SSE streaming)
+│   │   ├── sessionmanager.cpp/h  #   Session management (CRUD, persistence)
+│   │   ├── filemanager.cpp/h     #   File attachment manager
+│   │   ├── envconfig.cpp/h       #   .env configuration loader
+│   │   ├── datamodels.h          #   Data model definitions
+│   │   ├── openai_provider.cpp/h     #   OpenAI API adapter
+│   │   ├── ollama_provider.cpp/h     #   Ollama API adapter
+│   │   ├── anthropic_provider.cpp/h  #   Anthropic API adapter
+│   │   ├── llamacpp_provider.cpp/h   #   LlamaCpp API adapter
+│   │   └── version.h.in          #   Version number template
+│   ├── prompts/                  # Prompt manager
+│   │   ├── promptmanager.cpp/h   #   Prompt loading and management
+│   │   ├── en/                   #   English prompts (source)
+│   │   └── zh_CN/                #   Chinese prompts (source)
+│   ├── parsers/                  # File parsers
+│   │   ├── fileparser.cpp        #   PDF/DOCX/text parsing
+│   │   └── fileparser.h          #   Parser header
+│   ├── ui/                       # GUI interface
+│   │   ├── main.cpp              #   GUI entry point
+│   │   ├── mainwindow.cpp/h      #   Main window (chat, sessions, girlfriend integration)
+│   │   ├── settingsdialog.cpp/h  #   Settings dialog (API, theme, language)
+│   │   ├── apptheme.cpp/h        #   Theme manager (light/dark/follow system)
+│   │   ├── markdownrenderer.cpp/h    #   Markdown renderer
+│   │   ├── stylesheetmanager.cpp/h   #   Qt stylesheet manager
+│   │   ├── translationmanager.cpp/h  #   Multi-language switcher
+│   │   └── operationconfirmdialog.cpp/h  # Task confirmation dialog
+│   ├── tasks/                    # Task execution module
+│   │   ├── taskengine.cpp/h      #   Task engine (AI response parsing, plan dispatch)
+│   │   ├── agentloop.cpp/h       #   Agent iteration loop (plan→execute→feedback→continue)
+│   │   ├── commandexecutor.cpp/h #   Command executor (native file ops + shell)
+│   │   ├── safetychecker.cpp/h   #   Safety checker (three-tier security architecture)
+│   │   ├── operationplan.cpp/h   #   Operation plan definitions
+│   │   └── operationundo.cpp/h   #   Operation undo
+│   ├── knowledge/                # Knowledge base module
+│   │   ├── textchunker.cpp/h     #   Text chunker
+│   │   ├── embedder.cpp/h        #   Text-to-vector (ONNX)
+│   │   ├── vectordb.cpp/h        #   Vector database (HNSW)
+│   │   ├── docimporter.cpp/h     #   Document importer (TXT/MD/PDF/DOCX)
+│   │   ├── knowledgebase.cpp/h   #   Knowledge base manager
+│   │   └── memoryenhancer.cpp/h  #   Conversation memory enhancer
+│   └── girlfriend/               # AI Girlfriend module
+│       ├── girlfriendwindow.cpp/h    #   Girlfriend standalone window
+│       ├── avatarwidget.cpp/h        #   Avatar/expression/video widget
+│       ├── personalityengine.cpp/h   #   Personality engine, emotion detection, mood
+│       ├── voicemanager.cpp/h        #   Voice manager (iFlytek ASR/TTS)
+│       ├── memorymanager.cpp/h       #   Long-term memory manager
+│       ├── girlfriendsettings.cpp/h  #   Settings (avatar level, mood influence, etc.)
+│       ├── girlfriendsessionmanager.cpp/h  #   Multi-session manager
+│       ├── girlfriendsession.cpp/h   #   Single session data
+│       └── girlfriend_translations.h #   Translation helper
+├── tests/                        # Unit tests
+│   ├── CMakeLists.txt            #   Test build configuration
+│   ├── test_agentloop.cpp        #   Agent loop test
+│   ├── test_apiprovider.cpp      #   API provider test
+│   ├── test_apptheme.cpp         #   Theme test
+│   ├── test_commandexecutor.cpp  #   Command executor test
+│   ├── test_embedder.cpp         #   Embedder test
+│   ├── test_fileparser.cpp       #   File parser test
+│   ├── test_knowledgebase.cpp    #   Knowledge base test
+│   ├── test_markdownrenderer.cpp #   Markdown renderer test
+│   ├── test_safetychecker.cpp    #   Safety checker test
+│   ├── test_sessionmanager.cpp   #   Session manager test
+│   ├── test_stylesheetmanager.cpp #  Stylesheet manager test
+│   └── test_vectordb.cpp         #   Vector database test
+├── third_party/
+│   └── hnswlib/                  # High-performance vector search (header-only)
+├── translations/
+│   ├── localai_en.ts             # English translation source
+│   └── localai_zh_CN.ts          # Chinese translation source
+├── .clang-format                 # C++ code formatting config
+├── .clangd                       # clangd LSP config
+├── .cmake-format.json            # CMake formatting config
+├── .editorconfig                 # Editor universal config
+├── .gitattributes                # Git line ending config
+├── .gitignore                    # Git ignore rules
+├── .prettierignore               # Prettier ignore rules
+├── .prettierrc                   # Prettier formatting config
+├── .env.example                  # iFlytek voice credential template
+├── CMakeLists.txt                # CMake main build file
+├── CHANGELOG.md                  # Changelog
+├── CLAUDE.md                     # Claude Code configuration
+├── CONTRIBUTING.md               # Contribution guide
+├── LICENSE                       # MIT License
+├── README.md                     # Chinese documentation
+└── README_EN.md                  # English documentation
 ```
 
 ---
 
 ## First-time Setup
 
-After cloning the project, run the initialization script to check your environment:
-
 ```bash
 ./scripts/setup.sh
 ```
 
-This script will:
+Checks build dependencies (CMake, compiler, Qt, Poppler, etc.) and reports missing items with install guides.
 
-1. Copy `.env.example` → `.env` (iFlytek voice credential template)
-2. Check build dependencies (CMake, compiler, Qt, Poppler, Readline, ONNX Runtime)
-3. Show missing dependencies and installation guides
-
-> **Tip**: Run this script to quickly verify if your environment meets build requirements.
+> See [scripts/README.md](scripts/README.md) for detailed script usage.
 
 ---
 
 ## Build Steps
+
+### Development Requirements
+
+- **Qt**: Minimum 6.x, recommended 6.10.3
+- **Compiler**: Must support C++17 (macOS: AppleClang 10.0+ / Windows: MSVC 2019+ or MinGW GCC 9+ / Linux: GCC 9+ or Clang 10+)
 
 ### 1. Install Dependencies
 
@@ -300,42 +351,10 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multi
 ### 2. Build Project
 
 ```bash
-cd scripts
-./build.sh
+cd scripts && ./build.sh
 ```
 
-> **Windows Note**:
->
-> - Must run in **Git Bash** (bundled with Git for Windows)
-> - Script auto-detects Qt and MinGW compiler paths, no manual environment variable setup needed
-
-### Build Options
-
-```bash
-# Clean rebuild
-./build.sh -c
-
-# Debug build
-./build.sh -d
-
-# Build and create distributable package
-./build.sh build -p
-
-# Package existing build artifacts only
-./build.sh package
-
-# Specify Qt path
-./build.sh -q /path/to/qt
-
-# Build CLI only
-./build.sh LocalAIAssistant-CLI
-
-# Build GUI only
-./build.sh LocalAIAssistant
-
-# Show help
-./build.sh help
-```
+> See [scripts/README.md](scripts/README.md) for detailed script usage.
 
 ### Build Artifacts
 
@@ -350,182 +369,80 @@ cd scripts
 
 ### Packaging for Distribution
 
-Use the `package` command to generate user-installable release packages:
-
 ```bash
-# Build + package in one step
-./build.sh build -p
-
-# Or package existing build artifacts
-./build.sh package
+./build.sh build -p     # Build + package
+./build.sh package      # Package existing build
 ```
 
-| Platform | Format                           | Output Path                                   |
-| -------- | -------------------------------- | --------------------------------------------- |
-| macOS    | **DMG** (drag to Applications)   | `release/LocalAIAssistant-x.x.x-macOS.dmg`    |
-| Windows  | **ZIP** (extract and run)        | `release/LocalAIAssistant-x.x.x-Windows-x64.zip`  |
-| Linux    | **tar.gz** (includes install.sh) | `release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz` |
+| Platform | Format | Output Path |
+|----------|--------|-------------|
+| macOS | DMG | `release/LocalAIAssistant-x.x.x-macOS.dmg` |
+| Windows | ZIP | `release/LocalAIAssistant-x.x.x-Windows-x64.zip` |
+| Linux | tar.gz | `release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz` |
 
-> **Note**: This is free software without code signing. macOS users must right-click the app →
-> "Open" to bypass Gatekeeper on first launch. Windows users will see a SmartScreen warning — click
-> "More info" → "Run anyway" to proceed.
->
-> Release packages do **NOT** include the developer's `.env` credentials. Users can configure
-> iFlytek voice credentials directly via the AI Girlfriend window's settings menu, or copy
-> `.env.example` to create their own `.env` file.
->
-> **Linux Release Package**: Extract the tar.gz archive and run `./install.sh` to install system-wide,
-> or simply run `./LocalAIAssistant` / `./LocalAIAssistant-CLI chat` directly from the extracted directory
-> (portable mode). The package includes `.env.example` as a configuration template.
+> Release packages do **NOT** include the developer's `.env`. No code signing — macOS first launch
+> requires right-click → Open. See [scripts/README.md](scripts/README.md).
 
 ### Automated Release Publishing (GitHub Actions CI)
 
-Push a version tag to trigger automatic CI build, test, packaging, and GitHub Release creation with
-all three platform installers attached.
-
-**Trigger condition**: Push a tag starting with `v` (e.g., `v1.0.0`) to GitHub.
+Push a `v`-prefixed tag to trigger 3-platform build→test→package→release:
 
 ```bash
-# Create and push a tag — triggers automatic release workflow
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
-**Release pipeline**:
-
-```
-git push v1.0.0
-  → GitHub Actions starts
-    → Linux:   Build → Test → Package tar.gz
-    → macOS:   Build → Test → Package DMG
-    → Windows: Build → Test → Package ZIP
-  → All three pass → Release automatically created
-  → Installers uploaded to Release download area
-```
-
-**Requirements**:
-- Must push a **tag** (`v*`); regular pushes do not trigger a release
-- All three platforms must **build and test successfully**; any failure blocks the release
-- Releases appear at: `https://github.com/nathanpenny520/LocalAIAssistant/releases`
+All three platforms must pass; releases appear at [GitHub Releases](https://github.com/nathanpenny520/LocalAIAssistant/releases).
 
 ---
 
 ## Usage
 
-### Run GUI Version
+### Running
 
 ```bash
-# macOS
-open build/LocalAIAssistant.app
+# GUI
+open build/LocalAIAssistant.app        # macOS
+build\LocalAIAssistant.exe             # Windows
+./build/LocalAIAssistant               # Linux
 
-# Windows
-build\LocalAIAssistant.exe
-
-# Windows debug mode (shows log console)
-build\LocalAIAssistant.exe --debug
-
-# Linux（development build）
-./build/LocalAIAssistant
-
-# Linux（release package, extract and run）
-./LocalAIAssistant
+# CLI
+./build/LocalAIAssistant-CLI chat      # Interactive chat
+./build/LocalAIAssistant-CLI ask "..."  # One-shot query
 ```
 
-> **Windows Debug Tip**: Use `--debug` flag to show debug console window for viewing logs. Can also
-> set environment variable `LOCALAI_DEBUG=1`.
-
-### Run CLI Version
-
-```bash
-# macOS / Linux
-./build/LocalAIAssistant-CLI
-
-# macOS .app bundle (double-click to run, auto-detects iTerm2)
-open build/LocalAIAssistant-CLI.app
-
-# Windows (Git Bash)
-./build/LocalAIAssistant-CLI.exe
-
-# Windows (CMD/PowerShell)
-build\LocalAIAssistant-CLI.exe
-```
-
-> **macOS Terminal Recommendation**: Use [iTerm2](https://iterm2.com) instead of Terminal.app. The
-> default Terminal may have issues with Chinese character deletion (Backspace doesn't delete
-> characters completely). CLI .app bundle automatically detects iTerm2 and prefers to open with it.
-
-> **readline Support**: macOS includes libedit (readline-compatible), auto-enabled during build, providing better
-> input experience (history support, proper multi-byte character editing).
-
-**CLI Command Examples**:
-
-```bash
-# Enter interactive chat
-./build/LocalAIAssistant-CLI chat
-
-# Single query
-./build/LocalAIAssistant-CLI ask "What is artificial intelligence?"
-
-# Session management
-./build/LocalAIAssistant-CLI sessions -l    # List sessions
-./build/LocalAIAssistant-CLI sessions -n    # New session
-
-# Configuration management
-./build/LocalAIAssistant-CLI config --show-config
-./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
-
-# Task execution (auto-confirm)
-./build/LocalAIAssistant-CLI ask --yes "Create ~/test/hello.txt for me"
-```
-
-### CLI Interactive Commands
-
-Available in CLI chat mode:
-
-| Command        | Function                     |
-| -------------- | ---------------------------- |
-| `/help`        | Show help                    |
-| `/new`         | New session                  |
-| `/list`        | List all sessions            |
-| `/switch <id>` | Switch session               |
-| `/delete <id>` | Delete session               |
-| `/config`      | Show configuration           |
-| `/file <path>` | Add file attachment          |
-| `/listfiles`   | View pending files           |
-| `/clearfiles`  | Clear file list              |
-| `/confirm`     | Confirm pending task plan    |
-| `/cancel`      | Cancel pending task plan     |
-| `/undo`        | Undo last executed operation |
-| `/exit`        | Exit program                 |
-
----
+> Full usage guide, CLI commands, security settings, girlfriend config: [docs/user/USAGE.md](docs/user/USAGE.md).
 
 ## Configure AI Service
 
-The program needs to connect to an AI service to work.
+Two configuration methods are supported, loaded at startup in this order:
 
-### Local Deployment: [Ollama](https://ollama.com/download) (Some features may not work)
+```
+App startup
+  → 1. Load .env file (baseline defaults)
+  → 2. Load QSettings (GUI settings; non-empty fields override .env)
+  → Active config
+```
 
-1. Download and install Ollama: https://ollama.com/download
-2. Download model: `ollama pull llama3`
-3. Configure in program settings:
-    - API URL: `http://127.0.0.1:11434`
-    - Model name: `llama3`
+**Values set in the GUI settings dialog override the same keys in `.env`.** For CLI-only use, configuring `.env` is sufficient.
 
-### Use Cloud API (Recommended, Verified)
+### Method 1: GUI Settings Dialog (Recommended)
 
-| Service                              | API URL                       | Description             |
-| ------------------------------------ | ----------------------------- | ----------------------- |
-| [OpenAI](https://openai.com)         | `https://api.openai.com`      | Requires API Key        |
-| [Paratera](https://www.paratera.com) | `https://llmapi.paratera.com` | China API proxy service |
-| Other OpenAI compatible services     | Configure per provider docs   | —                       |
+Open the app → Settings → enter API URL, API Key, model name → Save. Settings are persisted to QSettings.
 
-### Method 3: .env File Configuration (Advanced / CLI Users)
+### Method 2: .env File (CLI / Portable Deployment / Baseline Defaults)
 
-Configure AI services via a `.env` file in the executable directory or user data directory. No GUI or CLI commands needed:
+Create a `.env` file next to the executable or in the user data directory. Supported API types:
+
+| `AI_API_TYPE` | Service | Notes |
+|---|---|---|
+| `openai` | OpenAI or compatible API | Default type |
+| `ollama` | [Ollama](https://ollama.com/download) local deployment | Auto-detected when URL contains port `11434` |
+| `anthropic` | [Anthropic Claude](https://www.anthropic.com) | Requires API Key |
+| `llamacpp` | [LlamaCpp](https://github.com/ggerganov/llama.cpp) | OpenAI-compatible format, local |
+
+> **Ollama Auto-Detection**: Even with `AI_API_TYPE=openai`, the app auto-switches to Ollama mode if the API URL contains `11434` (the default Ollama port).
 
 ```bash
-# Copy the template (included in release packages as .env.example)
 cp .env.example .env
 ```
 
@@ -534,191 +451,51 @@ AI configuration in `.env`:
 ```
 AI_API_TYPE=openai                     # openai | ollama | llamacpp | anthropic
 AI_API_URL=http://127.0.0.1:8080       # API base URL
-AI_API_KEY=sk-your-api-key-here        # API key
+AI_API_KEY=sk-your-api-key-here        # API key (can be empty for Ollama/LlamaCpp)
 AI_MODEL_NAME=local-model              # Model name
 ```
 
-> **CLI Tip**: After configuring `.env`, launch the CLI without any setup commands — it works immediately.
-
 ---
 
-## AI Girlfriend Module Configuration
+## AI Girlfriend Module
 
-The AI Girlfriend module provides voice interaction experience, requires iFlytek voice service
-configuration.
+Open via `Ctrl/Cmd+G`. Voice interaction (ASR + TTS) requires iFlytek credentials. Personality is
+customizable via `resources/prompts/<lang>/girlfriend.md`. Memory persists across sessions.
 
-### Method 1: In-App Configuration (Recommended)
-
-Open the AI Girlfriend window, click the ⚙️ button in the top-right corner, select "Configure
-Voice...", and fill in your iFlytek credentials in the dialog. Settings are saved automatically — no
-file editing needed.
-
-### Method 2: .env File Configuration (Advanced Users)
-
-Create a `.env` file in the project root or user data directory. The app will detect and load it
-automatically.
-
-### Step 1: Register [iFlytek Open Platform](https://www.xfyun.cn) Account
-
-1. Visit iFlytek Open Platform: https://www.xfyun.cn
-2. Register and login
-3. Go to "Console" → "Create Application"
-
-### Step 2: Enable Voice Services
-
-Enable the following services in your application:
-
-| Service                           | Name                        | Purpose        |
-| --------------------------------- | --------------------------- | -------------- |
-| **Voice Dictation (Recognition)** | Streaming (WebSocket)       | Speech to text |
-| **Voice Synthesis**               | Ultra-realistic (WebSocket) | Text to speech |
-
-### Step 3: Get API Credentials
-
-After creating application, get three credentials from console:
-
-```
-APPID     - Application ID
-API Key   - API Key
-API Secret - API Secret
-```
-
-### Step 4: Configure Credentials
-
-**Recommended: In-App Configuration** — Click ⚙️ in the AI Girlfriend window and select "Configure
-Voice..." to enter credentials directly in the UI and save.
-
-**Alternative: .env File** — Create a `.env` file in the project root or user data directory:
-
-```bash
-# Copy template
-cp .env.example .env
-
-# Edit and fill in your credentials
-```
-
-`.env` file content:
-
-```
-XFYUN_APP_ID=your_app_id
-XFYUN_API_KEY=your_api_key
-XFYUN_API_SECRET=your_api_secret
-
-# Optional settings (have defaults, usually not needed)
-# XFYUN_ASR_URL=wss://iat-api.xfyun.cn/v2/iat      # ASR WebSocket URL
-# XFYUN_TTS_URL=wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6     # TTS WebSocket URL
-# XFYUN_VOICE_TYPE=x6_lingxiaoxuan_pro               # Default TTS voice
-```
-
-> **Security Note**: `.env` file is in `.gitignore`, won't be committed to Git. Release packages
-> exclude developer `.env` and only include `.env.example` as a template.
-
-### TTS Voice Selection
-
-Modify `.env` to select different voice tones:
-
-| Voice Parameter       | Name          | Characteristics                                                  |
-| --------------------- | ------------- | ---------------------------------------------------------------- |
-| `x6_lingxiaoxuan_pro` | Ling Xiaoxuan | Ultra-realistic female voice ⭐Default                           |
-| `x6_wumeinv_pro`      | Wumei Sister  | Natural, rich emotion, needs manual addition                     |
-| `x6_lingfeiyi_pro`    | Lingfeiyi     | Youthful warm, male voice ⭐Recommended, included after enabling |
-
----
-
-## Using AI Girlfriend Module
-
-### Open AI Girlfriend Window
-
-Select "AI Girlfriend" from View menu, or use shortcut `Ctrl/Cmd+G`.
-
-### Voice Interaction Flow
-
-```
-1. Click 🎤 button to start recording (button turns red 🔴)
-2. Speak into microphone
-3. Click button again to stop recording
-4. Wait for recognition, text auto-sent
-5. AI response auto-played via voice
-```
-
-> **Windows Users Note**: Voice input (ASR) currently not available on Windows. You can still use
-> text input, voice output (TTS) works normally.
-
-### Customize Personality
-
-Edit `resources/prompts/<lang>/girlfriend.md` (e.g., `resources/prompts/en/girlfriend.md`) to customize AI
-girlfriend's personality and response style. Changes are auto-synced on `cmake --build build`.
-
-### Memory System Mechanism
-
-AI girlfriend's memory system is implemented via text markers (defined in
-`prompts/<lang>/girlfriend.md` through system prompt, **memory system code not recommended to
-remove**), no API tool calls needed.
-
----
-
-## Dependency Installation Supplement
-
-### Qt 6 Multimedia and WebSockets Modules
-
-AI girlfriend voice features require Qt Multimedia (audio recording/playback) and Qt WebSockets
-(iFlytek API connection) modules.
-
-**macOS (Qt Official Installation)**:
-
-1. Open `/Applications/Qt/MaintenanceTool.app`
-2. Select "Add or remove components"
-3. Find Qt 6.x → Additional Libraries
-4. Select "Qt Multimedia" and "Qt WebSockets"
-5. Click Install
-
-> **Note**: Homebrew installed `qt@6` already includes both modules.
-
-**Linux (Package Manager)**:
-
-```bash
-# Ubuntu/Debian
-sudo apt install qt6-multimedia-dev qt6-websockets-dev
-
-# Fedora
-sudo dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel
-
-# Arch Linux
-sudo pacman -S qt6-multimedia qt6-websockets
-```
-
-**Windows (Qt Official Installation)**: Same as macOS, select Multimedia and WebSockets in Qt
-Maintenance Tool.
-
----
-
-## Development Environment
-
-### Qt Version Requirements
-
-- Minimum: Qt 6.x
-- Recommended: Qt 6.10.3
-
-### Compiler Requirements
-
-- **C++17 support** (required)
-- macOS: AppleClang 10.0+ (Xcode 10+)
-- Windows: MSVC 2019+ or MinGW GCC 9+ (Qt bundled)
-- Linux: GCC 9+ or Clang 10+
+> See [docs/user/USAGE.md](docs/user/USAGE.md) for full girlfriend configuration.
 
 ---
 
 ## Data Storage Location
 
-All data files are stored under the user data directory (`QStandardPaths::AppDataLocation`):
+Data is stored in two separate locations:
 
-| Platform | Data Directory Path                                    |
-| -------- | ------------------------------------------------------ |
-| macOS    | `~/Library/Application Support/LocalAIAssistant/`      |
-| Windows  | `C:\Users\<USER>\AppData\Local\LocalAIAssistant\`      |
-| Linux    | `~/.local/share/LocalAIAssistant/`                     |
+| Data Type | Storage | Contents |
+|---|---|---|
+| App Config | **QSettings** | API URL/Key, model name, theme, language, etc. |
+| Runtime Data | **AppDataLocation** | Sessions, knowledge base, girlfriend settings, memory, etc. |
 
-### Directory Structure
+### QSettings (App Configuration)
+
+Options changed in the GUI settings dialog are stored here:
+
+| Platform | Storage Location |
+| -------- | ---------------- |
+| macOS    | `~/Library/Preferences/com.localaiassistant.LocalAIAssistant.plist` |
+| Windows  | Registry `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings` |
+| Linux    | `~/.config/LocalAIAssistant/Settings.conf` |
+
+Common keys: `apiBaseUrl`, `apiKey`, `modelName`, `apiType`, `temperature`, `topP`, `maxTokens`, `maxContext`, `theme`, `language`, `streamingEnabled`.
+
+### AppDataLocation (Runtime Data)
+
+| Platform | Directory Path |
+| -------- | -------------- |
+| macOS    | `~/Library/Application Support/LocalAIAssistant/` |
+| Windows  | `C:\Users\<USER>\AppData\Local\LocalAIAssistant\` |
+| Linux    | `~/.local/share/LocalAIAssistant/` |
+
+Directory structure:
 
 ```
 <AppDataLocation>/
@@ -739,16 +516,21 @@ All data files are stored under the user data directory (`QStandardPaths::AppDat
 └── memories.json                 # MemoryEnhancer cross-session memories
 ```
 
-### QSettings (AI model config, theme, language, etc.)
+### Why Can't I Find These Files?
 
-| Platform | Storage Location                                                       |
-| -------- | ---------------------------------------------------------------------- |
-| macOS    | `~/Library/Preferences/com.localaiassistant.LocalAIAssistant.plist`   |
-| Windows  | Registry `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings`       |
-| Linux    | `~/.config/LocalAIAssistant/Settings.conf`                            |
+The data directories are **hidden by default** on all three platforms:
 
-Keys stored in QSettings: `apiBaseUrl`, `apiKey`, `modelName`, `apiType`, `temperature`,
-`topP`, `maxTokens`, `maxContext`, `theme`, `language`, `streamingEnabled`, etc.
+- **macOS**: `~/Library/` has been hidden by the system since macOS 10.7
+- **Windows**: `AppData` is a hidden folder
+- **Linux**: `.local` starts with a dot, making it hidden
+
+**How to access:**
+
+| Platform | Method |
+| -------- | ------ |
+| macOS    | Finder → Go → Go to Folder... → paste `~/Library/Application Support/LocalAIAssistant/` |
+| Windows  | Type `%LOCALAPPDATA%\LocalAIAssistant` in File Explorer address bar |
+| Linux    | Run `xdg-open ~/.local/share/LocalAIAssistant/` in terminal |
 
 ### .env Search Order
 
@@ -761,76 +543,15 @@ On startup, the app searches for `.env` in the following order (first match wins
 | 3 | `<CWD>/.env` | Development |
 | 4 | `<AppDataLocation>/.env` | User-level config after install |
 
-`.env` priority: `.env` is loaded first as a baseline, then QSettings/JSON persistent config
-is loaded. **Non-empty fields in persistent config override `.env`**.
-
----
-
-## WSL (Windows Subsystem for Linux) Notes
-
-When using under WSL, please note:
-
-- **GUI Mode**: Requires a Windows X server (e.g., VcXsrv, X410) or WSLg (Windows 11). Set `export DISPLAY=:0` before launching.
-- **CLI Mode**: Works out of the box, no extra setup needed. Recommended for WSL users:
-  ```bash
-  ./LocalAIAssistant-CLI chat
-  ```
-- **Voice Features**: Voice input/output in WSL requires additional audio device configuration and is not yet fully tested.
-- **.env Configuration**: Place a `.env` file next to the executable. The CLI auto-loads it on startup.
-
 ---
 
 ## FAQ
 
-### Voice Features Not Working
+- **Voice not working** — Check iFlytek credentials and Qt Multimedia/WebSockets
+- **Session data lost** — Check `sessions.json` and `session_<id>.json` files
+- **Memory not recorded** — Verify AI responses include `[update memory:xxx]` marker
 
-**Problem**: Voice button shows "Voice not configured"
-
-**Solution**:
-
-1. In AI Girlfriend window, click ⚙️ → "Configure Voice..." to enter iFlytek credentials
-   (recommended)
-2. Or check if `.env` file exists and credentials are correct
-3. Confirm "Voice Dictation" and "Ultra-realistic Voice Synthesis" services are enabled in iFlytek
-   console
-4. Confirm Qt Multimedia and WebSockets modules are installed
-
-**Windows Voice Input Issue**:
-
-Voice input (ASR) currently not supported on Windows due to Windows Media Foundation audio subsystem
-compatibility with Qt 6 QAudioSource. May be fixed in future versions.
-
-Temporary workaround:
-
-- Use text input instead of voice input
-- Voice output (TTS) should still work normally
-
-### WebSockets Not Found During Build
-
-**Problem**: `Could NOT find Qt6WebSockets`
-
-**Solution**: Install Qt WebSockets module (see "Dependency Installation Supplement" above)
-
-### Multi-session Data Loss
-
-**Problem**: Conversation history disappeared after switching sessions
-
-**Solution**:
-
-1. Check if `sessions.json` and `session_<id>.json` files exist
-2. Confirm data was auto-saved before switching
-3. Avoid manually deleting session data files
-
-### Memory Not Recorded
-
-**Problem**: AI doesn't remember previously shared information
-
-**Solution**:
-
-1. Check if `memory.md` file has content (in user data directory)
-2. Confirm AI response contains `[update memory:xxx]` marker
-3. Some models don't support special marker output, try different model
-4. Emphasize memory rules in `prompts/<lang>/girlfriend.md` to guide AI output
+> See [docs/user/USAGE.md](docs/user/USAGE.md) troubleshooting section for details.
 
 ---
 

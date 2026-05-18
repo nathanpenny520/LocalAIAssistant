@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- **Qt 6.5+** with Network and Widgets modules
+- **Qt 6.x** with Widgets, Network, Concurrent, Multimedia, MultimediaWidgets, WebSockets, Sql, and Test modules
 - **CMake 3.16+**
 - **C++17** compatible compiler (GCC 9+, Clang 10+, MSVC 2019+)
 - Optional: Poppler (PDF), libzip + pugixml (DOCX), ONNX Runtime (embeddings), hnswlib (vector DB), readline (CLI)
@@ -25,9 +25,11 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DQT_PATH=/path/to/Qt/6.x.x/macos
 
 ## Commit Convention
 
-Format: `type(scope): brief description`
+Format: `type[(scope)]: brief description`
 
-Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+Scope is optional and may be omitted for broad changes.
+
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `style`, `ci`
 
 Examples:
 - `feat(core): add Anthropic provider`
@@ -64,4 +66,4 @@ See [CLAUDE.md](CLAUDE.md) for full code standards including:
 ./scripts/format.sh --check   # Dry-run check
 ```
 
-Tools: clang-format, cmake-format, shfmt, prettier
+Tools: clang-format, cmake-format, shfmt. Config: `.clang-format`, `.cmake-format.json`, `.editorconfig`.

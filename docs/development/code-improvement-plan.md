@@ -1,14 +1,14 @@
-# Code Improvement Plan — 基于 docs/review.md 全面审核（第二轮完整版）
+# Code Improvement Plan — 基于 docs/code-review-report.md 全面审核（第二轮完整版）
 
-**review.md 总声称**：21 C++ + 5 CMake + 5 Shell + 8 GitHub规范 = 39 项
+**code-review-report.md 总声称**：21 C++ + 5 CMake + 5 Shell + 8 GitHub规范 = 39 项
 
 **实际验证结果**：**20 项确认属实**，**12 项不成立**，**7 项部分成立/过度夸大**
 
 ---
 
-## 审核验证：review.md 中不成立或过度夸大的声明
+## 审核验证：code-review-report.md 中不成立或过度夸大的声明
 
-| # | 声称的问题 | review.md 评级 | 实际验证结果 |
+| # | 声称的问题 | code-review-report.md 评级 | 实际验证结果 |
 |---|---|---|---|
 | 1 | OllamaProvider "data:" 前缀过滤导致 NDJSON 被丢弃 | 🟠 High | **不成立** — OllamaProvider 重写了 `extractDeltaFromSSE()`，不按 `data:` 过滤 |
 | 2 | MarkdownRenderer 末尾 list/table 标签未闭合 | 🟠 High | **不成立** — 循环结束后第 175-183 行有闭合逻辑 |
@@ -173,7 +173,7 @@ if (m_suppressRender || m_isStreaming) return;
 
 ## Phase 3: CMake 构建改进（2 项确认属实 + 1 项低优先级）
 
-review.md 声称 5 个 CMake 问题，**2 个不成立**（CM2 强制 Release 不存在、CM5 install 规则已存在）。
+code-review-report.md 声称 5 个 CMake 问题，**2 个不成立**（CM2 强制 Release 不存在、CM5 install 规则已存在）。
 
 ### Fix 16 — CMakeLists.txt Windows Qt 路径自动检测
 
@@ -203,7 +203,7 @@ review.md 声称 5 个 CMake 问题，**2 个不成立**（CM2 强制 Release �
 
 ## Phase 4: 工程规范补充（GitHub 规范 + 测试覆盖 + Shell 脚本）
 
-review.md 声称的 8 个 GitHub规范问题 **全部确认属实**。
+code-review-report.md 声称的 8 个 GitHub规范问题 **全部确认属实**。
 
 ### Fix 19 — 补全 GitHub 社区规范文件
 
@@ -216,7 +216,7 @@ review.md 声称的 8 个 GitHub规范问题 **全部确认属实**。
 
 ### Fix 20 — 补充测试覆盖（高优先级）
 
-**当前测试缺口**（review.md 第 2.4 节全部确认）：
+**当前测试缺口**（code-review-report.md 第 2.4 节全部确认）：
 
 | 缺失测试 | 优先级 | 说明 |
 |---|---|---|
@@ -238,9 +238,9 @@ review.md 声称的 8 个 GitHub规范问题 **全部确认属实**。
 
 ---
 
-## 不执行的修复（review.md 声明经核实不成立）
+## 不执行的修复（code-review-report.md 声明经核实不成立）
 
-| 声称的问题 | review.md 评级 | 核实结论 |
+| 声称的问题 | code-review-report.md 评级 | 核实结论 |
 |---|---|---|
 | OllamaProvider "data:" 过滤 | 🟠 High | 不成立 — 代码正确 |
 | MarkdownRenderer 未闭合标签 | 🟠 High | 不成立 — 闭合逻辑存在 |

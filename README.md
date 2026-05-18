@@ -10,14 +10,13 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
 ![Level 1 Demo](resources/girlfriend/level-1-belle/demo-belle.png)
 
-![Level 2 Demo](resources/girlfriend/level-2-hot/demo-hot.png)
 
 ## 功能特点
 
 ### 本地AI助手核心功能
 
 - **双模式支持** — GUI 图形界面 + CLI 命令行
-- **文件上传** — 支持文本、图片（需要模型是识图模型）、PDF 文件附件
+- **文件上传** — 支持文本、图片（需要模型是识图模型）、PDF、docx 文件附件
 - **流式输出** — SSE 实时显示，AI 回复逐字呈现
 - **会话管理** — 多会话切换、历史持久化
 - **多语言** — 简体中文 / English 切换
@@ -29,7 +28,7 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **独立窗口** — 沉浸式全屏头像背景，9:16 窗口比例
 - **头像等级系统** — 三种等级可选：
     - Level 1 (Belle): PNG 静态图片，经典风格
-    - Level 2 (Hot): PNG 静态图片，更加火辣
+    - Level 2 (Hot): PNG 静态图片，更加动人
     - Level 3 (Hotter): MP4 动态视频，跃然屏上
 - **情绪系统** — 14种表情实时切换（开心、害羞、爱意、撒娇、哭泣、旅行等）
 - **心情值显示** — 左上角实时显示心情进度条和百分比
@@ -51,26 +50,6 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 - **异步导入** — 后台线程处理，不阻塞 UI 操作
 - **记忆增强** — 跨会话记忆提取、语义检索、上下文注入
 
-#### 已知局限性：数学 PDF 支持
-
-数学/公式密集型 PDF（如习题集、论文）的检索效果显著低于纯文本 PDF。原因来自三个环节的叠加：
-
-| 环节             | 文件                             | 问题                                                                                                                                                                                                                |
-| ---------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PDF 文字提取** | `src/parsers/fileparser.cpp:111` | [Poppler](https://poppler.freedesktop.org) 的 `page->text()` 只读取 PDF 文字层。公式若以矢量图形、嵌入图片或缺少 Unicode 映射的字体渲染，则完全丢失（无 OCR 能力）                                                  |
-| **文本分块**     | `src/knowledge/textchunker.cpp`  | 段落拆分依赖 `\n\n+`（双换行），数学 PDF 很少产生这种分隔；回退的句子拆分仅识别 `.?!。！？`，数学内容缺少这些标点；Token 估算将数学符号按 0.25 token 计算（视为英文 ASCII），严重低估，导致整份文档被塞进一个超长块 |
-| **嵌入模型**     | `src/knowledge/embedder.cpp`     | `all-MiniLM-L6-v2` 的 WordPiece 词表不含任何 LaTeX 命令（`\frac`、`\int`、`\sqrt` 等均无）；模型在自然语言句子相似度任务上训练，不具备数学语义理解                                                                  |
-
-**适合的知识库文档**：商业计划书、技术文档、Markdown 笔记、教程等以自然语言为主的 PDF/TXT/MD/DOCX 文件。
-
-**未来改进方向**：
-
-- 引入 OCR（如 Tesseract）对 PDF 图片区域进行公式识别
-- 增加数学感知的分块策略（按章节/公式边界分割，单换行符回退）
-- 替换为数学专用嵌入模型（如
-  [MathBERT](https://github.com/tbs17/MathBERT)）或支持 LaTeX 的多语言模型
-- 对数学符号的 Token 估算进行修正
-
 ### 任务执行模块 🔧
 
 - **Agent 迭代循环** — AI 观察执行结果并自主继续工作，通过 `[ITERATION_FEEDBACK]` → 新
@@ -89,12 +68,6 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
   逐项切换路径许可 + `/confirm` 执行。ask 模式内联 `[Y/n]` 提示。`--yes` 标志可跳过
   Tier 2 警告（Tier 1 永不被绕过）。GUI 确认对话框含逐路径按钮。
 
-> ⚠️ **平台兼容性说明**：
->
-> - **macOS**: 语音输入/输出完整支持 ✅
-> - **Windows**: 语音输出（TTS）正常，语音输入（ASR）暂不支持 ⚠️
-> - **Linux**: 语音输出（TTS）正常，语音输入（ASR）依赖系统音频设备，暂未充分测试
-
 ## 技术栈
 
 | 项目     | 技术                                                                                    |
@@ -112,98 +85,179 @@ Gitee 仓库地址：https://gitee.com/nathanpenny520/LocalAIAssistant.git
 
 ```
 sourcecode-ai-assistant/
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.md         # Bug 报告模板
+│   │   └── feature_request.md    # 功能请求模板
+│   ├── PULL_REQUEST_TEMPLATE.md  # PR 模板
+│   └── workflows/
+│       ├── build.yml             # CI 构建与发布
+│       └── format-check.yml      # 代码格式检查
+├── cmake/
+│   ├── Info.plist.in             # GUI .app bundle 配置
+│   └── CLI-Info.plist.in         # CLI .app bundle 配置
+├── docs/
+│   ├── README.md                 # 文档索引
+│   ├── development/              # 开发文档
+│   │   ├── ROADMAP.md                 # 路线图
+│   │   ├── code-improvement-plan.md   # 代码改进计划
+│   │   ├── code-review-report.md      # 代码评审报告
+│   │   ├── mcp-integration-plan.md    # MCP 集成方案
+│   │   ├── agent-runtime-review.md    # Agent 运行时评审
+│   │   └── known-issues.md            # 已知问题
+│   └── user/                     # 用户文档
+│       ├── USAGE.md              # 英文使用指南
+│       └── USAGE_zh_CN.md        # 中文使用指南
+├── resources/
+│   ├── girlfriend/               # AI 女友头像资源
+│   │   ├── level-1-belle/        # Level 1 PNG 图片
+│   │   ├── level-2-hot/          # Level 2 PNG 图片
+│   │   └── level-3-hotter/       # Level 3 MP4 视频
+│   ├── icons/                    # 应用图标
+│   │   ├── app.icns              # macOS 图标
+│   │   ├── app.ico               # Windows 图标
+│   │   ├── app.png               # Linux 图标
+│   │   └── app.rc                # Windows 资源文件
+│   ├── installer/
+│   │   └── installer.nsi.in      # NSIS 安装包模板
+│   ├── models/                   # ONNX 嵌入模型文件
+│   ├── prompts/                  # AI 提示词模板（构建时同步到应用资源）
+│   │   ├── en/                   #   英文提示词
+│   │   │   ├── girlfriend.md     #     女友人设
+│   │   │   ├── knowledge.md      #     知识库提示词
+│   │   │   ├── system.md         #     系统提示词
+│   │   │   └── task.md           #     任务提示词
+│   │   ├── zh_CN/                #   中文提示词
+│   │   │   ├── girlfriend.md     #     女友人设
+│   │   │   ├── knowledge.md      #     知识库提示词
+│   │   │   ├── system.md         #     系统提示词
+│   │   │   └── task.md           #     任务提示词
+│   │   └── girlfriend_memory.md  # 记忆增强模板
+│   ├── localaiassistant.desktop  # Linux 桌面入口
+│   ├── en.lproj/                 # macOS 英文本地化
+│   └── zh_CN.lproj/              # macOS 中文本地化
+├── scripts/
+│   ├── README.md                 # 脚本使用文档
+│   ├── build.sh                  # 统一跨平台构建脚本
+│   ├── package.sh                # 跨平台打包脚本
+│   ├── setup.sh                  # 首次克隆初始化脚本
+│   ├── format.sh                 # 代码格式化工具
+│   ├── version.sh                # 共享版本号提取
+│   └── cli-wrapper.sh            # macOS CLI 启动器（检测 iTerm2）
 ├── src/
-│   ├── core/           # 核心业务逻辑（网络请求、会话管理、文件处理）
-│   │   └── datamodels.h    # 数据模型定义
-│   ├── prompts/         # AI 提示词模板（按语言分目录）
-│   │   ├── en/          #   英文提示词
-│   │   └── zh_CN/       #   中文提示词
-│   ├── ui/             # GUI 界面（主窗口、设置对话框）
-│   ├── cli/            # CLI 命令行界面
-│   ├── tasks/          # 任务执行模块（文件操作、安全检查、撤销、Agent 循环）
-│   │   ├── taskengine.cpp/h       # 任务执行引擎（AI响应解析、计划调度）
-│   │   ├── agentloop.cpp/h        # Agent 迭代循环（计划→执行→反馈→继续 循环）
-│   │   ├── commandexecutor.cpp/h  # 命令执行器（原生文件操作 + Shell 命令执行）
-│   │   ├── safetychecker.cpp/h    # 安全检查器（跨平台危险命令/路径检测）
-│   │   ├── operationplan.cpp/h    # 操作计划定义（ShellOperation 类型）
-│   │   └── operationundo.cpp/h    # 操作撤销
-│   ├── knowledge/      # 知识管理模块（文本切分、向量化、检索、文档导入、记忆增强）
-│   │   ├── textchunker.cpp/h      # 文本切分器
-│   │   ├── embedder.cpp/h         # 文本转向量
-│   │   ├── vectordb.cpp/h         # 向量数据库
-│   │   ├── docimporter.cpp/h      # 文档导入器（TXT/MD/PDF/DOCX）
-│   │   ├── knowledgebase.cpp/h    # 知识库管理
-│   │   └── memoryenhancer.cpp/h   # 对话记忆增强器
-│   └── girlfriend/     # AI 女友模块
-│       ├── girlfriendwindow.cpp   # 女友窗口
-│       ├── girlfriendwindow.h     # 女友窗口头文件
-│       ├── avatarwidget.cpp       # 头像/表情/视频组件
-│       ├── avatarwidget.h         # 头像组件头文件
-│       ├── personalityengine.cpp  # 人设引擎、情绪检测、心情计算
-│       ├── personalityengine.h    # 人设引擎头文件
-│       ├── voicemanager.cpp       # 语音管理（讯飞 ASR/TTS）
-│       ├── voicemanager.h         # 语音管理头文件
-│       ├── memorymanager.cpp      # 长期记忆管理
-│       ├── memorymanager.h        # 记忆管理头文件
-│       ├── girlfriendsettings.cpp # 设置管理（头像等级、心情影响等）
-│       ├── girlfriendsettings.h   # 设置管理头文件
-│       ├── girlfriendsessionmanager.cpp # 多会话管理
-│       ├── girlfriendsessionmanager.h   # 会话管理头文件
-│       ├── girlfriendsession.cpp  # 单个会话数据
-│       ├── girlfriendsession.h    # 会话数据头文件
-│       ├── girlfriend_translations.h # 翻译辅助类
-│       └── girlfriend_memory.md       # 用户记忆档案（长期记忆持久化）
-├── resources/girlfriend/  # 头像资源目录
-│   ├── level-1-belle/  # Level 1 PNG 图片
-│   ├── level-2-hot/    # Level 2 PNG 图片
-│   └── level-3-hotter/ # Level 3 MP4 视频
-├── scripts/            # 构建与工具脚本
-│   ├── build.sh        # 统一跨平台构建脚本
-│   ├── package.sh      # 跨平台打包脚本（CI 友好）
-│   ├── setup.sh        # 首次克隆初始化脚本
-│   ├── format.sh       # 代码格式化工具（clang-format + cmake-format + shfmt）
-│   ├── version.sh      # 共享版本号提取工具
-│   └── cli-wrapper.sh  # macOS CLI 启动脚本（检测 iTerm2）
-├── translations/       # 国际化翻译文件
-├── resources/          # 资源文件
-│   ├── icons/          # 应用图标（icns, ico, png）
-│   ├── models/         # ONNX 嵌入模型文件
-│   └── *.lproj/        # macOS 本地化字符串
-├── third_party/        # 第三方库
-│   └── hnswlib/        # 高性能向量检索库（header-only）
-├── cmake/              # CMake 配置模板
-│   ├── Info.plist.in   # GUI .app bundle 配置
-│   └── CLI-Info.plist.in # CLI .app bundle 配置
-├── CMakeLists.txt      # CMake 主配置文件
-├── .gitattributes      # Git 换行符配置
-├── .gitignore          # Git 忽略规则
-├── .env.example        # 讯飞语音凭证模板
-├── LICENSE             # MIT 许可证
-├── README.md           # 中文说明文档
-└── README_EN.md        # 英文说明文档
+│   ├── cli/
+│   │   ├── cli_main.cpp          # CLI 入口
+│   │   ├── cli_application.cpp   # CLI 应用逻辑
+│   │   └── cli_application.h     # CLI 应用头文件
+│   ├── core/                     # 核心业务逻辑
+│   │   ├── apiprovider.cpp/h     #   API 提供者基类（OpenAI/Ollama/Anthropic/LlamaCpp）
+│   │   ├── networkmanager.cpp/h  #   网络请求管理（SSE 流式）
+│   │   ├── sessionmanager.cpp/h  #   会话管理（CRUD、持久化）
+│   │   ├── filemanager.cpp/h     #   文件附件管理
+│   │   ├── envconfig.cpp/h       #   .env 配置加载
+│   │   ├── datamodels.h          #   数据模型定义
+│   │   ├── openai_provider.cpp/h     #   OpenAI API 适配
+│   │   ├── ollama_provider.cpp/h     #   Ollama API 适配
+│   │   ├── anthropic_provider.cpp/h  #   Anthropic API 适配
+│   │   ├── llamacpp_provider.cpp/h   #   LlamaCpp API 适配
+│   │   └── version.h.in          #   版本号模板
+│   ├── prompts/                  # 提示词管理器
+│   │   ├── promptmanager.cpp/h   #   提示词加载与管理
+│   │   ├── en/                   #   英文提示词（源）
+│   │   └── zh_CN/                #   中文提示词（源）
+│   ├── parsers/                  # 文件解析器
+│   │   ├── fileparser.cpp        #   PDF/DOCX/文本解析
+│   │   └── fileparser.h          #   解析器头文件
+│   ├── ui/                       # GUI 界面
+│   │   ├── main.cpp              #   GUI 入口
+│   │   ├── mainwindow.cpp/h      #   主窗口（聊天、会话、女友集成）
+│   │   ├── settingsdialog.cpp/h  #   设置对话框（API、主题、语言）
+│   │   ├── apptheme.cpp/h        #   主题管理（亮色/暗色/跟随系统）
+│   │   ├── markdownrenderer.cpp/h    #   Markdown 渲染
+│   │   ├── stylesheetmanager.cpp/h   #   Qt 样式表管理
+│   │   ├── translationmanager.cpp/h  #   多语言切换
+│   │   └── operationconfirmdialog.cpp/h  # 任务确认对话框
+│   ├── tasks/                    # 任务执行模块
+│   │   ├── taskengine.cpp/h      #   任务引擎（AI 响应解析、计划调度）
+│   │   ├── agentloop.cpp/h       #   Agent 迭代循环（计划→执行→反馈→继续）
+│   │   ├── commandexecutor.cpp/h #   命令执行器（原生文件操作 + Shell）
+│   │   ├── safetychecker.cpp/h   #   安全检查器（三级安全架构）
+│   │   ├── operationplan.cpp/h   #   操作计划定义
+│   │   └── operationundo.cpp/h   #   操作撤销
+│   ├── knowledge/                # 知识库模块
+│   │   ├── textchunker.cpp/h     #   文本切分器
+│   │   ├── embedder.cpp/h        #   文本转向量（ONNX）
+│   │   ├── vectordb.cpp/h        #   向量数据库（HNSW）
+│   │   ├── docimporter.cpp/h     #   文档导入器（TXT/MD/PDF/DOCX）
+│   │   ├── knowledgebase.cpp/h   #   知识库管理
+│   │   └── memoryenhancer.cpp/h  #   对话记忆增强器
+│   └── girlfriend/               # AI 女友模块
+│       ├── girlfriendwindow.cpp/h    #   女友独立窗口
+│       ├── avatarwidget.cpp/h        #   头像/表情/视频组件
+│       ├── personalityengine.cpp/h   #   人设引擎、情绪检测、心情计算
+│       ├── voicemanager.cpp/h        #   语音管理（讯飞 ASR/TTS）
+│       ├── memorymanager.cpp/h       #   长期记忆管理
+│       ├── girlfriendsettings.cpp/h  #   设置管理（头像等级、心情影响等）
+│       ├── girlfriendsessionmanager.cpp/h  #   多会话管理
+│       ├── girlfriendsession.cpp/h   #   单个会话数据
+│       └── girlfriend_translations.h #   翻译辅助类
+├── tests/                        # 单元测试
+│   ├── CMakeLists.txt            #   测试构建配置
+│   ├── test_agentloop.cpp        #   Agent 循环测试
+│   ├── test_apiprovider.cpp      #   API 提供者测试
+│   ├── test_apptheme.cpp         #   主题测试
+│   ├── test_commandexecutor.cpp  #   命令执行器测试
+│   ├── test_embedder.cpp         #   嵌入器测试
+│   ├── test_fileparser.cpp       #   文件解析器测试
+│   ├── test_knowledgebase.cpp    #   知识库测试
+│   ├── test_markdownrenderer.cpp #   Markdown 渲染测试
+│   ├── test_safetychecker.cpp    #   安全检查器测试
+│   ├── test_sessionmanager.cpp   #   会话管理测试
+│   ├── test_stylesheetmanager.cpp #  样式表管理测试
+│   └── test_vectordb.cpp         #   向量数据库测试
+├── third_party/
+│   └── hnswlib/                  # 高性能向量检索库（header-only）
+├── translations/
+│   ├── localai_en.ts             # 英文翻译源
+│   └── localai_zh_CN.ts          # 中文翻译源
+├── .clang-format                 # C++ 代码格式化配置
+├── .clangd                       # clangd LSP 配置
+├── .cmake-format.json            # CMake 格式化配置
+├── .editorconfig                 # 编辑器通用配置
+├── .gitattributes                # Git 换行符配置
+├── .gitignore                    # Git 忽略规则
+├── .prettierignore               # Prettier 忽略规则
+├── .prettierrc                   # Prettier 格式化配置
+├── .env.example                  # 讯飞语音凭证模板
+├── CMakeLists.txt                # CMake 主构建文件
+├── CHANGELOG.md                  # 变更日志
+├── CLAUDE.md                     # Claude Code 配置
+├── CONTRIBUTING.md               # 贡献指南
+├── LICENSE                       # MIT 许可证
+├── README.md                     # 中文说明文档
+└── README_EN.md                  # 英文说明文档
 ```
 
 ---
 
 ## 首次克隆初始化
 
-克隆项目后，建议先运行初始化脚本检测依赖环境：
-
 ```bash
 ./scripts/setup.sh
 ```
 
-该脚本会：
+检测构建依赖（CMake、编译器、Qt、Poppler 等）并提示缺失项及安装指南。
 
-1. 自动复制 `.env.example` → `.env`（讯飞语音凭证模板）
-2. 检测构建依赖（CMake、编译器、Qt、Poppler、Readline、ONNX Runtime）
-3. 提示缺少的依赖及安装指南
-
-> **提示**：运行此脚本可快速了解当前环境是否满足编译要求。
+> 各脚本的详细参数见 [scripts/README.md](scripts/README.md)。
 
 ---
 
 ## 编译步骤
+
+### 开发环境要求
+
+- **Qt**: 最低 6.x，推荐 6.10.3
+- **编译器**: 需支持 C++17（macOS: AppleClang 10.0+ / Windows: MSVC 2019+ 或 MinGW GCC 9+ / Linux: GCC 9+ 或 Clang 10+）
 
 ### 1. 安装依赖
 
@@ -220,11 +274,11 @@ sourcecode-ai-assistant/
 | pugixml       | — (可选)      | `brew install pugixml`             | [MSYS2](https://www.msys2.org) 或 [vcpkg](https://vcpkg.io)         | `sudo apt install libpugixml-dev`     |
 | ONNX Runtime  | ≥1.16 (可选)  | `brew install onnxruntime`         | [GitHub Release](https://github.com/microsoft/onnxruntime/releases) | `sudo apt install libonnxruntime-dev` |
 
-> **Linux 发行版说明**：表格中 `apt` 为 Ubuntu/Debian。Fedora 用户请用 `dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel libpoppler-cpp-devel libzip-devel libpugixml-devel`，Arch 用户请用 `pacman -S qt6-multimedia qt6-websockets poppler libzip pugixml`。详见下方「安装依赖补充说明」章节。
+> **Linux 发行版说明**：表格中 `apt` 为 Ubuntu/Debian。Fedora 用户请用 `dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel libpoppler-cpp-devel libzip-devel libpugixml-devel`，Arch 用户请用 `pacman -S qt6-multimedia qt6-websockets poppler libzip pugixml`。
 >
-> **Qt 模块说明**：Multimedia 和 WebSockets 需在 Qt Maintenance Tool 中额外勾选（语音功能必需）
+> **Qt 模块说明**：Multimedia 和 WebSockets 需在 Qt Maintenance Tool 中额外勾选（语音功能必需）。
 > **可选依赖**：Readline（CLI 输入增强）、Poppler（PDF 解析）、libzip+pugixml（DOCX 解析）、ONNX
-> Runtime（知识库嵌入模型），不安装不影响核心功能
+> Runtime（知识库嵌入模型），不安装不影响核心功能。
 
 #### macOS 快速安装
 
@@ -279,47 +333,15 @@ sudo apt install build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-multi
 4. 安装 **Poppler / libzip / pugixml**（可选）：通过 [MSYS2](https://www.msys2.org) 或
    [vcpkg](https://vcpkg.io)
 
-> **提示**：MinGW 版本更轻量，Qt 安装包自带编译器；MSVC 版本调试体验更好。
+> **提示**：MinGW 版本更轻量，Qt 安装包自带编译器；MSVC 版本调试体验更好。推荐使用MinGW。
 
 ### 2. 编译项目
 
 ```bash
-cd scripts
-./build.sh
+cd scripts && ./build.sh
 ```
 
-> **Windows 提示**：
->
-> - 需在 **Git Bash** 中运行（安装 Git for Windows 时自带）
-> - 脚本会自动检测 Qt 和 MinGW 编译器路径，无需手动配置环境变量
-
-### 编译选项
-
-```bash
-# 清理后重新编译
-./build.sh -c
-
-# 编译 Debug 版本
-./build.sh -d
-
-# 编译并打包为可分发的安装包
-./build.sh build -p
-
-# 单独打包已有构建产物
-./build.sh package
-
-# 指定 Qt 路径
-./build.sh -q /path/to/qt
-
-# 仅编译 CLI 版本
-./build.sh LocalAIAssistant-CLI
-
-# 仅编译 GUI 版本
-./build.sh LocalAIAssistant
-
-# 查看帮助
-./build.sh help
-```
+> 各脚本的详细参数见 [scripts/README.md](scripts/README.md)。
 
 ### 编译产物
 
@@ -334,178 +356,80 @@ cd scripts
 
 ### 打包分发
 
-使用 `package` 命令生成用户可直接安装的发行包：
-
 ```bash
-# 构建 + 打包一步完成
-./build.sh build -p
-
-# 或单独打包已有构建产物
-./build.sh package
+./build.sh build -p     # 构建 + 打包
+./build.sh package      # 单独打包已有构建
 ```
 
-| 平台    | 格式                              | 产出路径                                      |
-| ------- | --------------------------------- | --------------------------------------------- |
-| macOS   | **DMG**（拖入 Applications 即用） | `release/LocalAIAssistant-x.x.x-macOS.dmg`    |
-| Windows | **ZIP**（解压即用）               | `release/LocalAIAssistant-x.x.x-Windows-x64.zip`  |
-| Linux   | **tar.gz**（含 install.sh）       | `release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz` |
+| 平台 | 格式 | 产出路径 |
+|------|------|----------|
+| macOS | DMG | `release/LocalAIAssistant-x.x.x-macOS.dmg` |
+| Windows | ZIP | `release/LocalAIAssistant-x.x.x-Windows-x64.zip` |
+| Linux | tar.gz | `release/LocalAIAssistant-x.x.x-Linux-x86_64.tar.gz` |
 
-> **注意**：当前为免费软件，未进行代码签名。macOS 用户首次打开需右键点击 App
-> →「打开」来绕过 Gatekeeper。Windows 用户运行时 SmartScreen 会警告，点击「更多信息」→「仍要运行」即可。
->
-> Release 包**不包含**开发者的 `.env`
-> 凭证文件，用户可通过 AI 女友窗口的设置菜单直接配置讯飞语音凭证，或参考 `.env.example`
-> 模板创建自己的 `.env` 文件。
->
-> **Linux 发行包**：解压 tar.gz 后，可运行 `./install.sh` 安装到系统，或直接在解压目录执行
-> `./LocalAIAssistant` / `./LocalAIAssistant-CLI chat`（便携模式）。发行包内含 `.env.example` 配置模板。
+> Release 包**不包含**开发者的 `.env`。未进行代码签名，macOS 首次需右键打开，Windows SmartScreen 点击「仍要运行」。
+> 详见 [scripts/README.md](scripts/README.md)。
 
 ### 自动发布 Release（GitHub Actions CI）
 
-推送版本 tag 即可触发 CI 自动编译、测试、打包，并将三平台安装包发布到 GitHub Release。
-
-**触发条件**：推送 `v` 开头的 tag（如 `v1.0.0`）到 GitHub。
+推送 `v` 开头 tag 触发三平台编译→测试→打包→发布：
 
 ```bash
-# 打 tag 并推送，自动触发发布流程
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
-**发布流程**：
-
-```
-git push v1.0.0
-  → GitHub Actions 启动
-    → Linux:   编译 → 测试 → 打包 tar.gz
-    → macOS:   编译 → 测试 → 打包 DMG
-    → Windows: 编译 → 测试 → 打包 ZIP
-  → 三个平台全部通过后，自动创建 Release
-  → 安装包自动上传到 Release 下载区
-```
-
-**条件**：
-- 必须推送 **tag**（`v*`），普通 push 不会触发发布
-- 三个平台的编译和测试**必须全部通过**，任一失败则不会发布
-- 发布在 GitHub Releases 页面查看：`https://github.com/nathanpenny520/LocalAIAssistant/releases`
+三平台全部通过后自动发布到 [GitHub Releases](https://github.com/nathanpenny520/LocalAIAssistant/releases)。
 
 ---
 
 ## 使用方法
 
-### 运行 GUI 版本
+### 运行
 
 ```bash
-# macOS
-open build/LocalAIAssistant.app
+# GUI
+open build/LocalAIAssistant.app        # macOS
+build\LocalAIAssistant.exe             # Windows
+./build/LocalAIAssistant               # Linux
 
-# Windows
-build\LocalAIAssistant.exe
-
-# Windows 调试模式（显示日志控制台）
-build\LocalAIAssistant.exe --debug
-
-# Linux（开发构建）
-./build/LocalAIAssistant
-
-# Linux（发行包，解压即用）
-./LocalAIAssistant
+# CLI
+./build/LocalAIAssistant-CLI chat      # 交互式聊天
+./build/LocalAIAssistant-CLI ask "问题" # 单次查询
 ```
 
-> **Windows 调试提示**：使用 `--debug` 参数可显示调试控制台窗口，查看运行日志。也可设置环境变量
-> `LOCALAI_DEBUG=1` 启用。
-
-### 运行 CLI 版本
-
-```bash
-# macOS / Linux
-./build/LocalAIAssistant-CLI
-
-# macOS .app bundle（双击运行，自动检测 iTerm2）
-open build/LocalAIAssistant-CLI.app
-
-# Windows (Git Bash)
-./build/LocalAIAssistant-CLI.exe
-
-# Windows (CMD/PowerShell)
-build\LocalAIAssistant-CLI.exe
-```
-
-> **macOS 终端建议**：推荐使用 [iTerm2](https://iterm2.com)
-> 替代 Terminal.app。原版 Terminal 对中文输入的删除处理可能存在问题（Backspace 删除中文字符不完整）。CLI
-> .app bundle 会自动检测 iTerm2 并优先使用它打开。
-
-> **readline 支持**：macOS 自带 libedit（兼容 readline），编译时自动启用，提供更好的输入体验（支持历史记录、多字节字符正确编辑）。
-
-**CLI 命令示例**：
-
-```bash
-# 进入交互式聊天
-./build/LocalAIAssistant-CLI chat
-
-# 单次查询
-./build/LocalAIAssistant-CLI ask "什么是人工智能？"
-
-# 会话管理
-./build/LocalAIAssistant-CLI sessions -l    # 列出会话
-./build/LocalAIAssistant-CLI sessions -n    # 新建会话
-
-# 配置管理
-./build/LocalAIAssistant-CLI config --show-config
-./build/LocalAIAssistant-CLI config --api-url "http://127.0.0.1:11434"
-
-# 任务执行（自动确认）
-./build/LocalAIAssistant-CLI ask --yes "帮我在 ~/test 创建 hello.txt"
-```
-
-### CLI 交互命令
-
-在 CLI 聊天模式下可使用：
-
-| 命令           | 功能                 |
-| -------------- | -------------------- |
-| `/help`        | 显示帮助             |
-| `/new`         | 新建会话             |
-| `/list`        | 列出所有会话         |
-| `/switch <id>` | 切换会话             |
-| `/delete <id>` | 删除会话             |
-| `/config`      | 显示配置             |
-| `/file <path>` | 添加文件附件         |
-| `/listfiles`   | 查看待发送文件       |
-| `/clearfiles`  | 清空文件列表         |
-| `/confirm`     | 确认执行待定任务计划 |
-| `/cancel`      | 取消待定任务计划     |
-| `/undo`        | 撤销上次执行的操作   |
-| `/exit`        | 退出程序             |
-
----
+> 完整使用指南、CLI 命令、安全设置、女友配置等详见 [docs/user/USAGE_zh_CN.md](docs/user/USAGE_zh_CN.md)。
 
 ## 配置 AI 服务
 
-本程序需要连接 AI 服务才能工作。
+本程序支持两种配置方式，启动时按以下顺序加载：
 
-### 本地部署：[Ollama](https://ollama.com/download)（部分功能可能不支持）
+```
+应用启动
+  → 1. 加载 .env 文件（基线默认值）
+  → 2. 加载 QSettings（GUI 设置，非空字段覆盖 .env）
+  → 生效
+```
 
-1. 下载安装 Ollama：https://ollama.com/download
-2. 下载模型：`ollama pull llama3`
-3. 在程序设置中配置：
-    - API URL: `http://127.0.0.1:11434`
-    - 模型名: `llama3`
+**GUI 设置对话框中的值会覆盖 `.env` 中的同名配置。** 如果只使用 CLI 模式，配置 `.env` 即可。
 
-### 使用云端API（推荐，已验证）
+### 方式一：GUI 设置对话框（推荐）
 
-| 服务                                 | API URL                       | 说明              |
-| ------------------------------------ | ----------------------------- | ----------------- |
-| [OpenAI](https://openai.com)         | `https://api.openai.com`      | 需要 API Key      |
-| [并行科技](https://www.paratera.com) | `https://llmapi.paratera.com` | 国内 API 代理服务 |
-| 其他 OpenAI 兼容服务                 | 按服务商文档配置              | —                 |
+打开程序 → 设置 → 填入 API URL、API Key、模型名 → 保存。设置自动持久化到 QSettings。
 
-### 方式三：.env 文件配置（高级用户 / CLI 用户）
+### 方式二：.env 文件（CLI / 便携部署 / 基线默认值）
 
-通过在可执行文件同目录或用户数据目录创建 `.env` 文件来配置 AI 服务，无需进入 GUI 或使用 CLI 命令：
+在可执行文件同目录或用户数据目录创建 `.env` 文件。支持的 API 类型：
+
+| `AI_API_TYPE` | 对应服务 | 说明 |
+|---|---|---|
+| `openai` | OpenAI 或兼容 API | 默认类型 |
+| `ollama` | [Ollama](https://ollama.com/download) 本地部署 | URL 含 `11434` 端口时自动检测切换 |
+| `anthropic` | [Anthropic Claude](https://www.anthropic.com) | 需 API Key |
+| `llamacpp` | [LlamaCpp](https://github.com/ggerganov/llama.cpp) | 兼容 OpenAI 格式，本地部署 |
+
+> **Ollama 自动检测**：即使 `AI_API_TYPE` 设为 `openai`，如果 API URL 包含 `11434`（Ollama 默认端口），程序会自动切换为 Ollama 模式。
 
 ```bash
-# 复制模板（发行包中已包含 .env.example）
 cp .env.example .env
 ```
 
@@ -514,181 +438,52 @@ cp .env.example .env
 ```
 AI_API_TYPE=openai                     # openai | ollama | llamacpp | anthropic
 AI_API_URL=http://127.0.0.1:8080       # API 地址
-AI_API_KEY=sk-your-api-key-here        # API 密钥
+AI_API_KEY=sk-your-api-key-here        # API 密钥（Ollama/LlamaCpp 可留空）
 AI_MODEL_NAME=local-model              # 模型名称
 ```
 
-> **CLI 用户提示**：配置 `.env` 文件后启动 CLI 无需任何配置命令，即可直接使用。
-
 ---
 
-## AI 女友模块配置
+## AI 女友模块
 
-AI 女友模块提供语音交互体验，需要配置讯飞语音服务。
+通过 `Ctrl/Cmd+G` 打开 AI 女友窗口。配置讯飞语音凭证后可使用语音交互（ASR 语音识别 + TTS 语音合成）。
 
-### 方式一：应用内配置（推荐）
+人设可通过 `resources/prompts/<语言>/girlfriend.md` 自定义，记忆系统自动跨会话保持。
 
-打开 AI 女友窗口，点击右上角 ⚙️ 按钮，选择「配置语音...」，在弹出的对话框中填入讯飞凭证即可。配置自动保存，无需编辑文件。
-
-### 方式二：.env 文件配置（高级用户）
-
-在项目根目录或用户数据目录创建 `.env` 文件，应用会自动读取。
-
-### 第一步：注册[讯飞开放平台](https://www.xfyun.cn)账号
-
-1. 访问讯飞开放平台：https://www.xfyun.cn
-2. 注册账号并登录
-3. 进入「控制台」→「创建应用」
-
-### 第二步：开通语音服务
-
-在应用中开通以下服务：
-
-| 服务                 | 名称                  | 用途       |
-| -------------------- | --------------------- | ---------- |
-| **语音听写（识别）** | 流式版（WebSocket）   | 语音转文字 |
-| **语音合成**         | 超拟人版（WebSocket） | 文字转语音 |
-
-### 第三步：获取 API 凭证
-
-创建应用后，在控制台获取三个凭证：
-
-```
-APPID     - 应用ID
-API Key   - API密钥
-API Secret - API密钥密文
-```
-
-### 第四步：配置凭证
-
-**推荐：应用内配置** — 在 AI 女友窗口的 ⚙️ 设置菜单中点击「配置语音...」，直接在界面填写凭证并保存。
-
-**备选：.env 文件** — 在项目根目录或用户数据目录创建 `.env` 文件：
-
-```bash
-# 复制模板
-cp .env.example .env
-
-# 编辑填入你的凭证
-```
-
-`.env` 文件内容：
-
-```
-XFYUN_APP_ID=你的APPID
-XFYUN_API_KEY=你的APIKey
-XFYUN_API_SECRET=你的APISecret
-
-# 以下为可选配置（有默认值，通常无需修改）
-# XFYUN_ASR_URL=wss://iat-api.xfyun.cn/v2/iat      # 语音听写 WebSocket 地址
-# XFYUN_TTS_URL=wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6     # 语音合成 WebSocket 地址
-# XFYUN_VOICE_TYPE=x6_lingxiaoxuan_pro               # 默认 TTS 音色
-```
-
-> **安全提示**：`.env` 文件已在 `.gitignore` 中，不会被提交到 Git。Release 包中已移除开发者
-> `.env`，仅包含 `.env.example` 模板。
-
-### TTS 音色选择
-
-可通过修改.env中TTS音色选择不同音色，如：
-
-| 音色参数              | 名称     | 特点                               |
-| --------------------- | -------- | ---------------------------------- |
-| `x6_lingxiaoxuan_pro` | 凌小璇   | 超拟人女声 ⭐默认                  |
-| `x6_wumeinv_pro`      | 妩媚姐姐 | 自然逼真、情感丰富，但需要自己添加 |
-| `x6_lingfeiyi_pro`    | 聆飞逸   | 青春温暖，男声 ⭐推荐，开通后自带  |
-
----
-
-## 使用 AI 女友模块
-
-### 打开 AI 女友窗口
-
-在窗口view（视图）中选择「AI女友」，或使用快捷键 `Ctrl/Cmd+G`。
-
-### 语音交互流程
-
-```
-1. 点击 🎤 按钮开始录音（按钮变红 🔴）
-2. 对着麦克风说话
-3. 再次点击按钮停止录音
-4. 等待识别完成，文字自动发送
-5. AI 回复后自动语音播报
-```
-
-> **Windows 用户注意**：当前版本语音输入（ASR）在 Windows 上暂不可用。您仍可使用文字输入，语音播报（TTS）功能正常。
-
-### 自定义人设
-
-编辑 `resources/prompts/<语言>/girlfriend.md`（如 `resources/prompts/zh_CN/girlfriend.md`）可自定义 AI
-女友的性格和回复风格。运行 `cmake --build build` 后自动同步到应用资源目录。
-
-### 记忆系统工作原理
-
-AI 女友的记忆系统通过文本标记实现（在 `prompts/<语言>/girlfriend.md` 中通过系统提示词定义实现**记忆系统**这部分代码不建议删去），无需 API 工具调用支持。
-
----
-
-## 安装依赖补充说明
-
-### Qt 6 Multimedia 和 WebSockets 模块
-
-AI 女友语音功能需要 Qt Multimedia（音频录制/播放）和 Qt WebSockets（讯飞 API 连接）模块。
-
-**macOS（Qt 官方安装）**：
-
-1. 打开 `/Applications/Qt/MaintenanceTool.app`
-2. 选择「Add or remove components」
-3. 找到 Qt 6.x → Additional Libraries
-4. 勾选「Qt Multimedia」和「Qt WebSockets」
-5. 点击安装
-
-> **注**：Homebrew 安装的 `qt@6` 已自动包含这两个模块。
-
-**Linux（包管理器）**：
-
-```bash
-# Ubuntu/Debian
-sudo apt install qt6-multimedia-dev qt6-websockets-dev
-
-# Fedora
-sudo dnf install qt6-qtmultimedia-devel qt6-qtwebsockets-devel
-
-# Arch Linux
-sudo pacman -S qt6-multimedia qt6-websockets
-```
-
-**Windows（Qt 官方安装）**：同 macOS，在 Qt Maintenance Tool 中勾选 Multimedia 和 WebSockets。
-
----
-
-## 开发环境说明
-
-### Qt 版本要求
-
-- 最低版本：Qt 6.x
-- 推荐版本：Qt 6.10.3
-
-### 编译器要求
-
-- **C++17 支持**（必需）
-- macOS：AppleClang 10.0+（Xcode 10+）
-- Windows：MSVC 2019+ 或 MinGW GCC 9+（Qt 自带）
-- Linux：GCC 9+ 或 Clang 10+
+> 详见 [docs/user/USAGE_zh_CN.md](docs/user/USAGE_zh_CN.md) 的 AI 女友章节。
 
 ---
 
 ## 数据存储位置
 
-所有数据文件存储在用户数据目录下（`QStandardPaths::AppDataLocation`）：
+本应用将数据分为两类存储：
 
-| 平台    | 数据目录路径                                           |
-| ------- | ------------------------------------------------------ |
-| macOS   | `~/Library/Application Support/LocalAIAssistant/`      |
-| Windows | `C:\Users\<USER>\AppData\Local\LocalAIAssistant\`      |
-| Linux   | `~/.local/share/LocalAIAssistant/`                     |
+| 数据类型 | 存储机制 | 内容 |
+|---|---|---|
+| 应用配置 | **QSettings** | API URL/Key、模型名、主题、语言等 |
+| 运行数据 | **AppDataLocation** | 会话记录、知识库、女友设置、记忆等 |
 
-### 目录结构
+### QSettings（应用配置）
+
+GUI 设置对话框中修改的选项保存在此：
+
+| 平台    | 存储位置 |
+| ------- | -------- |
+| macOS   | `~/Library/Preferences/com.localaiassistant.LocalAIAssistant.plist` |
+| Windows | 注册表 `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings` |
+| Linux   | `~/.config/LocalAIAssistant/Settings.conf` |
+
+常用 key：`apiBaseUrl`、`apiKey`、`modelName`、`apiType`、`temperature`、`topP`、`maxTokens`、`maxContext`、`theme`、`language`、`streamingEnabled`。
+
+### AppDataLocation（运行数据）
+
+| 平台    | 目录路径 |
+| ------- | -------- |
+| macOS   | `~/Library/Application Support/LocalAIAssistant/` |
+| Windows | `C:\Users\<USER>\AppData\Local\LocalAIAssistant\` |
+| Linux   | `~/.local/share/LocalAIAssistant/` |
+
+目录结构：
 
 ```
 <AppDataLocation>/
@@ -709,19 +504,25 @@ sudo pacman -S qt6-multimedia qt6-websockets
 └── memories.json                 # MemoryEnhancer 跨会话记忆
 ```
 
-### QSettings（AI 模型配置、主题、语言等）
+### 为什么找不到？
 
-| 平台    | 存储位置                                                       |
-| ------- | -------------------------------------------------------------- |
-| macOS   | `~/Library/Preferences/com.localaiassistant.LocalAIAssistant.plist` |
-| Windows | 注册表 `HKEY_CURRENT_USER\Software\LocalAIAssistant\Settings`  |
-| Linux   | `~/.config/LocalAIAssistant/Settings.conf`                     |
+三个平台的数据目录**默认都是隐藏的**：
 
-QSettings 中保存的 key：`apiBaseUrl`、`apiKey`、`modelName`、`apiType`、`temperature`、`topP`、`maxTokens`、`maxContext`、`theme`、`language`、`streamingEnabled` 等。
+- **macOS**: `~/Library/` 自 10.7 起被系统隐藏
+- **Windows**: `AppData` 是隐藏文件夹
+- **Linux**: `.local` 以 `.` 开头，是隐藏目录
+
+**如何访问：**
+
+| 平台    | 方法 |
+| ------- | ---- |
+| macOS   | Finder → 前往 → 前往文件夹... → 粘贴 `~/Library/Application Support/LocalAIAssistant/` |
+| Windows | 文件资源管理器地址栏输入 `%LOCALAPPDATA%\LocalAIAssistant` |
+| Linux   | 终端执行 `xdg-open ~/.local/share/LocalAIAssistant/` |
 
 ### .env 搜索顺序
 
-应用启动时按以下顺序查找 `.env`，挑第一个存在的加载：
+启动时按以下顺序查找 `.env`，挑**第一个存在的**加载：
 
 | # | 路径 | 适用场景 |
 |---|------|----------|
@@ -730,73 +531,15 @@ QSettings 中保存的 key：`apiBaseUrl`、`apiKey`、`modelName`、`apiType`�
 | 3 | `<CWD>/.env` | 开发调试 |
 | 4 | `<AppDataLocation>/.env` | 安装后用户级配置 |
 
-`.env` 优先级：先加载 `.env` 作为基线，再加载 QSettings/JSON 持久化配置，**持久化配置中非空字段覆盖 `.env`**。
-
----
-
-## WSL（Windows Subsystem for Linux）使用说明
-
-WSL 下使用时，请注意：
-
-- **GUI 模式**：需要安装 Windows X 服务器（如 VcXsrv、X410）或使用 WSLg（Windows 11）。启动前设置 `export DISPLAY=:0`。
-- **CLI 模式**：开箱即用，无需额外配置。推荐 WSL 用户使用 CLI 模式：
-  ```bash
-  ./LocalAIAssistant-CLI chat
-  ```
-- **语音功能**：WSL 下语音输入/输出需要额外的音频设备配置，暂未充分测试。
-- **.env 配置**：在可执行文件同目录放置 `.env` 文件，CLI 启动时自动加载。
-
 ---
 
 ## 常见问题
 
-### 语音功能不工作
+- **语音不工作** — 检查讯飞凭证和 Qt Multimedia/WebSockets 模块
+- **多会话数据丢失** — 检查 `sessions.json` 和 `session_<id>.json` 文件
+- **记忆未被记录** — 确认 AI 回复包含 `[更新记忆:xxx]` 标记，部分模型需更换
 
-**问题**：点击语音按钮提示「语音未配置」
-
-**解决**：
-
-1. 在 AI 女友窗口点击 ⚙️ →「配置语音...」填写讯飞凭证（推荐）
-2. 或检查 `.env` 文件是否存在且凭证正确
-3. 确认已在讯飞控制台开通「语音听写」和「超拟人语音合成」服务
-4. 确认 Qt Multimedia 和 WebSockets 模块已安装
-
-**Windows 语音输入问题**：
-
-当前版本语音输入（ASR）在 Windows 上暂不支持，这是由于 Windows Media Foundation 音频子系统与 Qt 6
-QAudioSource 的兼容性问题。后续版本会尝试修复。
-
-临时解决方案：
-
-- 使用文字输入代替语音输入
-- 但语音播报（TTS）功能应该正常可用
-
-### 编译找不到 WebSockets
-
-**问题**：`Could NOT find Qt6WebSockets`
-
-**解决**：安装 Qt WebSockets 模块（见上方「安装依赖补充说明」）
-
-### 多会话数据丢失
-
-**问题**：切换会话后发现对话历史消失
-
-**解决**：
-
-1. 检查 `sessions.json` 和 `session_<id>.json` 文件是否存在
-2. 确认切换会话前数据已自动保存
-3. 避免手动删除会话数据文件
-
-### 记忆未被记录
-
-**问题**：AI 没有记住之前透露的信息
-
-**解决**：
-
-1. 检查 `memory.md` 文件是否有内容（位于用户数据目录）
-2. 确认 AI 回复中是否包含 `[更新记忆:xxx]` 标记
-3. 部分模型不支持输出特殊标记，可尝试更换模型
-4. 在 `prompts/<语言>/girlfriend.md` 中强调记忆规则，引导 AI 输出标记
+> 详见 [docs/user/USAGE_zh_CN.md](docs/user/USAGE_zh_CN.md) 的故障排除章节。
 
 ---
 

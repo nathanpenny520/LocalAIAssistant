@@ -2,8 +2,7 @@
 
 ## 概述
 
-本地AI助手是一款基于 Qt
-6 的跨平台桌面 AI 应用，支持 GUI 图形界面和 CLI 命令行两种模式，内置 AI 女友语音交互模块。
+本地AI助手是一款基于 Qt6 的跨平台桌面 AI 应用，支持 GUI 图形界面和 CLI 命令行两种模式，内置 AI 女友语音交互模块。
 
 ### 主要功能
 
@@ -63,8 +62,8 @@ build\LocalAIAssistant.exe --debug
 
 | 格式                    | 说明                     |
 | ----------------------- | ------------------------ |
-| `.txt`, `.md`           | 文本文件                 |
-| `.png`, `.jpg`, `.jpeg` | 图片（需要模型支持识图） |
+| `.txt`, `.md`, `.docx`  | 文本文件（还支持 `.cpp`、`.py`、`.json`、`.html` 等） |
+| `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`, `.svg` | 图片（需要模型支持识图） |
 | `.pdf`                  | PDF 文档                 |
 
 ### 会话管理
@@ -80,8 +79,8 @@ build\LocalAIAssistant.exe --debug
 
 | 快捷键         | 功能                  |
 | -------------- | --------------------- |
-| `Ctrl/Cmd + N` | 新建会话              |
 | `Ctrl/Cmd + G` | 打开/关闭 AI 女友窗口 |
+| `Ctrl/Cmd + H` | 切换历史面板显示      |
 | `Enter`        | 发送消息              |
 
 ---
@@ -101,6 +100,8 @@ build\LocalAIAssistant.exe --debug
 | **流式输出** | 启用实时逐字回复                                                       |
 | **主题**     | 亮色 / 暗色 / 跟随系统                                                 |
 | **语言**     | 界面语言（中文 / English）                                             |
+
+> **CLI 专属设置**：`temperature`、`topP`、`maxTokens`、`maxContext` 仅可通过 CLI 配置（`config` 命令），GUI 设置界面不包含这些选项。
 
 ### 知识库选项卡
 
@@ -160,7 +161,7 @@ build\LocalAIAssistant.exe --debug
 
 1. 打开设置 → **知识库** 选项卡
 2. 点击 **导入文档到知识库**
-3. 选择 `.txt`、`.md`、`.pdf` 或 `.docx` 文件
+3. 选择支持的文档文件（`.txt`、`.md`、`.pdf`、`.docx`、`.cpp`、`.py`、`.json`、`.html` 等 70+ 种格式）
 
 文档将自动切分为片段、向量化并建立索引。
 
@@ -184,7 +185,7 @@ build\LocalAIAssistant.exe --debug
 | 等级             | 类型     | 说明               |
 | ---------------- | -------- | ------------------ |
 | Level 1 (Belle)  | 静态 PNG | 经典风格           |
-| Level 2 (Hot)    | 静态 PNG | 更加火辣           |
+| Level 2 (Hot)    | 静态 PNG | 更加动人           |
 | Level 3 (Hotter) | MP4 视频 | 动态视频，跃然屏上 |
 
 > **Level
@@ -243,6 +244,16 @@ AI 女友通过讯飞开放平台 WebSocket API 支持语音输入（语音识�
 > - **Windows**：仅语音输出（TTS）；语音输入暂不支持 ⚠️
 > - **Linux**：仅语音输出（TTS）；语音输入未充分测试
 
+#### TTS 音色
+
+默认音色为 `x6_lingxiaoxuan_pro`（超拟人女声）。可在 `.env` 中通过 `XFYUN_VOICE_TYPE` 切换：
+
+| 音色参数              | 名称   | 特点                     |
+| --------------------- | ------ | ------------------------ |
+| `x6_lingxiaoxuan_pro` | 凌小璇 | 超拟人女声 ⭐默认        |
+| `x6_wumeinv_pro`      | 妩媚姐 | 自然逼真、情感丰富       |
+| `x6_lingfeiyi_pro`    | 聆飞逸 | 青春温暖男声 ⭐推荐      |
+
 ### 自定义人设
 
 编辑 `prompts/<语言>/girlfriend.md`（如 `prompts/zh_CN/girlfriend.md`）
@@ -253,6 +264,7 @@ AI 女友通过讯飞开放平台 WebSocket API 支持语音输入（语音识�
 | `{{user_nickname}}` | 用户昵称，默认"你"              |
 | `{{mood_hint}}`     | 根据心情自动填充提示词          |
 | `{{time_context}}`  | 根据当前时间自动填充场景描述    |
+| `{{current_datetime}}` | 当前日期时间                 |
 | `{{user_memories}}` | 从 `girlfriend_memory.md` 注入用户记忆档案 |
 
 文件底部的 `<!-- CONFIG_START -->` 配置块可自定义心情和时间提示词文本，格式为
@@ -260,21 +272,25 @@ AI 女友通过讯飞开放平台 WebSocket API 支持语音输入（语音识�
 
 | 配置键           | 触发条件   | 默认值示例                |
 | ---------------- | ---------- | ------------------------- |
+| `mood_prefix`    | —          | 当前心情：                |
 | `mood_low`       | 心情 < 0.3 | 心情很差，说话带着哭腔... |
 | `mood_mid`       | 心情 < 0.5 | 有点不开心，说话简短...   |
 | `mood_high`      | 心情 > 0.8 | 开开心心，语气特别甜...   |
+| `time_prefix`    | —          | 当前时间：                |
 | `time_morning`   | 6-10 点    | 早上%1点，用户刚起床...   |
 | `time_noon`      | 10-14 点   | 中午%1点，该吃午饭了      |
 | `time_evening`   | 18-22 点   | 晚上%1点，用户可能在休息  |
 | `time_night`     | 22-6 点    | 深夜%1点，用户该睡觉了... |
 | `time_afternoon` | 14-18 点   | 下午%1点                  |
+| `datetime_prefix` | —         | Current date and time:    |
+| `memory_header`  | —          | ## 关于用户的记忆         |
 
 修改等号右侧文本即可自定义提示词，`%1`
 会被替换为当前小时数。若删除整个 CONFIG 块，程序会使用内置默认值。
 
 ### 记忆系统
 
-AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `girlfriend_memory.md` 中，跨会话引用。
+AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在用户数据目录下的 `girlfriend/girlfriend_memory.md` 中，跨会话引用。（详见「数据存储位置」章节）
 
 ---
 
@@ -306,7 +322,10 @@ AI 女友通过持久化记忆系统记住关于你的信息。记忆存储在 `
 | `/confirm`     | 确认执行待定任务计划 |
 | `/cancel`      | 取消待定任务计划     |
 | `/undo`        | 撤销上次操作         |
-| `/exit`        | 退出程序             |
+| `/stream`      | 切换流式输出开关     |
+| `/clear`       | 清屏                 |
+| `/search <关键词>` | 搜索当前会话消息 |
+| `/exit`        | 退出程序（`/quit` 等效） |
 
 ### 单次查询
 
@@ -620,3 +639,17 @@ ask 模式响应内联 `[Y/n]` 提示，GUI 弹出确认对话框。CLI ask 模�
 1. 在 ⚙️ →「配置语音...」中检查讯飞凭证
 2. 确认讯飞账号中已开通相应服务
 3. 检查网络是否能访问讯飞服务器
+
+---
+
+## WSL（Windows Subsystem for Linux）使用说明
+
+WSL 下使用时，请注意：
+
+- **GUI 模式**：需要安装 Windows X 服务器（如 VcXsrv、X410）或使用 WSLg（Windows 11）。启动前设置 `export DISPLAY=:0`。
+- **CLI 模式**：开箱即用，无需额外配置。推荐 WSL 用户使用 CLI 模式：
+  ```bash
+  ./LocalAIAssistant-CLI chat
+  ```
+- **语音功能**：WSL 下语音输入/输出需要额外的音频设备配置，暂未充分测试。
+- **.env 配置**：在可执行文件同目录放置 `.env` 文件，CLI 启动时自动加载。

@@ -2,8 +2,7 @@
 
 ## Overview
 
-Local AI Assistant is a cross-platform desktop AI assistant powered by Qt 6. It provides AI chat
-through both GUI and CLI modes, plus an AI Girlfriend module with voice interaction.
+Local AI Assistant is a cross-platform desktop AI assistant powered by Qt 6. It provides AI chat through both GUI and CLI modes, plus an AI Girlfriend module with voice interaction.
 
 ### Key Features
 
@@ -63,8 +62,8 @@ Click the **📎** button to attach files before sending:
 
 | Format                  | Notes                              |
 | ----------------------- | ---------------------------------- |
-| `.txt`, `.md`           | Text files                         |
-| `.png`, `.jpg`, `.jpeg` | Images (model must support vision) |
+| `.txt`, `.md`, `.docx`  | Text files (also `.cpp`, `.py`, `.json`, `.html`, etc.) |
+| `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`, `.svg` | Images (model must support vision) |
 | `.pdf`                  | PDF documents                      |
 
 ### Sessions
@@ -80,8 +79,8 @@ The left panel shows your conversation sessions:
 
 | Shortcut       | Action                          |
 | -------------- | ------------------------------- |
-| `Ctrl/Cmd + N` | New session                     |
 | `Ctrl/Cmd + G` | Open/close AI Girlfriend window |
+| `Ctrl/Cmd + H` | Toggle history panel            |
 | `Enter`        | Send message                    |
 
 ---
@@ -101,6 +100,9 @@ Open settings from the menu bar or toolbar gear icon.
 | **Streaming**    | Enable real-time token-by-token response                                           |
 | **Theme**        | Light / Dark / Follow System                                                       |
 | **Language**     | Interface language (Chinese / English)                                             |
+
+> **CLI-only settings**: `temperature`, `topP`, `maxTokens`, `maxContext` are only configurable via
+> CLI (`config` command). They are not exposed in the GUI settings dialog.
 
 ### Knowledge Base Tab
 
@@ -160,7 +162,7 @@ The knowledge base lets you search documents using AI-powered semantic retrieval
 
 1. Open Settings → **Knowledge Base** tab
 2. Click **Import Documents**
-3. Select `.txt`, `.md`, `.pdf`, or `.docx` files
+3. Select supported files (`.txt`, `.md`, `.pdf`, `.docx`, `.cpp`, `.py`, `.json`, `.html`, and 70+ other formats)
 
 Documents are automatically split into chunks, vectorized, and indexed.
 
@@ -254,6 +256,16 @@ your speakers.
 > - **Windows**: Voice output only (TTS); voice input not yet supported ⚠️
 > - **Linux**: Voice output only (TTS); voice input untested
 
+#### TTS Voice Selection
+
+Default voice is `x6_lingxiaoxuan_pro` (ultra-realistic female). Change via `XFYUN_VOICE_TYPE` in `.env`:
+
+| Voice Parameter       | Name          | Characteristics               |
+| --------------------- | ------------- | ----------------------------- |
+| `x6_lingxiaoxuan_pro` | Ling Xiaoxuan | Ultra-realistic female ⭐Default |
+| `x6_wumeinv_pro`      | Wumei Sister  | Natural, rich emotion         |
+| `x6_lingfeiyi_pro`    | Lingfeiyi     | Youthful warm male ⭐Recommended |
+
 ### Customizing Personality
 
 Edit `prompts/<lang>/girlfriend.md` (e.g., `prompts/en/girlfriend.md`) to customize the AI
@@ -264,6 +276,7 @@ girlfriend's personality, speaking style, and behavior. Template variables are a
 | `{{user_nickname}}` | User's nickname, defaults to "你"             |
 | `{{mood_hint}}`     | Auto-filled mood hint based on mood value     |
 | `{{time_context}}`  | Auto-filled time-of-day context               |
+| `{{current_datetime}}` | Current date and time                      |
 | `{{user_memories}}` | Injected user memory archive from `girlfriend_memory.md` |
 
 The `<!-- CONFIG_START -->` block at the bottom of the file allows customizing mood and time hint
@@ -271,14 +284,18 @@ text in `key=value` format:
 
 | Config Key       | Trigger    | Example Default           |
 | ---------------- | ---------- | ------------------------- |
+| `mood_prefix`    | —          | 当前心情：                |
 | `mood_low`       | mood < 0.3 | 心情很差，说话带着哭腔... |
 | `mood_mid`       | mood < 0.5 | 有点不开心，说话简短...   |
 | `mood_high`      | mood > 0.8 | 开开心心，语气特别甜...   |
+| `time_prefix`    | —          | 当前时间：                |
 | `time_morning`   | 6-10 AM    | 早上%1点，用户刚起床...   |
 | `time_noon`      | 10 AM-2 PM | 中午%1点，该吃午饭了      |
 | `time_evening`   | 6-10 PM    | 晚上%1点，用户可能在休息  |
 | `time_night`     | 10 PM-6 AM | 深夜%1点，用户该睡觉了... |
 | `time_afternoon` | 2-6 PM     | 下午%1点                  |
+| `datetime_prefix` | —         | Current date and time:    |
+| `memory_header`  | —          | ## 关于用户的记忆         |
 
 Edit the text after `=` to customize hints. `%1` is replaced with the current hour. If the entire
 CONFIG block is removed, built-in defaults are used.
@@ -286,7 +303,8 @@ CONFIG block is removed, built-in defaults are used.
 ### Memory System
 
 The AI girlfriend remembers information about you through a persistent memory system. Memories are
-stored in `girlfriend_memory.md` and referenced across sessions.
+stored in `girlfriend/girlfriend_memory.md` under the app data directory and referenced across
+sessions. (See "Data Storage Location" in the README.)
 
 ---
 
@@ -318,7 +336,10 @@ Run the command-line interface:
 | `/confirm`     | Confirm pending task plan |
 | `/cancel`      | Cancel pending task plan  |
 | `/undo`        | Undo last operation       |
-| `/exit`        | Exit program              |
+| `/stream`      | Toggle streaming on/off       |
+| `/clear`       | Clear screen                  |
+| `/search <keyword>` | Search current session messages |
+| `/exit`        | Exit program (`/quit` also works) |
 
 ### One-shot Queries
 
@@ -638,3 +659,17 @@ defense in depth — use this as a safety feature, not a bug.
 1. Verify Xunfei credentials in ⚙️ → **Configure Voice...**
 2. Ensure the services are enabled in your Xunfei account
 3. Check your network can reach Xunfei servers
+
+---
+
+## WSL (Windows Subsystem for Linux) Notes
+
+When using under WSL, please note:
+
+- **GUI Mode**: Requires a Windows X server (e.g., VcXsrv, X410) or WSLg (Windows 11). Set `export DISPLAY=:0` before launching.
+- **CLI Mode**: Works out of the box, no extra setup needed. Recommended for WSL users:
+  ```bash
+  ./LocalAIAssistant-CLI chat
+  ```
+- **Voice Features**: Voice input/output in WSL requires additional audio device configuration and is not yet fully tested.
+- **.env Configuration**: Place a `.env` file next to the executable. The CLI auto-loads it on startup.
