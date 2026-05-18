@@ -10,6 +10,7 @@
 #include <QTimer>
 
 #include "filemanager.h"
+#include "version.h"
 
 #ifdef USE_READLINE
 #include <readline/history.h>
@@ -90,7 +91,7 @@ int CLIApplication::run(int argc, char* argv[]) {
 
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("LocalAIAssistant");
-    QCoreApplication::setApplicationVersion("1.0.0");
+    QCoreApplication::setApplicationVersion(APP_VERSION);
 
     m_networkManager = new NetworkManager(this);
     m_fileManager = new FileManager(this);
@@ -211,7 +212,7 @@ int CLIApplication::run(int argc, char* argv[]) {
 }
 
 void CLIApplication::printUsage() {
-    std::cout << "\nLocalAIAssistant - CLI v1.0.0\n\n";
+    std::cout << "\nLocalAIAssistant - CLI v" << APP_VERSION << "\n\n";
     std::cout << "Usage (ai is alias for ./LocalAIAssistant-CLI):\n";
     std::cout << "  ai chat                    Enter interactive chat mode\n";
     std::cout << "  ai ask <question>          Single query\n";

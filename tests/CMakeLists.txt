@@ -19,6 +19,7 @@ macro(add_unit_test TEST_NAME TEST_SOURCE)
         ${ARGN}
     )
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    set_tests_properties(${TEST_NAME} PROPERTIES LABELS unit)
 endmacro()
 
 add_unit_test(test_safetychecker test_safetychecker.cpp TaskModule)
@@ -26,6 +27,10 @@ add_unit_test(test_agentloop test_agentloop.cpp TaskModule Qt6::Widgets)
 add_unit_test(test_commandexecutor test_commandexecutor.cpp TaskModule Qt6::Widgets)
 add_unit_test(test_sessionmanager test_sessionmanager.cpp LocalAIAssistantCore Qt6::Network)
 add_unit_test(test_fileparser test_fileparser.cpp LocalAIAssistantCore Qt6::Network)
+add_unit_test(test_vectordb test_vectordb.cpp KnowledgeModule)
+add_unit_test(test_embedder test_embedder.cpp KnowledgeModule)
+add_unit_test(test_knowledgebase test_knowledgebase.cpp KnowledgeModule Qt6::Widgets)
+add_unit_test(test_apiprovider test_apiprovider.cpp LocalAIAssistantCore Qt6::Network)
 
 # ── UI/Theme tests ──────────────────────────────────────────
 # UI sources are not in a shared library, so compile them directly.
@@ -40,6 +45,7 @@ target_include_directories(test_apptheme PRIVATE
 )
 target_link_libraries(test_apptheme PRIVATE Qt6::Test Qt6::Widgets)
 add_test(NAME test_apptheme COMMAND test_apptheme)
+set_tests_properties(test_apptheme PROPERTIES LABELS unit)
 
 add_executable(test_stylesheetmanager
     test_stylesheetmanager.cpp
@@ -51,6 +57,7 @@ target_include_directories(test_stylesheetmanager PRIVATE
 )
 target_link_libraries(test_stylesheetmanager PRIVATE Qt6::Test Qt6::Widgets)
 add_test(NAME test_stylesheetmanager COMMAND test_stylesheetmanager)
+set_tests_properties(test_stylesheetmanager PROPERTIES LABELS unit)
 
 add_executable(test_markdownrenderer
     test_markdownrenderer.cpp
@@ -63,3 +70,4 @@ target_include_directories(test_markdownrenderer PRIVATE
 )
 target_link_libraries(test_markdownrenderer PRIVATE Qt6::Test Qt6::Widgets)
 add_test(NAME test_markdownrenderer COMMAND test_markdownrenderer)
+set_tests_properties(test_markdownrenderer PROPERTIES LABELS unit)

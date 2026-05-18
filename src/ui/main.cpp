@@ -6,6 +6,7 @@
 
 #include "mainwindow.h"
 #include "translationmanager.h"
+#include "version.h"
 
 #ifdef Q_OS_WIN
 #include <cstring>
@@ -62,7 +63,7 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     QApplication::setApplicationName("LocalAIAssistant");
-    QApplication::setApplicationVersion("1.1.0");
+    QApplication::setApplicationVersion(APP_VERSION);
 
     // Explicity set app icon as fallback on macOS
     QString iconPath = QCoreApplication::applicationDirPath() + "/../Resources/app.icns";
@@ -77,6 +78,8 @@ int main(int argc, char* argv[]) {
     if (language == "system") {
         locale = QLocale::system().name();
         if (locale.startsWith("zh")) {
+            // No Traditional Chinese (zh_TW/zh_HK) translations exist yet;
+            // all Chinese variants intentionally fall back to Simplified Chinese.
             locale = "zh_CN";
         } else {
             locale = "en";

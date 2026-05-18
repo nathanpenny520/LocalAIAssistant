@@ -8,6 +8,23 @@ set -euo pipefail
 # Usage: ./scripts/setup.sh
 # ============================================================
 
+# Print help and exit
+show_help() {
+    echo "Usage: ./scripts/setup.sh [OPTIONS]"
+    echo ""
+    echo "First-time setup script for LocalAIAssistant."
+    echo "Checks build dependencies (CMake, C++ compiler, Qt 6, optional libs)"
+    echo "and creates .env from template."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help message and exit"
+    exit 0
+}
+
+case "${1:-}" in
+    -h|--help) show_help ;;
+esac
+
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

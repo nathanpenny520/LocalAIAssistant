@@ -13,10 +13,23 @@ set -euo pipefail
 # ============================================================
 
 CHECK_MODE=false
-if [[ "${1:-}" == "--check" ]]; then
-    CHECK_MODE=true
-    shift
-fi
+case "${1:-}" in
+    --check)
+        CHECK_MODE=true
+        ;;
+    -h|--help)
+        echo "Usage: ./scripts/format.sh [OPTIONS]"
+        echo ""
+        echo "Run all project formatters: clang-format, cmake-format, shfmt, prettier."
+        echo ""
+        echo "Options:"
+        echo "  --check       Dry-run: exit non-zero if any file would change"
+        echo "  -h, --help    Show this help message and exit"
+        echo ""
+        echo "Without flags, formats all files in-place."
+        exit 0
+        ;;
+esac
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
