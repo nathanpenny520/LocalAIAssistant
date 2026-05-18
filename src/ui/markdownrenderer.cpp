@@ -468,7 +468,7 @@ QString MarkdownRenderer::highlightCpp(const QString& code, const AppTheme& t) {
     }
 
     // Preprocessor directives - process before comments
-    QRegularExpression preprocessor("#[^\\n]*");
+    QRegularExpression preprocessor("#(?![0-9a-fA-F]{6})[^\\n]*");
     replaceWithStyle(preprocessor, t.syntaxPreprocessor.name());
 
     // Comments - process LAST to avoid matching color codes in span tags

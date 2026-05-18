@@ -82,23 +82,26 @@ QString CommandExecutor::expandPath(const QString& path) {
     // Expand Windows-style %VAR% environment variables (e.g. %APPDATA%, %USERPROFILE%)
     static QRegularExpression winEnvVar(QStringLiteral("%([A-Za-z_][A-Za-z0-9_]*)%"));
     QRegularExpressionMatch m;
-    while ((m = winEnvVar.match(expanded)).hasMatch()) {
+    int maxIter = 100;
+    while ((m = winEnvVar.match(expanded)).hasMatch() && --maxIter >= 0) {
         QString varName = m.captured(1);
         QString varValue = QProcessEnvironment::systemEnvironment().value(varName);
-        if (varValue.isEmpty()) break;  // unknown variable, stop to avoid infinite loop
+        if (varValue.isEmpty()) break;
         expanded.replace(m.capturedStart(), m.capturedLength(), varValue);
     }
 
     // Expand Unix-style $VAR and ${VAR} environment variables
     static QRegularExpression unixEnvVar(QStringLiteral("\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}"));
-    while ((m = unixEnvVar.match(expanded)).hasMatch()) {
+    maxIter = 100;
+    while ((m = unixEnvVar.match(expanded)).hasMatch() && --maxIter >= 0) {
         QString varName = m.captured(1);
         QString varValue = QProcessEnvironment::systemEnvironment().value(varName);
         if (varValue.isEmpty()) break;
         expanded.replace(m.capturedStart(), m.capturedLength(), varValue);
     }
     static QRegularExpression unixEnvVarShort(QStringLiteral("\\$([A-Za-z_][A-Za-z0-9_]*)"));
-    while ((m = unixEnvVarShort.match(expanded)).hasMatch()) {
+    maxIter = 100;
+    while ((m = unixEnvVarShort.match(expanded)).hasMatch() && --maxIter >= 0) {
         QString varName = m.captured(1);
         QString varValue = QProcessEnvironment::systemEnvironment().value(varName);
         if (varValue.isEmpty()) break;
