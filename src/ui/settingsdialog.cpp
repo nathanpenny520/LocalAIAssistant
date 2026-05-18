@@ -18,6 +18,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "../knowledge/docimporter.h"
 #include "../knowledge/embedder.h"
 #include "knowledgebase.h"
 #include "stylesheetmanager.h"
@@ -161,9 +162,11 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     });
 
     connect(importBtn, &QPushButton::clicked, this, [this, kb, updateKbStatus, importBtn]() {
-        QStringList files = QFileDialog::getOpenFileNames(this, tr("选择要导入的文档"), QString(),
-                                                          tr("文档文件 (*.txt *.md *.pdf "
-                                                             "*.docx);;所有文件 (*)"));
+        QStringList exts = DocImporter::supportedExtensions();
+        QStringList patterns;
+        for (const QString& ext : exts) patterns.append(QStringLiteral("*.") + ext);
+        QString filter = tr("支持的文档 (%1);;所有文件 (*)").arg(patterns.join(' '));
+        QStringList files = QFileDialog::getOpenFileNames(this, tr("选择要导入的文档"), QString(), filter);
         if (files.isEmpty()) return;
 
         importBtn->setEnabled(false);
